@@ -1,0 +1,228 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #00374e;
+  --color-primary-container: #0b4f6c;
+  --color-on-primary: #ffffff;
+  --color-secondary: #635d59;
+  --color-background: #f7f9fb;
+  --color-surface: #f7f9fb;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f2f4f6;
+  --color-surface-container: #eceef0;
+  --color-surface-container-high: #e6e8ea;
+  --color-surface-container-highest: #e0e3e5;
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #41484d;
+  --color-outline: #71787e;
+  --color-outline-variant: #c0c7ce;
+  --color-tertiary: #003c27;
+  --color-tertiary-container: #005539;
+  --color-error: #ba1a1a;
+}
+
+:root {
+  --primary: #00374e;
+  --primary-container: #0b4f6c;
+  --on-primary: #ffffff;
+  --background: #f7f9fb;
+  --surface: #f7f9fb;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f2f4f6;
+  --surface-container: #eceef0;
+  --surface-container-high: #e6e8ea;
+  --on-surface: #191c1e;
+  --on-surface-variant: #41484d;
+  --outline: #71787e;
+  --outline-variant: #c0c7ce;
+  --tertiary: #003c27;
+  --tertiary-container: #005539;
+  --error: #ba1a1a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  direction: rtl;
+  text-align: right;
+  background-color: var(--background);
+  color: var(--on-surface);
+  font-family: var(--font-ibm-plex), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glassmorphism Classes from Stitch */
+.glassmorphism-overlay {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 12px 36px 0 rgba(11, 79, 108, 0.12);
+}
+
+.agency-card {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.agency-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 35px 0 rgba(11, 79, 108, 0.15);
+  border-color: rgba(11, 79, 108, 0.3);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.agency-card:active {
+  transform: scale(0.98);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ========================================================
+   Dark Mode Theme — Hawiyati Deep Obsidian & Petrol Blue
+   ======================================================== */
+html.dark {
+  color-scheme: dark;
+  --background: #02121e;
+  --surface: #061c2d;
+  --surface-container-lowest: #082337;
+  --surface-container-low: #0b2a42;
+  --surface-container: #0f3450;
+  --surface-container-high: #143e5e;
+  --on-surface: #f1f5f9;
+  --on-surface-variant: #94a3b8;
+  --outline: #64748b;
+  --outline-variant: #1e3a52;
+}
+
+html.dark body {
+  background-color: #02121e !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: #041724;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #0b4f6c;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #146a90;
+}
+
+/* Seamless Dark Mode Utility Overrides across all 5 portals */
+html.dark .bg-\[\#f7f9fb\] {
+  background-color: #02121e !important;
+}
+
+html.dark .bg-white {
+  background-color: #072235 !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark header.bg-white {
+  background-color: #041827 !important;
+  border-color: rgba(11, 79, 108, 0.4) !important;
+}
+
+html.dark .border-slate-200,
+html.dark .border-gray-200,
+html.dark .border-slate-100,
+html.dark .border-\[\#c0c7ce\]\/20,
+html.dark .border-\[\#c0c7ce\]\/30,
+html.dark .border-\[\#c0c7ce\]\/40,
+html.dark .border-\[\#c0c7ce\]\/60 {
+  border-color: rgba(11, 79, 108, 0.4) !important;
+}
+
+html.dark .text-\[\#191c1e\],
+html.dark .text-slate-900,
+html.dark .text-gray-900 {
+  color: #f8fafc !important;
+}
+
+html.dark .text-\[\#00374e\] {
+  color: #8ac0e1 !important;
+}
+
+html.dark .text-\[\#41484d\],
+html.dark .text-gray-500,
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .bg-gray-100,
+html.dark .bg-slate-50,
+html.dark .bg-slate-100,
+html.dark .bg-\[\#f2f4f6\],
+html.dark .bg-\[\#eceef0\],
+html.dark .bg-\[\#eceef0\]\/80 {
+  background-color: #0b2b40 !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark .hover\:bg-gray-100:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-\[\#f2f4f6\]:hover {
+  background-color: #0e3752 !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #08253a !important;
+  color: #f8fafc !important;
+  border-color: rgba(11, 79, 108, 0.6) !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(11, 79, 108, 0.3) !important;
+}
+
+html.dark table th {
+  background-color: #051b2a !important;
+  color: #8ac0e1 !important;
+}
+
+html.dark table tr:hover {
+  background-color: #092c44 !important;
+}
+
+html.dark .shadow-xs,
+html.dark .shadow-sm,
+html.dark .shadow-md,
+html.dark .shadow-xl {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45) !important;
+}

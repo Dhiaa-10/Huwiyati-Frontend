@@ -1,0 +1,235 @@
+[
+  {
+    "id": "med-rec-001",
+    "personId": "c1111111-0000-4000-a000-000000000001",
+    "patientNationalNumber": "01010045678",
+    "patientFullName": "عبدالله محمد صالح الدوسري",
+    "patientGender": "ذكر",
+    "patientDateOfBirth": "1988-07-15",
+    "bloodGroup": "O+",
+    "allergies": [
+      "حساسية مفرطة من البنسلين ومشتقاته (Penicillin Allergy)"
+    ],
+    "emergencyContactPhone": "+967 771234890",
+    "organizationBranchId": "22222222-bbbb-cccc-dddd-000000000003",
+    "hospitalName": "هيئة مستشفى الثورة العام النموذجي - صنعاء",
+    "admissionDate": "2024-05-10",
+    "dischargeDate": "2024-05-12",
+    "isVisibleToPerson": true,
+    "diagnoses": [
+      {
+        "id": "diag-001",
+        "medicalRecordId": "med-rec-001",
+        "diagnosisName": "فحص طبي دوري وتقييم وظائف حيوية",
+        "icdCode": "Z00.0",
+        "description": "المؤشرات الحيوية وضغط الدم وتخطيط القلب ضمن المعدلات الطبيعية الممتازة.",
+        "doctorName": "د. سامي فؤاد المنصوب (استشاري باطنية)",
+        "diagnosedAt": "2024-05-11"
+      }
+    ],
+    "operations": [],
+    "chronicDiseases": [],
+    "createdAt": "2024-05-10T09:00:00Z"
+  },
+  {
+    "id": "med-rec-002",
+    "personId": "c1111111-0000-4000-a000-000000000002",
+    "patientNationalNumber": "01010078901",
+    "patientFullName": "أروى عبدالرحمن يحيى الأنسي",
+    "patientGender": "أنثى",
+    "patientDateOfBirth": "1994-03-22",
+    "bloodGroup": "A+",
+    "allergies": [
+      "مركبات الأسبرين (Aspirin Sensitivity)"
+    ],
+    "emergencyContactPhone": "+967 733456789",
+    "organizationBranchId": "22222222-bbbb-cccc-dddd-000000000003",
+    "hospitalName": "هيئة مستشفى الثورة العام النموذجي - صنعاء",
+    "admissionDate": "2023-11-04",
+    "dischargeDate": "2023-11-07",
+    "isVisibleToPerson": true,
+    "diagnoses": [
+      {
+        "id": "diag-002",
+        "medicalRecordId": "med-rec-002",
+        "diagnosisName": "ارتفاع ضغط الدم الشرياني الأساسي",
+        "icdCode": "I10",
+        "description": "ارتفاع الضغط للمرحلة الأولى، تم ضبط خطة علاجية ومتابعة دورية.",
+        "doctorName": "د. جميلة عبدالكريم الصبري (أخصائية قلب)",
+        "diagnosedAt": "2023-11-05"
+      }
+    ],
+    "operations": [
+      {
+        "id": "op-001",
+        "medicalRecordId": "med-rec-002",
+        "operationName": "استئصال الزائدة الدودية بالمنظار (Laparoscopic Appendectomy)",
+        "operationDate": "2021-08-19",
+        "surgeonName": "د. نجيب طه العريقي",
+        "hospitalName": "مستشفى الجمهورية التعليمي - عدن"
+      }
+    ],
+    "chronicDiseases": [
+      {
+        "id": "chron-001",
+        "medicalRecordId": "med-rec-002",
+        "diseaseName": "ارتفاع ضغط الدم (Hypertension)",
+        "icdCode": "I10",
+        "diagnosedDate": "2023-11-05",
+        "status": "Managed"
+      }
+    ],
+    "createdAt": "2023-11-04T14:30:00Z"
+  },
+  {
+    "id": "med-rec-003",
+    "personId": "c1111111-0000-4000-a000-000000000003",
+    "patientNationalNumber": "02010012345",
+    "patientFullName": "طارق سالم عوض بافضل",
+    "patientGender": "ذكر",
+    "patientDateOfBirth": "1990-11-05",
+    "bloodGroup": "B+",
+    "allergies": [],
+    "emergencyContactPhone": "+967 711998877",
+    "organizationBranchId": "22222222-bbbb-cccc-dddd-000000000011",
+    "hospitalName": "مستشفى ابن سينا العام - المكلا",
+    "admissionDate": "2024-01-18",
+    "dischargeDate": "2024-01-22",
+    "isVisibleToPerson": true,
+    "diagnoses": [
+      {
+        "id": "diag-003",
+        "medicalRecordId": "med-rec-003",
+        "diagnosisName": "داء السكري غير المعتمد على الأنسولين (النوع الثاني)",
+        "icdCode": "E11.9",
+        "description": "السكر التراكمي HbA1c بنسبة 7.8%، منتظم على منظمات السكر الفموية.",
+        "doctorName": "د. وليد عمر باحشوان (استشاري الغدد الصماء)",
+        "diagnosedAt": "2024-01-19"
+      }
+    ],
+    "operations": [
+      {
+        "id": "op-002",
+        "medicalRecordId": "med-rec-003",
+        "operationName": "قسطرة قلبية تشخيصية وعلاجية مع تركيب دعامة شريانية",
+        "operationDate": "2022-04-14",
+        "surgeonName": "د. هيثم خالد باوزير",
+        "hospitalName": "مركز حضرموت للقلب"
+      }
+    ],
+    "chronicDiseases": [
+      {
+        "id": "chron-002",
+        "medicalRecordId": "med-rec-003",
+        "diseaseName": "السكري من النوع الثاني (Type 2 Diabetes)",
+        "icdCode": "E11.9",
+        "diagnosedDate": "2020-02-10",
+        "status": "Active"
+      }
+    ],
+    "createdAt": "2024-01-18T11:00:00Z"
+  },
+  {
+    "id": "med-rec-004",
+    "personId": "c1111111-0000-4000-a000-000000000004",
+    "patientNationalNumber": "03010034567",
+    "patientFullName": "ياسر عبدالوهاب سعيد الشجاع",
+    "patientGender": "ذكر",
+    "patientDateOfBirth": "1985-09-30",
+    "bloodGroup": "AB+",
+    "allergies": [
+      "مركبات السلفا (Sulfonamides)"
+    ],
+    "emergencyContactPhone": "+967 775544332",
+    "organizationBranchId": "22222222-bbbb-cccc-dddd-000000000012",
+    "hospitalName": "مستشفى الجمهورية - تعز",
+    "admissionDate": "2024-03-02",
+    "dischargeDate": "2024-03-03",
+    "isVisibleToPerson": true,
+    "diagnoses": [
+      {
+        "id": "diag-004",
+        "medicalRecordId": "med-rec-004",
+        "diagnosisName": "نوبة ربو شعبي حادة متوسطة الشدة",
+        "icdCode": "J45.9",
+        "description": "تم إعطاء جلسات تبخير موسعة للشعب الهوائية واستقرت نسبة الأكسجين 98%.",
+        "doctorName": "د. ماجد علي شرف الدين (أخصائي صدرية)",
+        "diagnosedAt": "2024-03-02"
+      }
+    ],
+    "operations": [],
+    "chronicDiseases": [
+      {
+        "id": "chron-003",
+        "medicalRecordId": "med-rec-004",
+        "diseaseName": "الربو القصبي (Bronchial Asthma)",
+        "icdCode": "J45.9",
+        "diagnosedDate": "2017-09-12",
+        "status": "Controlled"
+      }
+    ],
+    "createdAt": "2024-03-02T16:00:00Z"
+  },
+  {
+    "id": "med-rec-005",
+    "personId": "c1111111-0000-4000-a000-000000000005",
+    "patientNationalNumber": "04010067890",
+    "patientFullName": "نجلاء فارس قاسم الردفاني",
+    "patientGender": "أنثى",
+    "patientDateOfBirth": "1997-12-18",
+    "bloodGroup": "O-",
+    "allergies": [
+      "غبار الطلع الموسمي"
+    ],
+    "emergencyContactPhone": "+967 734991122",
+    "organizationBranchId": "22222222-bbbb-cccc-dddd-000000000013",
+    "hospitalName": "مستشفى الجمهورية التعليمي - عدن",
+    "admissionDate": "2025-07-14",
+    "dischargeDate": "2025-07-15",
+    "isVisibleToPerson": true,
+    "diagnoses": [
+      {
+        "id": "diag-005",
+        "medicalRecordId": "med-rec-005",
+        "diagnosisName": "التهاب حاد في اللوزتين",
+        "icdCode": "J03.9",
+        "description": "التهاب بكتيري حاد مع ارتفاع درجة الحرارة، تم وصف المضادات الحيوية المناسبة.",
+        "doctorName": "د. رنا فارس الشامي (أخصائية أنف وأذن وحنجرة)",
+        "diagnosedAt": "2025-07-14"
+      }
+    ],
+    "operations": [],
+    "chronicDiseases": [],
+    "createdAt": "2025-07-14T10:30:00Z"
+  },
+  {
+    "id": "med-rec-006",
+    "personId": "c1111111-0000-4000-a000-000000000006",
+    "patientNationalNumber": "05010099881",
+    "patientFullName": "هشام نبيل عبده الأكوع",
+    "patientGender": "ذكر",
+    "patientDateOfBirth": "1993-04-09",
+    "bloodGroup": "A-",
+    "allergies": [],
+    "emergencyContactPhone": "+967 779988112",
+    "organizationBranchId": "22222222-bbbb-cccc-dddd-000000000003",
+    "hospitalName": "هيئة مستشفى الثورة العام النموذجي - صنعاء",
+    "admissionDate": "2024-09-01",
+    "dischargeDate": "2024-09-02",
+    "isVisibleToPerson": true,
+    "diagnoses": [
+      {
+        "id": "diag-006",
+        "medicalRecordId": "med-rec-006",
+        "diagnosisName": "كسر في عظمة الساعد الأيسر (Radius Fracture)",
+        "icdCode": "S52.3",
+        "description": "كسر بسيط غير مركب، تم تجبير الجبيرة الجبصية وتوصية بالراحة لأربعة أسابيع.",
+        "doctorName": "د. سعيد علي بن لدغم (جراح عظام)",
+        "diagnosedAt": "2024-09-01"
+      }
+    ],
+    "operations": [],
+    "chronicDiseases": [],
+    "createdAt": "2024-09-01T15:00:00Z"
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "id": "44444444-dddd-eeee-ffff-000000000001",
+    "name": "إصدار بطاقة شخصية ذكية جديدة لأول مرة",
+    "code": "NAT_ID_NEW",
+    "organizationId": "11111111-aaaa-bbbb-cccc-000000000001",
+    "organizationName": "مصلحة الأحوال المدنية والسجل المدني",
+    "description": "طلب إصدار الهوية الوطنية الرقمية الذكية متضمنة الشريحة الإلكترونية والتحقق البايومتري لأول مرة.",
+    "fee": 5500,
+    "processingTimeDays": 3,
+    "isActive": true,
+    "requiredDocuments": ["شهادة الميلاد الأصلية", "تعريف من عاقل الحارة", "صورة بطاقة ولي الأمر"]
+  },
+  {
+    "id": "44444444-dddd-eeee-ffff-000000000002",
+    "name": "تجديد البطاقة الشخصية الذكية",
+    "code": "NAT_ID_RENEW",
+    "organizationId": "11111111-aaaa-bbbb-cccc-000000000001",
+    "organizationName": "مصلحة الأحوال المدنية والسجل المدني",
+    "description": "تجديد صلاحية البطاقة الشخصية المنتهية وتحديث البيانات والصورة الشخصية إلكترونياً.",
+    "fee": 4500,
+    "processingTimeDays": 2,
+    "isActive": true,
+    "requiredDocuments": ["البطاقة الشخصية السابقة", "صورة شخصية حديثة بخلفية بيضاء"]
+  },
+  {
+    "id": "44444444-dddd-eeee-ffff-000000000003",
+    "name": "إصدار بطاقة عائلية إلكترونية",
+    "code": "FAMILY_CARD_NEW",
+    "organizationId": "11111111-aaaa-bbbb-cccc-000000000001",
+    "organizationName": "مصلحة الأحوال المدنية والسجل المدني",
+    "description": "إصدار دفتر العائلة الرقمي وتثبيت قيود الزوجة والأبناء في السجل المدني المركزي.",
+    "fee": 7000,
+    "processingTimeDays": 4,
+    "isActive": true,
+    "requiredDocuments": ["عقد الزواج المعتمد", "بطاقة الزوج", "بطاقة الزوجة"]
+  },
+  {
+    "id": "44444444-dddd-eeee-ffff-000000000004",
+    "name": "إصدار شهادة ميلاد مميكنة",
+    "code": "BIRTH_CERT",
+    "organizationId": "11111111-aaaa-bbbb-cccc-000000000001",
+    "organizationName": "مصلحة الأحوال المدنية والسجل المدني",
+    "description": "استخراج شهادة الميلاد الرسمية برقم وطني دائم بناءً على إشعار الولادة من المستشفى.",
+    "fee": 2000,
+    "processingTimeDays": 1,
+    "isActive": true,
+    "requiredDocuments": ["إشعار الولادة من المستشفى", "بطاقة الأب", "بطاقة الأم"]
+  },
+  {
+    "id": "44444444-dddd-eeee-ffff-000000000005",
+    "name": "إصدار جواز سفر إلكتروني عادي",
+    "code": "PASSPORT_NEW",
+    "organizationId": "11111111-aaaa-bbbb-cccc-000000000002",
+    "organizationName": "مصلحة الهجرة والجوازات والجنسية",
+    "description": "إصدار وثيقة السفر المقروءة آلياً الصادرة وفق معايير منظمة الطيران المدني الدولي (ICAO).",
+    "fee": 12000,
+    "processingTimeDays": 3,
+    "isActive": true,
+    "requiredDocuments": ["البطاقة الشخصية الذكية سارية المفعول", "مؤهل علمي أو تعريف عمل"]
+  },
+  {
+    "id": "44444444-dddd-eeee-ffff-000000000006",
+    "name": "تجديد جواز السفر",
+    "code": "PASSPORT_RENEW",
+    "organizationId": "11111111-aaaa-bbbb-cccc-000000000002",
+    "organizationName": "مصلحة الهجرة والجوازات والجنسية",
+    "description": "تجديد جواز السفر المنتهي الصلاحية أو عند امتلاء صفحات التأشيرات.",
+    "fee": 10000,
+    "processingTimeDays": 2,
+    "isActive": true,
+    "requiredDocuments": ["جواز السفر السابق", "البطاقة الشخصية سارية"]
+  },
+  {
+    "id": "44444444-dddd-eeee-ffff-000000000007",
+    "name": "إصدار رخصة قيادة خصوصي",
+    "code": "DRIVING_LIC_PRIVATE",
+    "organizationId": "11111111-aaaa-bbbb-cccc-000000000003",
+    "organizationName": "الإدارة العامة للمرور",
+    "description": "إصدار رخصة القيادة للمركبات الخفيفة والخاصة بعد اجتياز الفحص الطبي واختبار القيادة.",
+    "fee": 6500,
+    "processingTimeDays": 2,
+    "isActive": true,
+    "requiredDocuments": ["شهادة الفحص الطبي وفصيلة الدم", "اجتياز اختبار الإشارات والقيادة"]
+  },
+  {
+    "id": "44444444-dddd-eeee-ffff-000000000008",
+    "name": "تجديد كرت ملكية مركبة (رخصة سير)",
+    "code": "VEHICLE_REG_RENEW",
+    "organizationId": "11111111-aaaa-bbbb-cccc-000000000003",
+    "organizationName": "الإدارة العامة للمرور",
+    "description": "تجديد سنوي لرخصة سير المركبة وتسديد الرسوم والمخالفات المرورية المسجلة.",
+    "fee": 4000,
+    "processingTimeDays": 1,
+    "isActive": true,
+    "requiredDocuments": ["كرت ملكية المركبة السابق", "شهادة الفحص الفني الدوري"]
+  }
+]

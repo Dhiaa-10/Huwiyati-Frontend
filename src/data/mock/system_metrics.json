@@ -1,0 +1,18 @@
+{
+  "totalCitizens": 3482914,
+  "activeAgencies": 7,
+  "totalAgencies": 8,
+  "todayRequests": 18452,
+  "successRate": 99.8,
+  "pendingVerifications": 142,
+  "systemUptime": "99.98%",
+  "serverLatencyMs": 42,
+  "agencyDistribution": [
+    { "name": "الأحوال المدنية", "count": 8920, "percentage": 48.3, "color": "#00374e" },
+    { "name": "الهجرة والجوازات", "count": 4610, "percentage": 25.0, "color": "#0b4f6c" },
+    { "name": "الإدارة العامة للمرور", "count": 3122, "percentage": 16.9, "color": "#9A762D" },
+    { "name": "المستشفيات والصحة", "count": 1200, "percentage": 6.5, "color": "#005539" },
+    { "name": "العدل والتوثيق", "count": 600, "percentage": 3.3, "color": "#635d59" }
+  ],
+  "recentActivityCount": 128
+}

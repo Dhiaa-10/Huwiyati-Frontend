@@ -1,0 +1,9 @@
+{
+  "maintenanceMode": false,
+  "allowPublicRegistration": true,
+  "maxLoginAttempts": 5,
+  "sessionTimeoutMinutes": 30,
+  "enforce2FAForAdmins": true,
+  "backupIntervalHours": 6,
+  "lastBackupDate": "2026-09-10T23:00:00Z"
+}

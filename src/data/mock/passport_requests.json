@@ -1,0 +1,70 @@
+[
+  {
+    "id": "req-pass-001",
+    "requestNumber": "REQ-PASS-2026-00401",
+    "personId": "c1111111-0000-4000-a000-000000000002",
+    "nationalNumber": "01010078901",
+    "fullName": "أروى عبدالرحمن يحيى الأنسي",
+    "photoUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
+    "serviceType": "PASSPORT_RENEW",
+    "serviceName": "تجديد جواز سفر إلكتروني عادي",
+    "branchId": "22222222-bbbb-cccc-dddd-000000000006",
+    "branchName": "الفرع الرئيسي - صنعاء",
+    "status": "UnderReview",
+    "previousPassportNumber": "08991244",
+    "urgentPriority": true,
+    "fee": 15000,
+    "isPaid": true,
+    "submissionDate": "2026-09-10T11:20:00Z",
+    "officerNotes": "الطلب مستعجل بداعي السفر للعلاج، تم استيفاء الرسوم ومطابقة الهوية الوطنية بنجاح.",
+    "attachments": [
+      { "name": "جواز السفر المنتهي", "fileUrl": "/docs/old_passport.jpg", "type": "image" },
+      { "name": "البطاقة الشخصية الذكية سارية", "fileUrl": "/docs/national_id.jpg", "type": "image" },
+      { "name": "تقرير طبي مستعجل", "fileUrl": "/docs/medical_report.pdf", "type": "pdf" }
+    ]
+  },
+  {
+    "id": "req-pass-002",
+    "requestNumber": "REQ-PASS-2026-00402",
+    "personId": "c1111111-0000-4000-a000-000000000006",
+    "nationalNumber": "05010099881",
+    "fullName": "هشام نبيل عبده الأكوع",
+    "photoUrl": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=300&auto=format&fit=crop&q=80",
+    "serviceType": "PASSPORT_NEW",
+    "serviceName": "إصدار جواز سفر إلكتروني لأول مرة",
+    "branchId": "22222222-bbbb-cccc-dddd-000000000006",
+    "branchName": "الفرع الرئيسي - صنعاء",
+    "status": "Pending",
+    "urgentPriority": false,
+    "fee": 12000,
+    "isPaid": true,
+    "submissionDate": "2026-09-10T14:45:00Z",
+    "attachments": [
+      { "name": "البطاقة الشخصية الذكية", "fileUrl": "/docs/nid_front.jpg", "type": "image" },
+      { "name": "شهادة المؤهل الجامعي", "fileUrl": "/docs/university_degree.pdf", "type": "pdf" }
+    ]
+  },
+  {
+    "id": "req-pass-003",
+    "requestNumber": "REQ-PASS-2026-00403",
+    "personId": "c1111111-0000-4000-a000-000000000001",
+    "nationalNumber": "01010045678",
+    "fullName": "عبدالله محمد صالح الدوسري",
+    "photoUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
+    "serviceType": "PASSPORT_RENEW",
+    "serviceName": "تجديد جواز سفر",
+    "branchId": "22222222-bbbb-cccc-dddd-000000000006",
+    "branchName": "الفرع الرئيسي - صنعاء",
+    "status": "Printed",
+    "previousPassportNumber": "08451234",
+    "urgentPriority": false,
+    "fee": 10000,
+    "isPaid": true,
+    "submissionDate": "2026-09-08T09:00:00Z",
+    "completedDate": "2026-09-09T15:30:00Z",
+    "officerNotes": "تم استكمال الطباعة والتوقيع الرقمي بنجاح.",
+    "attachments": [
+      { "name": "البطاقة الشخصية سارية", "fileUrl": "/docs/nid.jpg", "type": "image" }
+    ]
+  }
+]

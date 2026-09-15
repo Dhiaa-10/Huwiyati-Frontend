@@ -1,0 +1,109 @@
+[
+  {
+    "id": "req-civ-0001",
+    "requestNumber": "REQ-CIV-2026-00101",
+    "personId": "c1111111-0000-4000-a000-000000000001",
+    "personFullName": "عبدالله محمد صالح الدوسري",
+    "personNationalNumber": "01010045678",
+    "personPhoto": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
+    "serviceTypeId": "44444444-dddd-eeee-ffff-000000000002",
+    "serviceName": "تجديد البطاقة الشخصية الذكية",
+    "serviceCode": "NAT_ID_RENEW",
+    "branchId": "22222222-bbbb-cccc-dddd-000000000001",
+    "branchName": "فرع عصر - أمانة العاصمة",
+    "status": "UnderReview",
+    "submissionDate": "2026-09-09T14:30:00Z",
+    "fee": 4500,
+    "isPaid": true,
+    "officerNotes": "تم مطابقة بصمة الإبهام والصورة الشخصية بنجاح، بانتظار الاعتماد النهائي لطباعة الكرت الذكي.",
+    "attachments": [
+      { "name": "البطاقة الشخصية السابقة", "fileUrl": "/docs/old_id.jpg", "type": "image" },
+      { "name": "سند تسديد الرسوم", "fileUrl": "/docs/receipt_4500.pdf", "type": "pdf" }
+    ]
+  },
+  {
+    "id": "req-civ-0002",
+    "requestNumber": "REQ-CIV-2026-00102",
+    "personId": "c1111111-0000-4000-a000-000000000002",
+    "personFullName": "أروى عبدالرحمن يحيى الأنسي",
+    "personNationalNumber": "01010078901",
+    "personPhoto": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
+    "serviceTypeId": "44444444-dddd-eeee-ffff-000000000001",
+    "serviceName": "إصدار بطاقة شخصية ذكية جديدة لأول مرة",
+    "serviceCode": "NAT_ID_NEW",
+    "branchId": "22222222-bbbb-cccc-dddd-000000000001",
+    "branchName": "فرع عصر - أمانة العاصمة",
+    "status": "Pending",
+    "submissionDate": "2026-09-10T09:15:00Z",
+    "fee": 5500,
+    "isPaid": true,
+    "attachments": [
+      { "name": "شهادة الميلاد الرسمية", "fileUrl": "/docs/birth_cert.jpg", "type": "image" },
+      { "name": "تعريف عاقل الحارة المعتمد", "fileUrl": "/docs/neighborhood_cert.jpg", "type": "image" }
+    ]
+  },
+  {
+    "id": "req-civ-0003",
+    "requestNumber": "REQ-CIV-2026-00103",
+    "personId": "c1111111-0000-4000-a000-000000000004",
+    "personFullName": "ياسر عبدالوهاب سعيد الشجاع",
+    "personNationalNumber": "03010034567",
+    "personPhoto": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&auto=format&fit=crop&q=80",
+    "serviceTypeId": "44444444-dddd-eeee-ffff-000000000003",
+    "serviceName": "إصدار بطاقة عائلية إلكترونية",
+    "serviceCode": "FAMILY_CARD_NEW",
+    "branchId": "22222222-bbbb-cccc-dddd-000000000004",
+    "branchName": "فرع المجلية - تعز",
+    "status": "Pending",
+    "submissionDate": "2026-09-10T11:00:00Z",
+    "fee": 7000,
+    "isPaid": true,
+    "attachments": [
+      { "name": "وثيقة عقد الزواج الموثق", "fileUrl": "/docs/marriage_contract.pdf", "type": "pdf" },
+      { "name": "صورة بطاقة الزوجة", "fileUrl": "/docs/wife_id.jpg", "type": "image" }
+    ]
+  },
+  {
+    "id": "req-civ-0004",
+    "requestNumber": "REQ-CIV-2026-00104",
+    "personId": "c1111111-0000-4000-a000-000000000003",
+    "personFullName": "طارق سالم عوض بافضل",
+    "personNationalNumber": "02010012345",
+    "personPhoto": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80",
+    "serviceTypeId": "44444444-dddd-eeee-ffff-000000000004",
+    "serviceName": "إصدار شهادة ميلاد مميكنة",
+    "serviceCode": "BIRTH_CERT",
+    "branchId": "22222222-bbbb-cccc-dddd-000000000005",
+    "branchName": "فرع المكلا - حضرموت",
+    "status": "Approved",
+    "submissionDate": "2026-09-08T08:30:00Z",
+    "completedDate": "2026-09-09T10:00:00Z",
+    "fee": 2000,
+    "isPaid": true,
+    "officerNotes": "تم التحقق من إشعار المستشفى واعتماد الشهادة برقم وطني جديد للمولود.",
+    "attachments": [
+      { "name": "إشعار الولادة من مستشفى الأمومة والطفولة", "fileUrl": "/docs/birth_notification.jpg", "type": "image" }
+    ]
+  },
+  {
+    "id": "req-civ-0005",
+    "requestNumber": "REQ-CIV-2026-00105",
+    "personId": "c1111111-0000-4000-a000-000000000006",
+    "personFullName": "هشام نبيل عبده الأكوع",
+    "personNationalNumber": "05010099881",
+    "personPhoto": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=300&auto=format&fit=crop&q=80",
+    "serviceTypeId": "44444444-dddd-eeee-ffff-000000000002",
+    "serviceName": "تجديد البطاقة الشخصية الذكية",
+    "serviceCode": "NAT_ID_RENEW",
+    "branchId": "22222222-bbbb-cccc-dddd-000000000001",
+    "branchName": "فرع عصر - أمانة العاصمة",
+    "status": "Rejected",
+    "submissionDate": "2026-09-07T13:40:00Z",
+    "fee": 4500,
+    "isPaid": true,
+    "rejectionReason": "الصورة المرفقة غير واضحة ولا تطابق المعايير الرسمية (خلفية بيضاء بدقة عالية).",
+    "attachments": [
+      { "name": "الصورة المرفوعة", "fileUrl": "/docs/bad_photo.jpg", "type": "image" }
+    ]
+  }
+]
