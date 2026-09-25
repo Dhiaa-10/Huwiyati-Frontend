@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -48,26 +48,29 @@ export function UnifiedPortalLayout({
 }: UnifiedPortalLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, setRole, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { language, openSettings } = useSettings();
   const isRtl = language === "ar";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [resetSuccess, setResetSuccess] = useState(false);
+
+  // Strict Role Boundary Isolation:
+  // SuperAdmin is strictly confined to /admin (sovereign supervision).
+  // Operational roles are strictly confined to their agency portals.
+  useEffect(() => {
+    if (user.role === "SUPER_ADMIN" && portalType !== "admin") {
+      router.replace("/admin");
+    } else if (user.role !== "SUPER_ADMIN" && portalType === "admin") {
+      if (user.agency === "الأحوال المدنية") router.replace("/civil-registry");
+      else if (user.agency === "الجوازات") router.replace("/passports");
+      else if (user.agency === "المرور") router.replace("/traffic");
+      else if (user.agency === "المستشفيات") router.replace("/hospitals");
+      else router.replace("/login");
+    }
+  }, [user.role, user.agency, portalType, router]);
 
   const handleLogout = () => {
     logout();
     router.push("/login");
-  };
-
-  const handleResetData = async () => {
-    if (confirm("هل تريد بالتأكيد إعادة ضبط البيانات الوهمية إلى حالتها الافتراضية؟")) {
-      await adminService.resetToDefaults();
-      setResetSuccess(true);
-      setTimeout(() => {
-        setResetSuccess(false);
-        window.location.reload();
-      }, 800);
-    }
   };
 
   // Determine navigation items based on Role and PortalType
@@ -76,7 +79,7 @@ export function UnifiedPortalLayout({
     if (user.role === "SUPER_ADMIN") {
       return [
         {
-          label: "لوحة التحكم المركزية",
+          label: "لوحة القيادة المركزية",
           href: "/admin",
           icon: LayoutDashboard,
           active: pathname === "/admin",
@@ -88,12 +91,20 @@ export function UnifiedPortalLayout({
           active: pathname.startsWith("/admin/agencies"),
         },
         {
-          label: "سجلات الأمان والتدقيق الموحد",
-          href: "/admin/audit-logs",
-          icon: ShieldAlert,
-          active: pathname.startsWith("/admin/audit-logs"),
+          label: "تكليف وإدارة مدراء الفروع",
+          href: "/admin/admins",
+          icon: UserCheck,
+          active: pathname.startsWith("/admin/admins"),
         },
+        {
+          label: "السجل المركزي للمواطنين",
+          href: "/admin/citizens",
+          icon: BookOpenCheck,
+          active: pathname.startsWith("/admin/citizens"),
+        },
+        // سجلات التدقيق والإعدادات مؤجلة — لا يوجد endpoint في الباكند حالياً
       ];
+
     }
 
     // 2. Agency Admin (Level 2 - Branch / Agency Director)
@@ -359,13 +370,6 @@ export function UnifiedPortalLayout({
           >
             <Settings className="w-5 h-5" />
           </button>
-          <button
-            onClick={handleResetData}
-            title="إعادة ضبط البيانات"
-            className="p-2 text-[#97cdef] hover:text-white"
-          >
-            <RotateCcw className="w-5 h-5" />
-          </button>
           <button onClick={handleLogout} className="p-2 text-rose-300 hover:text-rose-100">
             <LogOut className="w-5 h-5" />
           </button>
@@ -452,79 +456,6 @@ export function UnifiedPortalLayout({
               </Link>
             );
           })}
-
-          {/* Quick Cross-Portal Switcher — visible only to SuperAdmin or super_admin_switch sessions */}
-          {(user.role === "SUPER_ADMIN" || user.loginSource === "super_admin_switch") && (
-            <>
-              <div className="pt-4 pb-2 px-3 text-[11px] font-bold text-white/40 tracking-wider">
-                بوابات المنظومة
-              </div>
-              {portalType !== "admin" && (
-                <Link
-                  href="/admin"
-                  className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-white/70 hover:bg-white/5 hover:text-white transition-all"
-                >
-                  <span className="flex items-center gap-2">
-                    <Shield className="w-3.5 h-3.5 text-emerald-400" />
-                    بوابة السوبر أدمن
-                  </span>
-                  <ExternalLink className="w-3 h-3 text-white/30" />
-                </Link>
-              )}
-
-              {portalType !== "civil-registry" && (
-                <Link
-                  href="/civil-registry"
-                  className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-white/70 hover:bg-white/5 hover:text-white transition-all"
-                >
-                  <span className="flex items-center gap-2">
-                    <HwyatiLogo size={14} showText={false} />
-                    الأحوال المدنية
-                  </span>
-                  <ExternalLink className="w-3 h-3 text-white/30" />
-                </Link>
-              )}
-
-              {portalType !== "passports" && (
-                <Link
-                  href="/passports"
-                  className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-white/70 hover:bg-white/5 hover:text-white transition-all"
-                >
-                  <span className="flex items-center gap-2">
-                    <Plane className="w-3.5 h-3.5 text-amber-400" />
-                    الهجرة والجوازات
-                  </span>
-                  <ExternalLink className="w-3 h-3 text-white/30" />
-                </Link>
-              )}
-
-              {portalType !== "traffic" && (
-                <Link
-                  href="/traffic"
-                  className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-white/70 hover:bg-white/5 hover:text-white transition-all"
-                >
-                  <span className="flex items-center gap-2">
-                    <Car className="w-3.5 h-3.5 text-blue-400" />
-                    الإدارة العامة للمرور
-                  </span>
-                  <ExternalLink className="w-3 h-3 text-white/30" />
-                </Link>
-              )}
-
-              {portalType !== "hospitals" && (
-                <Link
-                  href="/hospitals"
-                  className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-white/70 hover:bg-white/5 hover:text-white transition-all"
-                >
-                  <span className="flex items-center gap-2">
-                    <HeartPulse className="w-3.5 h-3.5 text-rose-400" />
-                    المستشفيات والمنظومة الصحية
-                  </span>
-                  <ExternalLink className="w-3 h-3 text-white/30" />
-                </Link>
-              )}
-            </>
-          )}
         </nav>
 
         {/* User Card & Logout Button */}
@@ -569,61 +500,29 @@ export function UnifiedPortalLayout({
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Interactive Authority Level Selector — SuperAdmin only */}
-            {user.role === "SUPER_ADMIN" && (() => {
-              const r: string = user.role;
-              return (
-                <div className="hidden sm:flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs">
-                  <span className="text-[11px] font-bold text-gray-500 px-2">مستوى الصلاحية:</span>
-                  <button
-                    type="button"
-                    onClick={() => setRole("SUPER_ADMIN")}
-                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                      r === "SUPER_ADMIN"
-                        ? "bg-[#ba1a1a] text-white shadow-sm"
-                        : "text-gray-600 hover:text-black hover:bg-gray-200"
-                    }`}
-                  >
-                    سوبر أدمن
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole("ADMIN")}
-                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                      r === "ADMIN"
-                        ? "bg-[#00374e] text-white shadow-sm"
-                        : "text-gray-600 hover:text-black hover:bg-gray-200"
-                    }`}
-                  >
-                    أدمن المؤسسة
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole("EMPLOYEE")}
-                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                      r === "EMPLOYEE"
-                        ? "bg-[#003c27] text-white shadow-sm"
-                        : "text-gray-600 hover:text-black hover:bg-gray-200"
-                    }`}
-                  >
-                    موظف مختص
-                  </button>
-                </div>
-              );
-            })()}
-
-            {/* Reset Defaults button */}
-            <button
-              onClick={handleResetData}
-              title="إعادة ضبط البيانات الوهمية"
-              className="p-2 text-gray-500 hover:text-[#0b4f6c] hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
+          <div className="flex items-center gap-3">
+            {/* Authority level badge — read-only display, strictly no switching */}
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-xl border border-slate-200 text-xs">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  user.role === "SUPER_ADMIN"
+                    ? "bg-[#ba1a1a]"
+                    : user.role === "ADMIN"
+                    ? "bg-[#00374e]"
+                    : "bg-[#003c27]"
+                }`}
+              />
+              <span className="font-bold text-[#00374e]">
+                {user.role === "SUPER_ADMIN"
+                  ? "سوبر أدمن • الإشراف والرقابة المركزية"
+                  : user.role === "ADMIN"
+                  ? `أدمن المؤسسة • ${user.agency}`
+                  : `موظف مختص • ${user.agency}`}
+              </span>
+            </div>
 
             {/* Notifications */}
-            <button className="p-2 text-gray-500 hover:text-[#0b4f6c] hover:bg-gray-100 rounded-lg relative transition-colors">
+            <button className="p-2 text-gray-500 hover:text-[#0b4f6c] hover:bg-gray-100 rounded-lg relative transition-colors cursor-pointer">
               <Bell className="w-4 h-4" />
               <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-2 right-2"></span>
             </button>
@@ -638,13 +537,6 @@ export function UnifiedPortalLayout({
             </button>
           </div>
         </header>
-
-        {resetSuccess && (
-          <div className="bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs px-6 py-2 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>تمت استعادة البيانات الأصلية بنجاح.</span>
-          </div>
-        )}
 
         {/* Portal Body Content */}
         <div className="flex-1 p-4 md:p-8 bg-[#f7f9fb]">{children}</div>

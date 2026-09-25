@@ -54,16 +54,10 @@ export default function PassportsEmployeesPage() {
     try {
       // Organization for Passports
       const data = await adminService.getEmployees(undefined, "11111111-aaaa-bbbb-cccc-000000000002");
-      // If none, also fetch all and filter or seed
-      if (data.length === 0) {
-        const all = await adminService.getEmployees();
-        const passOnly = all.filter((e) => e.role.toLowerCase().includes("passport"));
-        setEmployees(passOnly);
-      } else {
-        setEmployees(data);
-      }
+      setEmployees(data);
     } catch (err) {
       console.error(err);
+      setFeedback({ type: "error", message: "حدث خطأ أثناء جلب كادر الجوازات" });
     } finally {
       setLoading(false);
     }
@@ -130,7 +124,7 @@ export default function PassportsEmployeesPage() {
 
   const handleToggleStatus = async (emp: Employee) => {
     try {
-      const updated = await adminService.toggleEmployeeStatus(emp.id);
+      const updated = await adminService.toggleEmployeeStatus(emp.id, emp.isActive);
       setEmployees(employees.map((e) => (e.id === updated.id ? updated : e)));
       setFeedback({
         type: "success",

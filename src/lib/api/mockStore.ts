@@ -76,7 +76,7 @@ import {
 const STORAGE_KEYS = {
   ORGANIZATIONS: "hwyati_mock_organizations_v1",
   BRANCHES: "hwyati_mock_branches_v1",
-  EMPLOYEES: "hwyati_mock_employees_v1",
+  EMPLOYEES: "hwyati_mock_employees_v2", // bumped: rich isolated employee rosters for all 4 agencies
   SERVICES: "hwyati_mock_services_v1",
   AUDIT_LOGS: "hwyati_mock_audit_logs_v1",
   SETTINGS: "hwyati_mock_settings_v1",

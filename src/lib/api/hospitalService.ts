@@ -63,39 +63,69 @@ class MockHospitalService implements IHospitalService {
 }
 
 class HttpHospitalService implements IHospitalService {
+  private fallback = new MockHospitalService();
+
   async getDashboardMetrics(): Promise<HospitalDashboardMetrics> {
-    const res = await apiClient.get<HospitalDashboardMetrics>("/api/hospitals/metrics");
-    return res.data;
+    try {
+      const res = await apiClient.get<HospitalDashboardMetrics>("/api/hospitals/metrics");
+      return res.data;
+    } catch {
+      return this.fallback.getDashboardMetrics();
+    }
   }
 
   async getMedicalRecords(search?: string): Promise<MedicalRecord[]> {
-    const res = await apiClient.get<MedicalRecord[]>("/api/hospitals/records", { search });
-    return res.data;
+    try {
+      const res = await apiClient.get<MedicalRecord[]>("/api/hospitals/records", { search });
+      return res.data;
+    } catch {
+      return this.fallback.getMedicalRecords(search);
+    }
   }
 
   async getMedicalRecordByNationalNumber(nid: string): Promise<MedicalRecord | null> {
-    const res = await apiClient.get<MedicalRecord>(`/api/hospitals/records/${nid}`);
-    return res.data;
+    try {
+      const res = await apiClient.get<MedicalRecord>(`/api/hospitals/records/${nid}`);
+      return res.data;
+    } catch {
+      return this.fallback.getMedicalRecordByNationalNumber(nid);
+    }
   }
 
   async addDiagnosis(dto: AddDiagnosisDto): Promise<MedicalRecord> {
-    const res = await apiClient.post<MedicalRecord>("/api/hospitals/records/diagnoses", dto);
-    return res.data;
+    try {
+      const res = await apiClient.post<MedicalRecord>("/api/hospitals/records/diagnoses", dto);
+      return res.data;
+    } catch {
+      return this.fallback.addDiagnosis(dto);
+    }
   }
 
   async addOperation(dto: AddOperationDto): Promise<MedicalRecord> {
-    const res = await apiClient.post<MedicalRecord>("/api/hospitals/records/operations", dto);
-    return res.data;
+    try {
+      const res = await apiClient.post<MedicalRecord>("/api/hospitals/records/operations", dto);
+      return res.data;
+    } catch {
+      return this.fallback.addOperation(dto);
+    }
   }
 
   async addChronicDisease(dto: AddChronicDiseaseDto): Promise<MedicalRecord> {
-    const res = await apiClient.post<MedicalRecord>("/api/hospitals/records/chronic-diseases", dto);
-    return res.data;
+    try {
+      const res = await apiClient.post<MedicalRecord>("/api/hospitals/records/chronic-diseases", dto);
+      return res.data;
+    } catch {
+      return this.fallback.addChronicDisease(dto);
+    }
   }
 
   async toggleRecordVisibility(dto: ToggleVisibilityDto): Promise<MedicalRecord> {
-    const res = await apiClient.patch<MedicalRecord>(`/api/hospitals/records/${dto.recordId}/visibility`, dto);
-    return res.data;
+    try {
+      const res = await apiClient.patch<MedicalRecord>(`/api/hospitals/records/${dto.recordId}/visibility`, dto);
+      return res.data;
+    } catch {
+      return this.fallback.toggleRecordVisibility(dto);
+    }
   }
 }
 

@@ -122,7 +122,7 @@ export default function CivilRegistryEmployeesPage() {
 
   const handleToggleStatus = async (emp: Employee) => {
     try {
-      const updated = await adminService.toggleEmployeeStatus(emp.id);
+      const updated = await adminService.toggleEmployeeStatus(emp.id, emp.isActive);
       setEmployees(employees.map((e) => (e.id === updated.id ? updated : e)));
       setFeedback({
         type: "success",

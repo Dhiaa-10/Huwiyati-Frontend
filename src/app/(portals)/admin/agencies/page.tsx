@@ -1,850 +1,578 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Building2,
   Search,
   Plus,
   Filter,
-  MoreVertical,
   CheckCircle2,
   XCircle,
   Edit2,
   Trash2,
-  ExternalLink,
+  RotateCcw,
   MapPin,
   Phone,
-  Mail,
-  Shield,
-  Activity,
   Layers,
-  AlertTriangle,
-  X,
   RefreshCw,
-  FolderGit2,
+  X,
+  Loader2,
+  AlertCircle,
+  Building,
 } from "lucide-react";
 import { adminService } from "@/lib/api/adminService";
 import {
   Organization,
   OrganizationBranch,
-  AgencyType,
-  AgencyStatus,
-  CreateOrganizationDto,
-  UpdateOrganizationDto,
   CreateBranchDto,
+  UpdateBranchDto,
 } from "@/types/admin";
-import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
 
-export default function AgenciesManagementPage() {
-  const { updateSession } = useAuth();
-  const router = useRouter();
-  const [agencies, setAgencies] = useState<Organization[]>([]);
+export default function AgenciesAndBranchesPage() {
+  const searchParams = useSearchParams();
+  const initialOrgId = searchParams.get("orgId") || "all";
+
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [branches, setBranches] = useState<OrganizationBranch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedOrgFilter, setSelectedOrgFilter] = useState<string>(initialOrgId);
   const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  // Notification Banner
+  // Notifications
   const [notification, setNotification] = useState<{
-    type: "success" | "error" | "info";
+    type: "success" | "error";
     message: string;
   } | null>(null);
 
-  // Modals state
+  // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isBranchesModalOpen, setIsBranchesModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState<OrganizationBranch | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Selected agency for edit/branches/delete
-  const [selectedAgency, setSelectedAgency] = useState<Organization | null>(null);
-  const [agencyBranches, setAgencyBranches] = useState<OrganizationBranch[]>([]);
-  const [loadingBranches, setLoadingBranches] = useState(false);
-
-  // New Agency Form Data
-  const [formData, setFormData] = useState<CreateOrganizationDto>({
-    name: "",
-    code: "",
-    type: "civil",
-    description: "",
-    directorName: "",
-    directorNationalId: "",
-    directorPhone: "",
-    directorEmail: "",
-    isActive: true,
-  });
-
-  // New Branch Form inside Branches Modal
-  const [newBranchData, setNewBranchData] = useState<{
-    branchName: string;
-    governorate: string;
-    district: string;
-    phoneNumber: string;
-    managerName: string;
-  }>({
+  // Form State for Add
+  const [branchForm, setBranchForm] = useState<CreateBranchDto>({
+    organizationId: "",
     branchName: "",
     governorate: "أمانة العاصمة",
     district: "",
+    addressDetails: "",
     phoneNumber: "",
-    managerName: "",
+    isActive: true,
   });
 
-  const getPortalUrlForAgency = (code: string) => {
-    switch (code) {
-      case "CIVIL_REGISTRY":
-        return "/civil-registry";
-      case "PASSPORTS":
-        return "/passports";
-      case "TRAFFIC":
-        return "/traffic";
-      case "HEALTH":
-        return "/hospitals";
-      default:
-        return null;
-    }
-  };
+  // Form State for Edit
+  const [editForm, setEditForm] = useState<UpdateBranchDto>({
+    branchName: "",
+    governorate: "",
+    phoneNumber: "",
+  });
 
-  // Fetch Agencies on Mount
-  const fetchAgencies = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const response = await adminService.getOrganizations({
-        search: searchTerm,
-        type: typeFilter as AgencyType,
-        status: statusFilter as AgencyStatus,
-        page: 1,
-        pageSize: 50,
+      const [orgsRes, branchesRes] = await Promise.all([
+        adminService.getOrganizations(),
+        adminService.getBranches(),
+      ]);
+      setOrganizations(orgsRes.items);
+      setBranches(branchesRes);
+
+      if (orgsRes.items.length > 0 && !branchForm.organizationId) {
+        setBranchForm((prev) => ({ ...prev, organizationId: orgsRes.items[0].id }));
+      }
+    } catch (err: any) {
+      console.error("Error loading branches data:", err);
+      setNotification({
+        type: "error",
+        message: "تعذر تحميل بيانات الفروع من الخادم.",
       });
-      setAgencies(response.items);
-    } catch (err) {
-      console.error(err);
-      showNotification("error", "تعذر جلب بيانات الهيئات.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAgencies();
-  }, [searchTerm, typeFilter, statusFilter]);
+    loadData();
+  }, []);
 
-  const showNotification = (
-    type: "success" | "error" | "info",
-    message: string
-  ) => {
-    setNotification({ type, message });
-    setTimeout(() => {
-      setNotification(null);
-    }, 4000);
-  };
+  const handleCreateBranch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!branchForm.branchName || !branchForm.organizationId) return;
 
-  // Toggle Agency Status (Active / Inactive)
-  const handleToggleStatus = async (agency: Organization) => {
+    setSubmitting(true);
     try {
-      const updated = await adminService.toggleOrganizationStatus(agency.id);
-      setAgencies((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item))
-      );
-      showNotification(
-        "success",
-        `تم تغيير حالة ${agency.name} إلى (${updated.isActive ? "نشط" : "غير نشط"}).`
-      );
-    } catch (err) {
-      showNotification("error", "فشل في تحديث حالة الجهة.");
+      await adminService.createBranch(branchForm);
+      setNotification({
+        type: "success",
+        message: `تم إنشاء الفرع "${branchForm.branchName}" بنجاح في قاعدة البيانات.`,
+      });
+      setIsAddModalOpen(false);
+      setBranchForm({
+        organizationId: organizations[0]?.id || "",
+        branchName: "",
+        governorate: "أمانة العاصمة",
+        district: "",
+        addressDetails: "",
+        phoneNumber: "",
+        isActive: true,
+      });
+      await loadData();
+    } catch (err: any) {
+      setNotification({
+        type: "error",
+        message: err?.message || "فشلت عملية إنشاء الفرع في الخادم.",
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // Open Edit Modal
-  const handleOpenEdit = (agency: Organization) => {
-    setSelectedAgency(agency);
-    setFormData({
-      name: agency.name,
-      code: agency.code,
-      type: agency.type,
-      description: agency.description || "",
-      directorName: agency.directorName,
-      directorNationalId: agency.directorNationalId,
-      directorPhone: agency.directorPhone,
-      directorEmail: agency.directorEmail,
-      isActive: agency.isActive,
+  const handleOpenEdit = (b: OrganizationBranch) => {
+    setSelectedBranch(b);
+    setEditForm({
+      organizationId: b.organizationId,
+      branchName: b.branchName,
+      governorate: b.governorate,
+      district: b.district,
+      addressDetails: b.addressDetails || "",
+      phoneNumber: b.phoneNumber || "",
     });
     setIsEditModalOpen(true);
   };
 
-  // Open Branches Modal
-  const handleOpenBranches = async (agency: Organization) => {
-    setSelectedAgency(agency);
-    setIsBranchesModalOpen(true);
-    setLoadingBranches(true);
-    try {
-      const branches = await adminService.getBranches(agency.id);
-      setAgencyBranches(branches);
-    } catch (err) {
-      showNotification("error", "تعذر جلب فروع الهيئة.");
-    } finally {
-      setLoadingBranches(false);
-    }
-  };
-
-  // Add Branch Submit
-  const handleAddBranchSubmit = async (e: React.FormEvent) => {
+  const handleUpdateBranch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAgency) return;
-    if (!newBranchData.branchName.trim()) {
-      alert("يرجى إدخال اسم الفرع");
-      return;
-    }
+    if (!selectedBranch) return;
 
+    setSubmitting(true);
     try {
-      const created = await adminService.createBranch({
-        organizationId: selectedAgency.id,
-        branchName: newBranchData.branchName,
-        governorate: newBranchData.governorate,
-        district: newBranchData.district || "المركز",
-        phoneNumber: newBranchData.phoneNumber,
-        managerName: newBranchData.managerName,
-        isActive: true,
+      await adminService.updateBranch(selectedBranch.id, editForm);
+      setNotification({
+        type: "success",
+        message: `تم تحديث بيانات الفرع "${editForm.branchName}" بنجاح.`,
       });
-
-      setAgencyBranches((prev) => [...prev, created]);
-      // Update branch count on the agency
-      setAgencies((prev) =>
-        prev.map((item) =>
-          item.id === selectedAgency.id
-            ? { ...item, branchesCount: item.branchesCount + 1 }
-            : item
-        )
-      );
-
-      setNewBranchData({
-        branchName: "",
-        governorate: "أمانة العاصمة",
-        district: "",
-        phoneNumber: "",
-        managerName: "",
-      });
-
-      showNotification("success", `تمت إضافة الفرع (${created.branchName}) بنجاح.`);
-    } catch (err) {
-      showNotification("error", "فشلت إضافة الفرع.");
-    }
-  };
-
-  // Delete Branch Submit
-  const handleDeleteBranch = async (branchId: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذا الفرع؟")) return;
-    try {
-      await adminService.deleteBranch(branchId);
-      setAgencyBranches((prev) => prev.filter((b) => b.id !== branchId));
-      if (selectedAgency) {
-        setAgencies((prev) =>
-          prev.map((item) =>
-            item.id === selectedAgency.id
-              ? { ...item, branchesCount: Math.max(0, item.branchesCount - 1) }
-              : item
-          )
-        );
-      }
-      showNotification("info", "تم حذف الفرع.");
-    } catch (err) {
-      showNotification("error", "تعذر حذف الفرع.");
-    }
-  };
-
-  // Submit Add Agency
-  const handleAddAgencySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name.trim() || !formData.code.trim()) {
-      alert("يرجى ملء اسم الجهة ورمزها الرسمي.");
-      return;
-    }
-
-    try {
-      const created = await adminService.createOrganization(formData);
-      setAgencies((prev) => [created, ...prev]);
-      setIsAddModalOpen(false);
-      setFormData({
-        name: "",
-        code: "",
-        type: "civil",
-        description: "",
-        directorName: "",
-        directorNationalId: "",
-        directorPhone: "",
-        directorEmail: "",
-        isActive: true,
-      });
-      showNotification("success", `تمت إضافة الجهة (${created.name}) بنجاح.`);
-    } catch (err) {
-      showNotification("error", "تعذر إنشاء الجهة الجديدة.");
-    }
-  };
-
-  // Submit Edit Agency
-  const handleEditAgencySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAgency) return;
-
-    try {
-      const updated = await adminService.updateOrganization(
-        selectedAgency.id,
-        formData
-      );
-      setAgencies((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item))
-      );
       setIsEditModalOpen(false);
-      showNotification("success", `تم تحديث بيانات (${updated.name}) بنجاح.`);
-    } catch (err) {
-      showNotification("error", "تعذر تحديث بيانات الجهة.");
+      await loadData();
+    } catch (err: any) {
+      setNotification({
+        type: "error",
+        message: err?.message || "فشلت عملية تحديث بيانات الفرع.",
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // Delete Agency Submit
-  const handleDeleteAgencySubmit = async () => {
-    if (!selectedAgency) return;
+  const handleDeleteBranch = async (branch: OrganizationBranch) => {
+    if (!confirm(`هل أنت متأكد من تعطيل/تجميد الفرع "${branch.branchName}"؟`)) return;
+
     try {
-      await adminService.deleteOrganization(selectedAgency.id);
-      setAgencies((prev) => prev.filter((item) => item.id !== selectedAgency.id));
-      setIsDeleteModalOpen(false);
-      showNotification("info", `تم حذف (${selectedAgency.name}) نهائياً من المنظومة.`);
-    } catch (err) {
-      showNotification("error", "تعذر حذف الجهة.");
+      await adminService.deleteBranch(branch.id);
+      setNotification({
+        type: "success",
+        message: `تم تعطيل الفرع "${branch.branchName}" بنجاح.`,
+      });
+      await loadData();
+    } catch (err: any) {
+      setNotification({
+        type: "error",
+        message: err?.message || "فشل تعطيل الفرع.",
+      });
     }
   };
 
-  // Summary counts
-  const totalAgencies = agencies.length;
-  const activeAgencies = agencies.filter((a) => a.isActive).length;
-  const totalBranches = agencies.reduce((acc, curr) => acc + curr.branchesCount, 0);
+  const handleRestoreBranch = async (branch: OrganizationBranch) => {
+    try {
+      await adminService.restoreBranch(branch.id);
+      setNotification({
+        type: "success",
+        message: `تمت إعادة تفعيل الفرع "${branch.branchName}" بنجاح.`,
+      });
+      await loadData();
+    } catch (err: any) {
+      setNotification({
+        type: "error",
+        message: err?.message || "فشلت إعادة تفعيل الفرع.",
+      });
+    }
+  };
+
+  // Filtered branches
+  const filteredBranches = useMemo(() => {
+    return branches.filter((b) => {
+      const matchesOrg =
+        selectedOrgFilter === "all" || b.organizationId === selectedOrgFilter;
+      const matchesSearch =
+        searchTerm === "" ||
+        b.branchName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        b.governorate.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (b.district && b.district.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (b.phoneNumber && b.phoneNumber.includes(searchTerm));
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && b.isActive) ||
+        (statusFilter === "inactive" && !b.isActive);
+
+      return matchesOrg && matchesSearch && matchesStatus;
+    });
+  }, [branches, selectedOrgFilter, searchTerm, statusFilter]);
 
   return (
-    <div className="p-6 md:p-10 max-w-[1400px] mx-auto">
-      {/* Toast Notification */}
-      {notification && (
-        <div
-          className={`fixed top-5 left-1/2 -translate-x-1/2 z-[999] px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-white text-sm font-semibold transition-all ${
-            notification.type === "success"
-              ? "bg-[#005539] border border-emerald-400"
-              : notification.type === "error"
-              ? "bg-rose-700 border border-rose-400"
-              : "bg-[#0b4f6c] border border-sky-400"
-          }`}
-        >
-          {notification.type === "success" ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-300" />
-          ) : (
-            <AlertTriangle className="w-5 h-5 text-amber-300" />
-          )}
-          <span>{notification.message}</span>
-        </div>
-      )}
-
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#00374e]"></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="text-xs font-bold text-[#00374e] uppercase tracking-wider">
-              بوابة المشرف العام
+              الهيكل التنظيمي السيادي
             </span>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#00374e]">
-            إدارة الهيئات والجهات الحكومية
+            إدارة الهيئات والفروع الحكومية
           </h1>
-          <p className="text-sm text-[#41484d] mt-1.5">
-            التحكم المركزي في الجهات الرسمية، ربط الفروع بالمحافظات، وتحديث صلاحيات الربط البيني.
+          <p className="text-sm text-[#41484d] mt-1">
+            استعراض الفروع المعتمدة في قاعدة البيانات المركزية، افتتاح فروع جديدة، وضبط التفعيل.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="bg-[#0b4f6c] hover:bg-[#00374e] text-white px-5 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+            onClick={loadData}
+            disabled={loading}
+            title="تحديث البيانات"
+            className="p-2.5 bg-white text-[#00374e] border border-slate-300 rounded-xl hover:bg-slate-50 transition-all shadow-xs cursor-pointer disabled:opacity-60"
           >
-            <Plus className="w-5 h-5" />
-            <span>إضافة جهة جديدة</span>
+            <RefreshCw className={`w-4 h-4 text-[#0b4f6c] ${loading ? "animate-spin" : ""}`} />
+          </button>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="px-4 py-2.5 bg-[#0b4f6c] hover:bg-[#00374e] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>إضافة فرع جديد</span>
           </button>
         </div>
       </div>
 
-      {/* Quick Summary KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-xl border border-[#e0e3e5] shadow-xs flex items-center justify-between">
-          <div>
-            <div className="text-xs text-[#41484d]">إجمالي الهيئات المسجلة</div>
-            <div className="text-2xl font-black text-[#00374e] mt-1 font-mono">
-              {totalAgencies} <span className="text-xs font-normal text-slate-500">جهة</span>
-            </div>
+      {/* Notification Banner */}
+      {notification && (
+        <div
+          className={`p-4 rounded-xl flex items-center justify-between text-xs font-semibold ${
+            notification.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              : "bg-rose-50 text-rose-800 border border-rose-200"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {notification.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600" />
+            )}
+            <span>{notification.message}</span>
           </div>
-          <div className="w-10 h-10 rounded-lg bg-[#c5e7ff]/40 text-[#0b4f6c] flex items-center justify-center">
-            <Building2 className="w-5 h-5" />
-          </div>
+          <button
+            onClick={() => setNotification(null)}
+            className="text-slate-400 hover:text-slate-700 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 4 Sovereign Government Organizations Tabs */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        <button
+          onClick={() => setSelectedOrgFilter("all")}
+          className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+            selectedOrgFilter === "all"
+              ? "bg-[#0b4f6c] text-white border-[#0b4f6c] shadow-xs"
+              : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+          }`}
+        >
+          <p className="text-xs font-bold">كافة القطاعات</p>
+          <p className={`text-[11px] mt-0.5 ${selectedOrgFilter === "all" ? "text-sky-200" : "text-slate-400"}`}>
+            {branches.length} فرع
+          </p>
+        </button>
+
+        {organizations.map((org) => {
+          const count = branches.filter((b) => b.organizationId === org.id).length;
+          const isSelected = selectedOrgFilter === org.id;
+          return (
+            <button
+              key={org.id}
+              onClick={() => setSelectedOrgFilter(org.id)}
+              className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                isSelected
+                  ? "bg-[#0b4f6c] text-white border-[#0b4f6c] shadow-xs"
+                  : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+              }`}
+            >
+              <p className="text-xs font-bold truncate">{org.name}</p>
+              <p className={`text-[11px] mt-0.5 ${isSelected ? "text-sky-200" : "text-slate-400"}`}>
+                {count} فرع
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search & Filters */}
+      <div className="bg-white rounded-2xl p-4 shadow-xs border border-[#c0c7ce]/30 flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="البحث باسم الفرع، المحافظة، المديرية..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2 ps-9 pe-4 text-xs text-[#191c1e] focus:border-[#0b4f6c] focus:outline-hidden"
+          />
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-[#e0e3e5] shadow-xs flex items-center justify-between">
-          <div>
-            <div className="text-xs text-[#41484d]">الهيئات النشطة حالياً</div>
-            <div className="text-2xl font-black text-emerald-700 mt-1 font-mono">
-              {activeAgencies}{" "}
-              <span className="text-xs font-normal text-slate-500">/ {totalAgencies}</span>
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-[#e0e3e5] shadow-xs flex items-center justify-between">
-          <div>
-            <div className="text-xs text-[#41484d]">إجمالي الفروع بالمحافظات</div>
-            <div className="text-2xl font-black text-[#0b4f6c] mt-1 font-mono">
-              {totalBranches} <span className="text-xs font-normal text-slate-500">فرعاً</span>
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
-            <MapPin className="w-5 h-5" />
-          </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <Filter className="w-4 h-4 text-slate-400" />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-[#f2f4f6] border border-slate-200 rounded-xl py-2 px-3 text-xs text-slate-700 focus:outline-hidden"
+          >
+            <option value="all">كافة الحالات</option>
+            <option value="active">الفروع النشطة فقط</option>
+            <option value="inactive">الفروع المعطلة / المجمدة</option>
+          </select>
         </div>
       </div>
 
-      {/* Filters Card (Stitch Screen 09) */}
-      <div className="bg-white rounded-xl border border-[#e0e3e5] p-5 mb-6 shadow-xs">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search Input */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-[#41484d]">بحث سريع</label>
-            <div className="relative">
-              <Search className="w-4 h-4 absolute right-3.5 top-3 text-[#71787e]" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="البحث باسم الجهة، الرمز، أو المدير المسؤول..."
-                className="w-full bg-[#f7f9fb] border border-[#c0c7ce] rounded-lg pr-10 pl-4 py-2 text-sm text-[#191c1e] placeholder:text-slate-400 focus:outline-none focus:border-[#0b4f6c] focus:ring-1 focus:ring-[#0b4f6c] transition-all"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm("")}
-                  className="absolute left-3 top-2.5 text-xs text-slate-400 hover:text-slate-600"
-                >
-                  مسح
-                </button>
-              )}
-            </div>
+      {/* Branches Table */}
+      <div className="bg-white rounded-2xl shadow-xs border border-[#c0c7ce]/30 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <Building className="w-4 h-4 text-[#00374e]" />
+            <h2 className="text-sm font-bold text-[#00374e]">
+              قائمة الفروع والمراكز المعتمدة ({filteredBranches.length})
+            </h2>
           </div>
-
-          {/* Type Filter */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-[#41484d]">تصنيف الجهة</label>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="w-full bg-[#f7f9fb] border border-[#c0c7ce] rounded-lg px-4 py-2 text-sm text-[#191c1e] focus:outline-none focus:border-[#0b4f6c] focus:ring-1 focus:ring-[#0b4f6c] cursor-pointer transition-all"
-            >
-              <option value="all">جميع التصنيفات</option>
-              <option value="security">أمني / سيادي</option>
-              <option value="civil">مدني / خدمي</option>
-              <option value="health">صحي / مستشفيات</option>
-              <option value="judicial">قضائي / توثيق</option>
-              <option value="financial">مالي / ضرائب</option>
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-[#41484d]">حالة النشاط</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-[#f7f9fb] border border-[#c0c7ce] rounded-lg px-4 py-2 text-sm text-[#191c1e] focus:outline-none focus:border-[#0b4f6c] focus:ring-1 focus:ring-[#0b4f6c] cursor-pointer transition-all"
-            >
-              <option value="all">الكل (نشط وغير نشط)</option>
-              <option value="active">نشط فقط</option>
-              <option value="inactive">غير نشط / معطل</option>
-            </select>
-          </div>
+          <span className="text-xs text-slate-500 font-mono">
+            {branches.filter((b) => b.isActive).length} فرع نشط
+          </span>
         </div>
-      </div>
 
-      {/* Data Table Card (Stitch Screen 09 Exact Layout) */}
-      <div className="bg-white rounded-xl border border-[#e0e3e5] shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center gap-3">
-            <RefreshCw className="w-8 h-8 text-[#0b4f6c] animate-spin" />
-            <div className="text-sm font-medium text-slate-500">جاري تحميل بيانات الهيئات...</div>
-          </div>
-        ) : agencies.length === 0 ? (
-          <div className="py-16 text-center">
-            <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-slate-700">لا توجد هيئات تطابق البحث</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              جرب تغيير معايير البحث أو الفلاتر لعرض النتائج.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-right border-collapse">
-              <thead className="bg-[#f0eadd]/60 border-b border-[#c0c7ce]/50">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right border-collapse">
+            <thead className="bg-[#f7f9fb] border-b border-slate-200 text-slate-600 text-xs font-bold">
+              <tr>
+                <th className="py-3.5 px-4">اسم الفرع</th>
+                <th className="py-3.5 px-4">القطاع الحكومي</th>
+                <th className="py-3.5 px-4">المحافظة والمديرية</th>
+                <th className="py-3.5 px-4">تفاصيل العنوان</th>
+                <th className="py-3.5 px-4">رقم الهاتف</th>
+                <th className="py-3.5 px-4">الحالة</th>
+                <th className="py-3.5 px-4 text-center">الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs">
+              {loading ? (
                 <tr>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap">
-                    اسم الجهة الرسمية
-                  </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap">
-                    الرمز والتصنيف
-                  </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap">
-                    المدير المسؤول
-                  </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap text-center">
-                    الفروع بالمحافظات
-                  </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap">
-                    الحالة
-                  </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap text-center">
-                    إجراءات سريعة
-                  </th>
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-[#0b4f6c]" />
+                    <span>جاري تحميل بيانات الفروع من قاعدة البيانات...</span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-[#e0e3e5]/70 text-sm">
-                {agencies.map((agency) => (
-                  <tr
-                    key={agency.id}
-                    className="hover:bg-[#f7f9fb] transition-colors group"
-                  >
-                    {/* Agency Name */}
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#c5e7ff] text-[#00374e] flex items-center justify-center flex-shrink-0 font-bold">
-                          <Building2 className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-[#191c1e] text-sm group-hover:text-[#0b4f6c] transition-colors">
-                            {agency.name}
-                          </div>
-                          <div className="text-xs text-slate-500 mt-0.5 line-clamp-1 max-w-[280px]">
-                            {agency.description || "جهة حكومية مرتبطة بالسجل المركزي."}
-                          </div>
-                        </div>
+              ) : filteredBranches.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    لا توجد فروع مسجلة مطابقة لمعايير البحث الحالية.
+                  </td>
+                </tr>
+              ) : (
+                filteredBranches.map((b) => (
+                  <tr key={b.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="py-3.5 px-4 font-bold text-[#00374e]">
+                      {b.branchName}
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-700">
+                      {b.organizationName || "القطاع المركزي"}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>{b.governorate} {b.district ? `— ${b.district}` : ""}</span>
                       </div>
                     </td>
-
-                    {/* Code & Type */}
-                    <td className="py-4 px-6">
-                      <div className="flex flex-col gap-1 items-start">
-                        <span className="font-mono text-xs font-bold text-[#0b4f6c] bg-[#c5e7ff]/30 px-2 py-0.5 rounded border border-[#97cdef]/40">
-                          {agency.code}
-                        </span>
-                        <span className="text-[11px] text-slate-500">
-                          {agency.typeLabel}
-                        </span>
-                      </div>
+                    <td className="py-3.5 px-4 text-slate-500 max-w-xs truncate">
+                      {b.addressDetails || "—"}
                     </td>
-
-                    {/* Director */}
-                    <td className="py-4 px-6">
-                      <div>
-                        <div className="font-semibold text-slate-800 text-xs">
-                          {agency.directorName}
-                        </div>
-                        <div className="text-[11px] font-mono text-slate-500 mt-0.5">
-                          هاتف: {agency.directorPhone}
-                        </div>
-                      </div>
+                    <td className="py-3.5 px-4 text-slate-600 font-mono">
+                      {b.phoneNumber || "—"}
                     </td>
-
-                    {/* Branches Button & Count */}
-                    <td className="py-4 px-6 text-center">
-                      <button
-                        onClick={() => handleOpenBranches(agency)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f2f4f6] hover:bg-[#e0e3e5] text-xs font-semibold text-[#00374e] transition-colors border border-slate-200"
-                        title="عرض وإدارة فروع هذه الهيئة"
-                      >
-                        <MapPin className="w-3.5 h-3.5 text-[#0b4f6c]" />
-                        <span className="font-mono font-bold">{agency.branchesCount}</span>
-                        <span>فروع</span>
-                      </button>
-                    </td>
-
-                    {/* Status Badge */}
-                    <td className="py-4 px-6">
-                      <button
-                        onClick={() => handleToggleStatus(agency)}
-                        title="انقر لتغيير الحالة (تفعيل / تعطيل)"
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all hover:scale-105 active:scale-95 ${
-                          agency.isActive
-                            ? "bg-[#005539]/10 text-[#005539] border-[#005539]/20"
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          b.isActive
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : "bg-rose-50 text-rose-700 border-rose-200"
                         }`}
                       >
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            agency.isActive ? "bg-[#005539]" : "bg-rose-600"
-                          }`}
-                        ></span>
-                        <span>{agency.isActive ? "نشط" : "غير نشط"}</span>
-                      </button>
+                        {b.isActive ? "نشط" : "معطل / مجمد"}
+                      </span>
                     </td>
-
-                    {/* Actions Menu */}
-                    <td className="py-4 px-6 text-center">
+                    <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        {getPortalUrlForAgency(agency.code) && (
+                        <button
+                          onClick={() => handleOpenEdit(b)}
+                          title="تعديل بيانات الفرع"
+                          className="p-1.5 text-slate-600 hover:text-[#0b4f6c] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        {b.isActive ? (
                           <button
-                            onClick={() => {
-                              updateSession({ loginSource: "super_admin_switch" });
-                              router.push(getPortalUrlForAgency(agency.code)!);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#00374e] hover:bg-[#0b4f6c] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                            title={`الدخول المباشر إلى بوابة ${agency.name}`}
+                            onClick={() => handleDeleteBranch(b)}
+                            title="تعطيل / تجميد الفرع"
+                            className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                           >
-                            <ExternalLink className="w-3 h-3 text-[#8ac0e1]" />
-                            <span>دخول البوابة</span>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleRestoreBranch(b)}
+                            title="إعادة تفعيل الفرع"
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
                           </button>
                         )}
-
-                        <button
-                          onClick={() => handleOpenEdit(agency)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-[#0b4f6c] hover:bg-slate-100 transition-colors"
-                          title="تعديل بيانات الجهة"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => handleOpenBranches(agency)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
-                          title="إدارة فروع الجهة"
-                        >
-                          <FolderGit2 className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setSelectedAgency(agency);
-                            setIsDeleteModalOpen(true);
-                          }}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                          title="حذف الجهة"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Footer info */}
-        <div className="p-4 border-t border-[#e0e3e5] bg-[#f7f9fb] flex flex-col sm:flex-row items-center justify-between text-xs text-[#41484d]">
-          <span>
-            عرض <strong className="font-mono">{agencies.length}</strong> من أصل{" "}
-            <strong className="font-mono">{totalAgencies}</strong> جهة حكومية
-          </span>
-          <span className="text-[11px] text-slate-400 mt-2 sm:mt-0">
-            تحديث فوري عبر Mock Store / ASP.NET Core API Service
-          </span>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* ======================= ADD AGENCY MODAL ======================= */}
+      {/* Modal: Add New Branch */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#c5e7ff] text-[#00374e] flex items-center justify-center">
-                  <Plus className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-[#f8fafc]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#0b4f6c]/10 text-[#0b4f6c] flex items-center justify-center">
+                  <Building2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-[#00374e]">
-                    إضافة جهة حكومية جديدة
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    ربط هيئة أو مصلحة جديدة بالمنظومة الوطنية الموحدة.
+                  <h3 className="font-bold text-[#00374e] text-sm">إضافة فرع حكومي جديد</h3>
+                  <p className="text-[11px] text-slate-500">
+                    تسجيل فرع جديد وربطه بإحدى الهيئات الأربع في قاعدة البيانات
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddAgencySubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    اسم الجهة الرسمي *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    placeholder="مثال: وزارة النقل والمواصلات"
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    كود الجهة (Code) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value })
-                    }
-                    placeholder="مثال: TRANSPORT"
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm uppercase font-mono focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
+            <form onSubmit={handleCreateBranch} className="p-6 space-y-4 text-right text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">القطاع الحكومي التابع له *</label>
+                <select
+                  required
+                  value={branchForm.organizationId}
+                  onChange={(e) => setBranchForm({ ...branchForm, organizationId: e.target.value })}
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
+                >
+                  {organizations.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    تصنيف الهيئة *
-                  </label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) =>
-                      setFormData({ ...formData, type: e.target.value as AgencyType })
-                    }
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0b4f6c]"
-                  >
-                    <option value="civil">مدني / خدمي</option>
-                    <option value="security">أمني / سيادي</option>
-                    <option value="health">صحي / مستشفيات</option>
-                    <option value="judicial">قضائي / توثيق</option>
-                    <option value="financial">مالي / ضرائب</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">اسم الفرع *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="مثال: فرع الصافية النموذجي"
+                  value={branchForm.branchName}
+                  onChange={(e) => setBranchForm({ ...branchForm, branchName: e.target.value })}
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
+                />
+              </div>
 
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    اسم المدير المسؤول *
-                  </label>
+                  <label className="block font-bold text-slate-700 mb-1.5">المحافظة *</label>
                   <input
                     type="text"
                     required
-                    value={formData.directorName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, directorName: e.target.value })
-                    }
-                    placeholder="مثال: اللواء الركن علي أحمد"
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0b4f6c]"
+                    placeholder="أمانة العاصمة"
+                    value={branchForm.governorate}
+                    onChange={(e) => setBranchForm({ ...branchForm, governorate: e.target.value })}
+                    className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    الرقم الوطني للمدير
-                  </label>
+                  <label className="block font-bold text-slate-700 mb-1.5">المديرية *</label>
                   <input
                     type="text"
-                    maxLength={11}
-                    value={formData.directorNationalId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, directorNationalId: e.target.value })
-                    }
-                    placeholder="010100xxxxx"
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    رقم الهاتف الرسمي
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.directorPhone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, directorPhone: e.target.value })
-                    }
-                    placeholder="+967 77xxxxxxx"
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    البريد الإلكتروني
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.directorEmail}
-                    onChange={(e) =>
-                      setFormData({ ...formData, directorEmail: e.target.value })
-                    }
-                    placeholder="info@agency.gov.ye"
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0b4f6c]"
+                    required
+                    placeholder="السبعين"
+                    value={branchForm.district}
+                    onChange={(e) => setBranchForm({ ...branchForm, district: e.target.value })}
+                    className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  وصف المهام والمسؤوليات
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  placeholder="موجز عن اختصاصات الهيئة وخدماتها..."
-                  className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0b4f6c]"
-                ></textarea>
-              </div>
-
-              <div className="flex items-center gap-2 pt-2">
+                <label className="block font-bold text-slate-700 mb-1.5">تفاصيل العنوان والموقع</label>
                 <input
-                  type="checkbox"
-                  id="isActiveCheck"
-                  checked={formData.isActive}
-                  onChange={(e) =>
-                    setFormData({ ...formData, isActive: e.target.checked })
-                  }
-                  className="w-4 h-4 text-[#0b4f6c] rounded border-slate-300 focus:ring-[#0b4f6c]"
+                  type="text"
+                  placeholder="شارع تعز، جوار جولة 45"
+                  value={branchForm.addressDetails || ""}
+                  onChange={(e) => setBranchForm({ ...branchForm, addressDetails: e.target.value })}
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
                 />
-                <label
-                  htmlFor="isActiveCheck"
-                  className="text-xs font-medium text-slate-700 cursor-pointer"
-                >
-                  تفعيل نشاط الهيئة فور الإنشاء في المنظومة
-                </label>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">رقم الهاتف الرسمي</label>
+                <input
+                  type="text"
+                  placeholder="01234567"
+                  value={branchForm.phoneNumber || ""}
+                  onChange={(e) => setBranchForm({ ...branchForm, phoneNumber: e.target.value })}
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 font-mono focus:border-[#0b4f6c] focus:outline-hidden"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-50"
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-lg bg-[#0b4f6c] hover:bg-[#00374e] text-white text-sm font-bold shadow-sm"
+                  disabled={submitting}
+                  className="px-5 py-2.5 bg-[#0b4f6c] hover:bg-[#00374e] text-white rounded-xl font-bold flex items-center gap-2 cursor-pointer disabled:opacity-60"
                 >
-                  حفظ وتسجيل الهيئة
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>حفظ وإضافة الفرع</span>
                 </button>
               </div>
             </form>
@@ -852,430 +580,78 @@ export default function AgenciesManagementPage() {
         </div>
       )}
 
-      {/* ======================= EDIT AGENCY MODAL ======================= */}
-      {isEditModalOpen && selectedAgency && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+      {/* Modal: Edit Branch */}
+      {isEditModalOpen && selectedBranch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-[#f8fafc]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
                   <Edit2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-[#00374e]">
-                    تعديل بيانات: {selectedAgency.name}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    تحديث بيانات الاتصال أو الإدارة الرسمية للجهة.
-                  </p>
+                  <h3 className="font-bold text-[#00374e] text-sm">تعديل بيانات الفرع</h3>
+                  <p className="text-[11px] text-slate-500">{selectedBranch.branchName}</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsEditModalOpen(false)}
-                className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleEditAgencySubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    اسم الجهة الرسمي *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    كود الجهة (Code) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value })
-                    }
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm uppercase font-mono focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    تصنيف الهيئة *
-                  </label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) =>
-                      setFormData({ ...formData, type: e.target.value as AgencyType })
-                    }
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0b4f6c]"
-                  >
-                    <option value="civil">مدني / خدمي</option>
-                    <option value="security">أمني / سيادي</option>
-                    <option value="health">صحي / مستشفيات</option>
-                    <option value="judicial">قضائي / توثيق</option>
-                    <option value="financial">مالي / ضرائب</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    اسم المدير المسؤول *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.directorName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, directorName: e.target.value })
-                    }
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    الرقم الوطني للمدير
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={11}
-                    value={formData.directorNationalId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, directorNationalId: e.target.value })
-                    }
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    رقم الهاتف الرسمي
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.directorPhone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, directorPhone: e.target.value })
-                    }
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    البريد الإلكتروني
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.directorEmail}
-                    onChange={(e) =>
-                      setFormData({ ...formData, directorEmail: e.target.value })
-                    }
-                    className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
+            <form onSubmit={handleUpdateBranch} className="p-6 space-y-4 text-right text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">اسم الفرع *</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.branchName}
+                  onChange={(e) => setEditForm({ ...editForm, branchName: e.target.value })}
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  الوصف
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0b4f6c]"
-                ></textarea>
+                <label className="block font-bold text-slate-700 mb-1.5">المحافظة</label>
+                <input
+                  type="text"
+                  value={editForm.governorate || ""}
+                  onChange={(e) => setEditForm({ ...editForm, governorate: e.target.value })}
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
+                />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">رقم الهاتف</label>
+                <input
+                  type="text"
+                  value={editForm.phoneNumber || ""}
+                  onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })}
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 font-mono focus:border-[#0b4f6c] focus:outline-hidden"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-50"
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-lg bg-[#0b4f6c] hover:bg-[#00374e] text-white text-sm font-bold shadow-sm"
+                  disabled={submitting}
+                  className="px-5 py-2.5 bg-[#0b4f6c] hover:bg-[#00374e] text-white rounded-xl font-bold flex items-center gap-2 cursor-pointer disabled:opacity-60"
                 >
-                  حفظ التعديلات
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>حفظ التعديلات</span>
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* ======================= BRANCHES MODAL ======================= */}
-      {isBranchesModalOpen && selectedAgency && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#c5e7ff] text-[#00374e] flex items-center justify-center">
-                  <MapPin className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-[#00374e]">
-                    فروع {selectedAgency.name}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    استعراض وإضافة مراكز المعالجة التابعة للهيئة في المحافظات.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsBranchesModalOpen(false)}
-                className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 flex-1 space-y-6">
-              {/* Existing Branches List */}
-              <div>
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
-                  الفروع الحالية المسجلة ({agencyBranches.length})
-                </h4>
-
-                {loadingBranches ? (
-                  <div className="py-8 text-center text-xs text-slate-400">
-                    جاري تحميل الفروع...
-                  </div>
-                ) : agencyBranches.length === 0 ? (
-                  <div className="p-4 bg-slate-50 rounded-xl text-center text-xs text-slate-500 border border-dashed border-slate-200">
-                    لا توجد فروع مسجلة لهذه الهيئة حتى الآن. يمكنك إضافة فرع جديد أدناه.
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {agencyBranches.map((branch) => (
-                      <div
-                        key={branch.id}
-                        className="p-3 bg-[#f7f9fb] border border-slate-200 rounded-xl flex items-center justify-between hover:border-[#0b4f6c]/40 transition-all"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-[#0b4f6c]">
-                            <MapPin className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-slate-800">
-                              {branch.branchName}
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              {branch.governorate} - {branch.district} | مدير الفرع: {branch.managerName || "غير محدد"}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono text-xs text-slate-500">
-                            {branch.phoneNumber || "بدون هاتف"}
-                          </span>
-                          <button
-                            onClick={() => handleDeleteBranch(branch.id)}
-                            className="text-rose-500 hover:text-rose-700 p-1"
-                            title="حذف هذا الفرع"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Add New Branch Form */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                <h4 className="text-xs font-bold text-[#00374e] mb-3 flex items-center gap-1.5">
-                  <Plus className="w-4 h-4" />
-                  <span>إضافة فرع جديد للهيئة</span>
-                </h4>
-
-                <form onSubmit={handleAddBranchSubmit} className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        اسم الفرع *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={newBranchData.branchName}
-                        onChange={(e) =>
-                          setNewBranchData({
-                            ...newBranchData,
-                            branchName: e.target.value,
-                          })
-                        }
-                        placeholder="مثال: فرع الصافية النموذجي"
-                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#0b4f6c]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        المحافظة *
-                      </label>
-                      <select
-                        value={newBranchData.governorate}
-                        onChange={(e) =>
-                          setNewBranchData({
-                            ...newBranchData,
-                            governorate: e.target.value,
-                          })
-                        }
-                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#0b4f6c]"
-                      >
-                        <option value="أمانة العاصمة">أمانة العاصمة (صنعاء)</option>
-                        <option value="عدن">عدن</option>
-                        <option value="تعز">تعز</option>
-                        <option value="حضرموت">حضرموت</option>
-                        <option value="الحديدة">الحديدة</option>
-                        <option value="إب">إب</option>
-                        <option value="ذمار">ذمار</option>
-                        <option value="مأرب">مأرب</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        المديرية
-                      </label>
-                      <input
-                        type="text"
-                        value={newBranchData.district}
-                        onChange={(e) =>
-                          setNewBranchData({
-                            ...newBranchData,
-                            district: e.target.value,
-                          })
-                        }
-                        placeholder="معين، صيرة، المكلا..."
-                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#0b4f6c]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        مدير الفرع
-                      </label>
-                      <input
-                        type="text"
-                        value={newBranchData.managerName}
-                        onChange={(e) =>
-                          setNewBranchData({
-                            ...newBranchData,
-                            managerName: e.target.value,
-                          })
-                        }
-                        placeholder="اسم المسؤول"
-                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#0b4f6c]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        هاتف الفرع
-                      </label>
-                      <input
-                        type="text"
-                        value={newBranchData.phoneNumber}
-                        onChange={(e) =>
-                          setNewBranchData({
-                            ...newBranchData,
-                            phoneNumber: e.target.value,
-                          })
-                        }
-                        placeholder="+967 x xxxxxx"
-                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-[#0b4f6c]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end pt-2">
-                    <button
-                      type="submit"
-                      className="bg-[#0b4f6c] hover:bg-[#00374e] text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>إضافة الفرع الآن</span>
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-100 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsBranchesModalOpen(false)}
-                className="px-5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold"
-              >
-                إغلاق
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ======================= DELETE CONFIRM MODAL ======================= */}
-      {isDeleteModalOpen && selectedAgency && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 text-center">
-            <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-7 h-7" />
-            </div>
-
-            <h3 className="text-lg font-bold text-slate-800 mb-2">
-              تأكيد حذف الجهة الحكومية
-            </h3>
-            <p className="text-xs text-slate-600 leading-relaxed mb-6">
-              هل أنت متأكد من حذف جهة <strong>({selectedAgency.name})</strong> نهائياً من
-              المنظومة المركزية؟ سيؤدي ذلك أيضاً إلى إزالة جميع الفروع وسجلات الربط
-              التابعة لها.
-            </p>
-
-            <div className="flex items-center justify-center gap-3">
-              <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50"
-              >
-                إلغاء الأمر
-              </button>
-              <button
-                onClick={handleDeleteAgencySubmit}
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-200"
-              >
-                نعم، احذف نهائياً
-              </button>
-            </div>
           </div>
         </div>
       )}

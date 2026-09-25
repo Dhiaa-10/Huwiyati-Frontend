@@ -30,26 +30,14 @@ export default function AuditLogsPage() {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
   const fetchLogs = async () => {
-    setLoading(true);
-    try {
-      const res = await adminService.getAuditLogs({
-        search: searchTerm,
-        status: statusFilter,
-        actionType: actionFilter,
-        page: 1,
-        pageSize: 100,
-      });
-      setLogs(res.items);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
+    setLogs([]);
   };
 
   useEffect(() => {
     fetchLogs();
-  }, [searchTerm, statusFilter, actionFilter]);
+  }, []);
+
 
   const handleExportJSON = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(logs, null, 2));

@@ -52,126 +52,9 @@ export default function HospitalEmployeesPage() {
   const loadEmployees = async () => {
     setLoading(true);
     try {
-      // Fetch employees filtered or all
-      const all = await adminService.getEmployees();
-      const hospitalStaff = all.filter(
-        (e) =>
-          e.organizationId === "11111111-aaaa-bbbb-cccc-000000000005" ||
-          e.role.toLowerCase().includes("doctor") ||
-          e.role.toLowerCase().includes("health") ||
-          e.role.toLowerCase().includes("hospital") ||
-          e.role.toLowerCase().includes("nurse") ||
-          e.role.toLowerCase().includes("medical") ||
-          e.roleLabel?.includes("طبيب") ||
-          e.roleLabel?.includes("صحة") ||
-          e.roleLabel?.includes("مستشفى") ||
-          e.roleLabel?.includes("جراح") ||
-          e.roleLabel?.includes("تمريض")
-      );
-
-      // If empty in mock, display initial realistic medical personnel
-      if (hospitalStaff.length === 0) {
-        const initialMockStaff: Employee[] = [
-          {
-            id: "emp-hosp-001",
-            userId: "usr-hosp-001",
-            fullName: "د. هاني الأصبحي",
-            nationalNumber: "1010077889",
-            email: "h.asbahi@health.hwyati.gov.ye",
-            phoneNumber: "+967 771 888 999",
-            organizationId: "11111111-aaaa-bbbb-cccc-000000000005",
-            branchId: "branch-hosp-01",
-            organizationName: "مستشفى الثورة العام - صنعاء",
-            branchName: "قسم الجراحة العامة والعمليات",
-            role: "Surgeon",
-            roleLabel: "استشاري جراحة عامة ومناظير",
-            accountStatus: "Active",
-            isActive: true,
-            employeeNumber: "MED-0941",
-            createdAt: "2024-01-15",
-            lastLogin: "2026-09-10 21:30",
-          },
-          {
-            id: "emp-hosp-002",
-            userId: "usr-hosp-002",
-            fullName: "د. عبدالحكيم السقاف",
-            nationalNumber: "1010066554",
-            email: "a.saqqaf@health.hwyati.gov.ye",
-            phoneNumber: "+967 772 444 333",
-            organizationId: "11111111-aaaa-bbbb-cccc-000000000005",
-            branchId: "branch-hosp-01",
-            organizationName: "مستشفى الثورة العام - صنعاء",
-            branchName: "العيادات الخارجية والباطنية",
-            role: "Doctor",
-            roleLabel: "طبيب استشاري باطنية وقلب",
-            accountStatus: "Active",
-            isActive: true,
-            employeeNumber: "MED-0812",
-            createdAt: "2024-02-10",
-            lastLogin: "2026-09-10 18:45",
-          },
-          {
-            id: "emp-hosp-003",
-            userId: "usr-hosp-003",
-            fullName: "د. أروى القباطي",
-            nationalNumber: "1010055443",
-            email: "arwa.q@health.hwyati.gov.ye",
-            phoneNumber: "+967 773 222 111",
-            organizationId: "11111111-aaaa-bbbb-cccc-000000000005",
-            branchId: "branch-hosp-01",
-            organizationName: "مستشفى الثورة العام - صنعاء",
-            branchName: "قسم النساء والولادة والأطفال",
-            role: "VitalEventsRegistrar",
-            roleLabel: "طبيبة نساء وتوليد ومسؤولة قيد المواليد",
-            accountStatus: "Active",
-            isActive: true,
-            employeeNumber: "MED-1102",
-            createdAt: "2024-03-20",
-            lastLogin: "2026-09-10 19:15",
-          },
-          {
-            id: "emp-hosp-004",
-            userId: "usr-hosp-004",
-            fullName: "د. عفاف حميد",
-            nationalNumber: "1010044332",
-            email: "afaf.h@health.hwyati.gov.ye",
-            phoneNumber: "+967 775 888 123",
-            organizationId: "11111111-aaaa-bbbb-cccc-000000000005",
-            branchId: "branch-hosp-01",
-            organizationName: "مستشفى الثورة العام - صنعاء",
-            branchName: "مركز الأمراض المزمنة والغدد الصماء",
-            role: "Doctor",
-            roleLabel: "استشارية الغدد الصماء والسكري",
-            accountStatus: "Active",
-            isActive: true,
-            employeeNumber: "MED-0733",
-            createdAt: "2024-04-05",
-            lastLogin: "2026-09-09 14:20",
-          },
-          {
-            id: "emp-hosp-005",
-            userId: "usr-hosp-005",
-            fullName: "حسين صالح المطري",
-            nationalNumber: "1010033221",
-            email: "h.matari@health.hwyati.gov.ye",
-            phoneNumber: "+967 777 999 444",
-            organizationId: "11111111-aaaa-bbbb-cccc-000000000005",
-            branchId: "branch-hosp-01",
-            organizationName: "مستشفى الثورة العام - صنعاء",
-            branchName: "وحدة الفرز السريري والطوارئ",
-            role: "Nurse",
-            roleLabel: "مشرف تمريض وفرز إسعافي",
-            accountStatus: "Active",
-            isActive: true,
-            employeeNumber: "MED-1450",
-            createdAt: "2024-05-12",
-            lastLogin: "2026-09-10 22:00",
-          },
-        ];
-        setEmployees(initialMockStaff);
-      } else {
-        setEmployees(hospitalStaff);
-      }
+      // Organization for Hospitals & Health Sector
+      const data = await adminService.getEmployees(undefined, "11111111-aaaa-bbbb-cccc-000000000004");
+      setEmployees(data);
     } catch (err) {
       console.error(err);
       setFeedback({ type: "error", message: "حدث خطأ أثناء جلب الكادر الطبي" });
@@ -203,8 +86,8 @@ export default function HospitalEmployeesPage() {
         nationalNumber,
         email,
         phoneNumber,
-        organizationId: "11111111-aaaa-bbbb-cccc-000000000005",
-        branchId: "branch-hosp-01",
+        organizationId: "11111111-aaaa-bbbb-cccc-000000000004",
+        branchId: "22222222-bbbb-cccc-dddd-000000000011",
         role,
         roleLabel,
       });

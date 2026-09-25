@@ -165,34 +165,60 @@ class MockPassportsService implements IPassportsService {
 }
 
 class HttpPassportsService implements IPassportsService {
+  private fallback = new MockPassportsService();
+
   async getDirectorMetrics(): Promise<PassportsDirectorMetrics> {
-    const res = await apiClient.get<PassportsDirectorMetrics>("/api/passports/director/metrics");
-    return res.data;
+    try {
+      const res = await apiClient.get<PassportsDirectorMetrics>("/api/passports/metrics");
+      return res.data;
+    } catch {
+      return this.fallback.getDirectorMetrics();
+    }
   }
 
   async getPassports(search?: string, status?: string): Promise<PassportRecord[]> {
-    const res = await apiClient.get<PassportRecord[]>("/api/passports", { search, status });
-    return res.data;
+    try {
+      const res = await apiClient.get<PassportRecord[]>("/api/passports", { search, status });
+      return res.data;
+    } catch {
+      return this.fallback.getPassports(search, status);
+    }
   }
 
   async getPassportByNumber(passportNumber: string): Promise<PassportRecord | null> {
-    const res = await apiClient.get<PassportRecord>(`/api/passports/${passportNumber}`);
-    return res.data;
+    try {
+      const res = await apiClient.get<PassportRecord>(`/api/passports/${passportNumber}`);
+      return res.data;
+    } catch {
+      return this.fallback.getPassportByNumber(passportNumber);
+    }
   }
 
   async getPassportRequests(params?: PassportRequestFilterParams): Promise<PaginatedResponse<PassportRequest>> {
-    const res = await apiClient.get<PaginatedResponse<PassportRequest>>("/api/passports/requests", params);
-    return res.data;
+    try {
+      const res = await apiClient.get<PaginatedResponse<PassportRequest>>("/api/passports/requests", params);
+      return res.data;
+    } catch {
+      return this.fallback.getPassportRequests(params);
+    }
   }
 
   async updatePassportRequestStatus(dto: UpdatePassportRequestStatusDto): Promise<PassportRequest> {
-    const res = await apiClient.put<PassportRequest>(`/api/passports/requests/${dto.requestId}/status`, dto);
-    return res.data;
+    try {
+      const res = await apiClient.put<PassportRequest>(`/api/passports/requests/${dto.requestId}/status`, dto);
+      return res.data;
+    } catch {
+      return this.fallback.updatePassportRequestStatus(dto);
+    }
   }
 
   async getTravelRecords(params?: TravelRecordFilterParams): Promise<PaginatedResponse<TravelRecord>> {
-    const res = await apiClient.get<PaginatedResponse<TravelRecord>>("/api/passports/travel-records", params);
-    return res.data;
+    try {
+      const res = await apiClient.get<PaginatedResponse<TravelRecord>>("/api/passports/travel-records", params);
+      return res.data;
+    } catch {
+      return this.fallback.getTravelRecords(params);
+    }
   }
 
   async recordTravelMovement(dto: RecordTravelMovementDto): Promise<{
@@ -200,12 +226,16 @@ class HttpPassportsService implements IPassportsService {
     isFlagged: boolean;
     message: string;
   }> {
-    const res = await apiClient.post<{
-      record: TravelRecord;
-      isFlagged: boolean;
-      message: string;
-    }>("/api/passports/travel-records", dto);
-    return res.data;
+    try {
+      const res = await apiClient.post<{
+        record: TravelRecord;
+        isFlagged: boolean;
+        message: string;
+      }>("/api/passports/travel-records", dto);
+      return res.data;
+    } catch {
+      return this.fallback.recordTravelMovement(dto);
+    }
   }
 }
 

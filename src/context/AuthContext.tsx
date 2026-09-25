@@ -33,8 +33,8 @@ interface AuthContextType {
 const STORAGE_KEY = "hwyati_auth_session";
 
 const DEFAULT_USER: UserSession = {
-  fullName: "م. ضياء محمد عبدالمجيد السالمي",
-  nationalNumber: "01010000001",
+  fullName: "ضياء محمد عبدالمجيد السالمي",
+  nationalNumber: "01011131317",
   role: "SUPER_ADMIN",
   agency: "وزارة الداخلية",
   branchName: "المركز الوطني لتقنية المعلومات - ديوان الوزارة",
@@ -46,8 +46,8 @@ const DEFAULT_USER: UserSession = {
 export const getProfileForRoleAndAgency = (role: RoleType, agency: AgencyType) => {
   if (role === "SUPER_ADMIN") {
     return {
-      fullName: "م. ضياء محمد عبدالمجيد السالمي",
-      nationalNumber: "01010000001",
+      fullName: "ضياء محمد عبدالمجيد السالمي",
+      nationalNumber: "01011131317",
       agency: "وزارة الداخلية" as AgencyType,
       jobTitle: "مشرف عام المنظومة الوطنية (سوبر أدمن)",
       branchName: "المركز الوطني لتقنية المعلومات - ديوان الوزارة",

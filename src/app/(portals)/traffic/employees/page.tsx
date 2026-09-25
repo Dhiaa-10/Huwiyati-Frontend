@@ -54,90 +54,11 @@ export default function TrafficEmployeesPage() {
     setLoading(true);
     try {
       // Traffic Organization
-      const data = await adminService.getEmployees(undefined, "11111111-aaaa-bbbb-cccc-000000000004");
-      if (data.length === 0) {
-        const all = await adminService.getEmployees();
-        const trafficOnly = all.filter(
-          (e) =>
-            e.role.toLowerCase().includes("traffic") ||
-            e.organizationId === "11111111-aaaa-bbbb-cccc-000000000004"
-        );
-        if (trafficOnly.length === 0) {
-          // Seed sample traffic officers if none present
-          setEmployees([
-            {
-              id: "emp-trf-01",
-              userId: "user-trf-01",
-              employeeNumber: "TRF-9021",
-              organizationId: "11111111-aaaa-bbbb-cccc-000000000004",
-              branchId: "22222222-bbbb-cccc-dddd-000000000004",
-              fullName: "ملازم أول / أحمد عبدالله العتيبي",
-              nationalNumber: "01010000010",
-              email: "ahmed.otaybi@traffic.gov.ye",
-              phoneNumber: "+967 771 902 101",
-              role: "TrafficOfficer",
-              roleLabel: "ضابط إصدار الرخص الذكية",
-              isActive: true,
-              accountStatus: "Active",
-              createdAt: "2024-01-15T08:00:00Z",
-            },
-            {
-              id: "emp-trf-02",
-              userId: "user-trf-02",
-              employeeNumber: "TRF-9022",
-              organizationId: "11111111-aaaa-bbbb-cccc-000000000004",
-              branchId: "22222222-bbbb-cccc-dddd-000000000004",
-              fullName: "مساعد أول / صالح ناصر السقاف",
-              nationalNumber: "01010000011",
-              email: "saleh.saggaf@traffic.gov.ye",
-              phoneNumber: "+967 772 841 992",
-              role: "TrafficOfficer",
-              roleLabel: "ضابط الرادار والضبط الميداني",
-              isActive: true,
-              accountStatus: "Active",
-              createdAt: "2024-02-10T09:30:00Z",
-            },
-            {
-              id: "emp-trf-03",
-              userId: "user-trf-03",
-              employeeNumber: "TRF-9023",
-              organizationId: "11111111-aaaa-bbbb-cccc-000000000004",
-              branchId: "22222222-bbbb-cccc-dddd-000000000004",
-              fullName: "ملازم ثانٍ / فؤاد علي القديمي",
-              nationalNumber: "01010000012",
-              email: "fouad.qudaimi@traffic.gov.ye",
-              phoneNumber: "+967 773 112 405",
-              role: "TrafficOfficer",
-              roleLabel: "مشرف التحصيل الإلكتروني للمخالفات",
-              isActive: true,
-              accountStatus: "Active",
-              createdAt: "2024-03-01T10:00:00Z",
-            },
-            {
-              id: "emp-trf-04",
-              userId: "user-trf-04",
-              employeeNumber: "TRF-9024",
-              organizationId: "11111111-aaaa-bbbb-cccc-000000000004",
-              branchId: "22222222-bbbb-cccc-dddd-000000000004",
-              fullName: "مهندس / ياسين عمر بامطرف",
-              nationalNumber: "01010000013",
-              email: "yassin.bamtaraf@traffic.gov.ye",
-              phoneNumber: "+967 774 998 120",
-              role: "RadarTech",
-              roleLabel: "فاحص فني ومعاير رادارات ذكية",
-              isActive: true,
-              accountStatus: "Active",
-              createdAt: "2024-04-12T11:00:00Z",
-            },
-          ]);
-        } else {
-          setEmployees(trafficOnly);
-        }
-      } else {
-        setEmployees(data);
-      }
+      const data = await adminService.getEmployees(undefined, "11111111-aaaa-bbbb-cccc-000000000003");
+      setEmployees(data);
     } catch (err) {
       console.error(err);
+      setFeedback({ type: "error", message: "حدث خطأ أثناء جلب كادر المرور" });
     } finally {
       setLoading(false);
     }
@@ -158,8 +79,8 @@ export default function TrafficEmployeesPage() {
         phoneNumber,
         role,
         roleLabel,
-        branchId: "22222222-bbbb-cccc-dddd-000000000004",
-        organizationId: "11111111-aaaa-bbbb-cccc-000000000004",
+        branchId: "22222222-bbbb-cccc-dddd-000000000009",
+        organizationId: "11111111-aaaa-bbbb-cccc-000000000003",
       });
 
       setEmployees([newEmp, ...employees]);

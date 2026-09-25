@@ -175,8 +175,11 @@ export interface CreateBranchDto {
 }
 
 export interface UpdateBranchDto {
+  organizationId?: string;
   branchName?: string;
   governorate?: string;
+  district?: string;
+  addressDetails?: string;
   phoneNumber?: string;
   managerName?: string;
   isActive?: boolean;
@@ -192,6 +195,30 @@ export interface CreateEmployeeDto {
   role: string;
   roleLabel: string;
   employeeNumber?: string;
+}
+
+export interface OrganizationAdmin {
+  employeeId: string;
+  userId: string;
+  nationalNumber: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  employeeNumber: string;
+  branchId: string;
+  branchName: string;
+  organizationName: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AssignAdminDto {
+  nationalNumber: string;
+  branchId: string;
+}
+
+export interface UpdateAdminDto {
+  branchId: string;
 }
 
 export interface UpdateEmployeeDto {

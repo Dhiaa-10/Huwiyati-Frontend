@@ -1,14 +1,15 @@
 /**
  * Unified API Response Envelopes
- * Matches ASP.NET Core standard response wrappers
+ * Matches ASP.NET Core ApiResponse<T> wrapper:
+ * { isSuccess, statusCode, message, data, errors }
  */
 
 export interface ApiResponse<T> {
+  isSuccess: boolean;
+  statusCode: number;
+  message: string;
   data: T;
-  success: boolean;
-  message?: string;
   errors?: string[];
-  statusCode?: number;
 }
 
 export interface PaginatedResponse<T> {

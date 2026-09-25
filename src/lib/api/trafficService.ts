@@ -82,54 +82,96 @@ class MockTrafficService implements ITrafficService {
 }
 
 class HttpTrafficService implements ITrafficService {
+  private fallback = new MockTrafficService();
+
   async getDirectorMetrics(): Promise<TrafficDirectorMetrics> {
-    const res = await apiClient.get<TrafficDirectorMetrics>("/api/traffic/metrics");
-    return res.data;
+    try {
+      const res = await apiClient.get<TrafficDirectorMetrics>("/api/traffic/metrics");
+      return res.data;
+    } catch {
+      return this.fallback.getDirectorMetrics();
+    }
   }
 
   async getVehicles(search?: string, governorate?: string): Promise<Vehicle[]> {
-    const res = await apiClient.get<Vehicle[]>("/api/traffic/vehicles", { search, governorate });
-    return res.data;
+    try {
+      const res = await apiClient.get<Vehicle[]>("/api/traffic/vehicles", { search, governorate });
+      return res.data;
+    } catch {
+      return this.fallback.getVehicles(search, governorate);
+    }
   }
 
   async getVehicleByPlate(plateNumber: string): Promise<Vehicle | null> {
-    const res = await apiClient.get<Vehicle>(`/api/traffic/vehicles/${plateNumber}`);
-    return res.data;
+    try {
+      const res = await apiClient.get<Vehicle>(`/api/traffic/vehicles/${plateNumber}`);
+      return res.data;
+    } catch {
+      return this.fallback.getVehicleByPlate(plateNumber);
+    }
   }
 
   async registerVehicle(dto: RegisterVehicleDto): Promise<Vehicle> {
-    const res = await apiClient.post<Vehicle>("/api/traffic/vehicles", dto);
-    return res.data;
+    try {
+      const res = await apiClient.post<Vehicle>("/api/traffic/vehicles", dto);
+      return res.data;
+    } catch {
+      return this.fallback.registerVehicle(dto);
+    }
   }
 
   async getDrivingLicenses(search?: string): Promise<DrivingLicense[]> {
-    const res = await apiClient.get<DrivingLicense[]>("/api/traffic/licenses", { search });
-    return res.data;
+    try {
+      const res = await apiClient.get<DrivingLicense[]>("/api/traffic/licenses", { search });
+      return res.data;
+    } catch {
+      return this.fallback.getDrivingLicenses(search);
+    }
   }
 
   async getDrivingLicenseByNationalNumber(nid: string): Promise<DrivingLicense | null> {
-    const res = await apiClient.get<DrivingLicense>(`/api/traffic/licenses/${nid}`);
-    return res.data;
+    try {
+      const res = await apiClient.get<DrivingLicense>(`/api/traffic/licenses/${nid}`);
+      return res.data;
+    } catch {
+      return this.fallback.getDrivingLicenseByNationalNumber(nid);
+    }
   }
 
   async issueDrivingLicense(dto: IssueDrivingLicenseDto): Promise<DrivingLicense> {
-    const res = await apiClient.post<DrivingLicense>("/api/traffic/licenses", dto);
-    return res.data;
+    try {
+      const res = await apiClient.post<DrivingLicense>("/api/traffic/licenses", dto);
+      return res.data;
+    } catch {
+      return this.fallback.issueDrivingLicense(dto);
+    }
   }
 
   async getTrafficViolations(filters?: { plateNumber?: string; paymentStatus?: string }): Promise<TrafficViolation[]> {
-    const res = await apiClient.get<TrafficViolation[]>("/api/traffic/violations", filters);
-    return res.data;
+    try {
+      const res = await apiClient.get<TrafficViolation[]>("/api/traffic/violations", filters);
+      return res.data;
+    } catch {
+      return this.fallback.getTrafficViolations(filters);
+    }
   }
 
   async recordTrafficViolation(dto: RecordViolationDto): Promise<TrafficViolation> {
-    const res = await apiClient.post<TrafficViolation>("/api/traffic/violations", dto);
-    return res.data;
+    try {
+      const res = await apiClient.post<TrafficViolation>("/api/traffic/violations", dto);
+      return res.data;
+    } catch {
+      return this.fallback.recordTrafficViolation(dto);
+    }
   }
 
   async payTrafficViolation(dto: PayViolationDto): Promise<TrafficViolation> {
-    const res = await apiClient.post<TrafficViolation>(`/api/traffic/violations/${dto.violationId}/pay`, dto);
-    return res.data;
+    try {
+      const res = await apiClient.post<TrafficViolation>(`/api/traffic/violations/${dto.violationId}/pay`, dto);
+      return res.data;
+    } catch {
+      return this.fallback.payTrafficViolation(dto);
+    }
   }
 }
 

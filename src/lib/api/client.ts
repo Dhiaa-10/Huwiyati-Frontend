@@ -1,9 +1,10 @@
 import { ApiResponse } from "@/types/api";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.hwyati.gov.ye";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5237";
 
 /**
  * Universal HTTP client for Hwyati ASP.NET Core Web API
+ * Backend response shape: { isSuccess, statusCode, message, data, errors }
  */
 class ApiClient {
   private baseUrl: string;
@@ -28,6 +29,34 @@ class ApiClient {
     return headers;
   }
 
+  /** Parse response and throw on HTTP error or backend failure */
+  private async handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
+    const text = await res.text();
+
+    if (!text) {
+      // Some DELETE responses return 204 No Content
+      if (res.status === 204 || res.ok) {
+        return { isSuccess: true, statusCode: res.status, message: "OK", data: undefined as T };
+      }
+      throw new Error(`HTTP Error (${res.status}): Empty response`);
+    }
+
+    let json: ApiResponse<T>;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error(`HTTP Error (${res.status}): ${text}`);
+    }
+
+    if (!res.ok || json.isSuccess === false) {
+      const msg = json.message || `HTTP ${res.status}`;
+      const details = json.errors?.join(", ") ?? "";
+      throw new Error(details ? `${msg}: ${details}` : msg);
+    }
+
+    return json;
+  }
+
   public async get<T>(endpoint: string, params?: Record<string, any>): Promise<ApiResponse<T>> {
     let url = `${this.baseUrl}${endpoint}`;
     if (params) {
@@ -46,12 +75,7 @@ class ApiClient {
       headers: this.getHeaders(),
     });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`API GET Error (${res.status}): ${errorText}`);
-    }
-
-    return res.json();
+    return this.handleResponse<T>(res);
   }
 
   public async post<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
@@ -61,12 +85,7 @@ class ApiClient {
       body: JSON.stringify(body),
     });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`API POST Error (${res.status}): ${errorText}`);
-    }
-
-    return res.json();
+    return this.handleResponse<T>(res);
   }
 
   public async put<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
@@ -76,12 +95,7 @@ class ApiClient {
       body: JSON.stringify(body),
     });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`API PUT Error (${res.status}): ${errorText}`);
-    }
-
-    return res.json();
+    return this.handleResponse<T>(res);
   }
 
   public async patch<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
@@ -91,12 +105,7 @@ class ApiClient {
       body: JSON.stringify(body),
     });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`API PATCH Error (${res.status}): ${errorText}`);
-    }
-
-    return res.json();
+    return this.handleResponse<T>(res);
   }
 
   public async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
@@ -105,12 +114,7 @@ class ApiClient {
       headers: this.getHeaders(),
     });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`API DELETE Error (${res.status}): ${errorText}`);
-    }
-
-    return res.json();
+    return this.handleResponse<T>(res);
   }
 }
 
