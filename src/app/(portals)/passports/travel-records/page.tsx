@@ -26,16 +26,21 @@ import {
   TravelMovementType,
   BorderPortType,
 } from "@/types/passports";
+import { useAuth } from "@/context/AuthContext";
 
 export default function TravelRecordsAndPortsPage() {
+  const { user } = useAuth();
   const [records, setRecords] = useState<TravelRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [movementFilter, setMovementFilter] = useState("all");
   const [flaggedOnly, setFlaggedOnly] = useState(false);
 
+  // Available live passports for quick selection
+  const [availablePassports, setAvailablePassports] = useState<PassportRecord[]>([]);
+
   // Scanner & Active Traveler state
-  const [scannedPassportNumber, setScannedPassportNumber] = useState("08451234");
+  const [scannedPassportNumber, setScannedPassportNumber] = useState("");
   const [activePassport, setActivePassport] = useState<PassportRecord | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
@@ -53,10 +58,32 @@ export default function TravelRecordsAndPortsPage() {
     text: string;
   } | null>(null);
 
+  const defaultBranchId = user?.branchId || "018f7d9a-2000-7000-8000-000000000005";
+
   useEffect(() => {
-    loadTravelRecords();
-    handleScanPassport("08451234");
+    initData();
   }, []);
+
+  const initData = async () => {
+    setLoading(true);
+    try {
+      const [passportsList, travelRes] = await Promise.all([
+        passportsService.getPassports(),
+        passportsService.getTravelRecords({ search, movementType: movementFilter === "all" ? undefined : movementFilter }),
+      ]);
+      setAvailablePassports(passportsList);
+      setRecords(travelRes.items);
+
+      if (passportsList.length > 0) {
+        setScannedPassportNumber(passportsList[0].passportNumber);
+        setActivePassport(passportsList[0]);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadTravelRecords = async () => {
     setLoading(true);
@@ -75,18 +102,30 @@ export default function TravelRecordsAndPortsPage() {
   };
 
   const handleScanPassport = async (passNum: string) => {
+    if (!passNum.trim()) return;
     setIsScanning(true);
-    setScanMessage("جاري قراءة الشريحة الإلكترونية وفحص القوائم الأمنية...");
+    setScanMessage("جاري فحص قاعدة البيانات والشريحة الإلكترونية...");
     try {
-      const p = await passportsService.getPassportByNumber(passNum);
-      setTimeout(() => {
+      const p = await passportsService.getPassportByNumber(passNum.trim());
+      if (p) {
         setActivePassport(p);
-        setIsScanning(false);
         setScanMessage(null);
-      }, 350);
+      } else {
+        // Try searching history by national number
+        const history = await passportsService.getPassportHistory(passNum.trim());
+        if (history.length > 0) {
+          setActivePassport(history[0]);
+          setScanMessage(null);
+        } else {
+          setActivePassport(null);
+          setScanMessage("لم يتم العثور على جواز سفر مطابق في قاعدة البيانات الحية.");
+        }
+      }
     } catch (err) {
+      setActivePassport(null);
+      setScanMessage("فشل قراءة بيانات الجواز من الخادم.");
+    } finally {
       setIsScanning(false);
-      setScanMessage("فشل قراءة بيانات الجواز.");
     }
   };
 
@@ -98,41 +137,35 @@ export default function TravelRecordsAndPortsPage() {
     setMovementAlert(null);
 
     try {
-      const res = await passportsService.recordTravelMovement({
+      const todayDate = new Date().toISOString().split("T")[0];
+      await passportsService.addTravelRecord({
         passportNumber: activePassport.passportNumber,
-        movementType,
-        portName: selectedPort,
-        portType,
-        destinationOrOriginCountry: country,
-        flightOrVehicleNumber: flightNumber,
-        officerUserId: "01010025671",
-        officerName: "النقيب عادل قاسم الأنسي",
-        securityNotes: securityNotes || undefined,
+        issuingBranchId: defaultBranchId,
+        country: country,
+        entryDate: todayDate,
+        exitDate: movementType === "Exit" ? todayDate : null,
       });
 
-      if (res.isFlagged) {
-        setMovementAlert({
-          type: "danger",
-          text: `تم حظر المغادرة والتحفظ على المسافر فوراً! ${res.message}`,
-        });
-      } else {
-        setMovementAlert({
-          type: "success",
-          text: `تم ختم الجواز وتسجيل حركة ال${
-            movementType === "Entry" ? "دخول" : "مغادرة"
-          } بنجاح عبر ${selectedPort}.`,
-        });
-      }
+      setMovementAlert({
+        type: "success",
+        text: `تم تسجيل حركة ال${
+          movementType === "Entry" ? "دخول" : "مغادرة"
+        } للجواز رقم ${activePassport.passportNumber} بنجاح عبر ${selectedPort}.`,
+      });
 
       // Refresh records list
-      loadTravelRecords();
-    } catch (err) {
+      await loadTravelRecords();
+    } catch (err: any) {
       console.error(err);
-      setMovementAlert({ type: "danger", text: "حدث خطأ أثناء تسجيل حركة العبور." });
+      setMovementAlert({
+        type: "danger",
+        text: err?.message || "حدث خطأ أثناء تسجيل حركة العبور في الخادم.",
+      });
     } finally {
       setSubmitting(false);
     }
   };
+
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -204,59 +237,48 @@ export default function TravelRecordsAndPortsPage() {
               </span>
             </div>
 
-            {/* Quick Demo Selector */}
+            {/* Live Passports Selector */}
             <div>
               <label className="text-[11px] font-bold text-gray-600 block mb-1.5">
-                نماذج تجربة سريعة (محاكاة المسح):
+                الجوازات النشطة المسجلة بالنظام (اختيار سريع):
               </label>
-              <div className="grid grid-cols-1 gap-1.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScannedPassportNumber("08451234");
-                    handleScanPassport("08451234");
-                  }}
-                  className={`p-2 rounded-xl text-right border transition-all ${
-                    scannedPassportNumber === "08451234"
-                      ? "border-[#0b4f6c] bg-blue-50/70 text-[#00374e] font-bold"
-                      : "border-gray-200 hover:bg-gray-50 text-gray-700"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span>أحمد محمد السالمي (سليم)</span>
-                    <span className="font-mono text-[10px] text-gray-500">08451234</span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScannedPassportNumber("07119023");
-                    handleScanPassport("07119023");
-                  }}
-                  className={`p-2 rounded-xl text-right border transition-all ${
-                    scannedPassportNumber === "07119023"
-                      ? "border-rose-400 bg-rose-50 text-rose-900 font-bold"
-                      : "border-gray-200 hover:bg-gray-50 text-gray-700"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-rose-700">فارس العديني (مطلوب أمنياً)</span>
-                    <span className="font-mono text-[10px] text-rose-600">07119023</span>
-                  </div>
-                </button>
+              <div className="grid grid-cols-1 gap-1.5 text-xs max-h-40 overflow-y-auto pr-1">
+                {availablePassports.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 p-2">لا توجد جوازات مسجلة حالياً.</p>
+                ) : (
+                  availablePassports.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setScannedPassportNumber(p.passportNumber);
+                        handleScanPassport(p.passportNumber);
+                      }}
+                      className={`p-2 rounded-xl text-right border transition-all ${
+                        scannedPassportNumber === p.passportNumber
+                          ? "border-[#0b4f6c] bg-blue-50/70 text-[#00374e] font-bold"
+                          : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="truncate max-w-[170px]">{p.fullName}</span>
+                        <span className="font-mono text-[10px] text-gray-500">{p.passportNumber}</span>
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             </div>
 
             {/* Manual Passport Number Search */}
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-gray-600">أو إدخال رقم الجواز يدوياً:</label>
+              <label className="text-[11px] font-bold text-gray-600">أو إدخال رقم الجواز أو الرقم الوطني يدوياً:</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={scannedPassportNumber}
                   onChange={(e) => setScannedPassportNumber(e.target.value)}
-                  placeholder="مثال: 08451234"
+                  placeholder="مثال: 05001000001 أو 01011135650"
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-[#0b4f6c]"
                 />
                 <button
@@ -264,7 +286,7 @@ export default function TravelRecordsAndPortsPage() {
                   onClick={() => handleScanPassport(scannedPassportNumber)}
                   className="px-3 py-2 bg-[#00374e] text-white rounded-xl text-xs font-bold hover:bg-[#0b4f6c] transition-colors"
                 >
-                  مسح
+                  فحص
                 </button>
               </div>
             </div>
@@ -340,12 +362,19 @@ export default function TravelRecordsAndPortsPage() {
 
                 <div className="flex flex-col sm:flex-row gap-5 items-start">
                   {/* Photo */}
-                  <div className="w-28 h-36 rounded-xl border border-gray-200 overflow-hidden bg-gray-100 shrink-0 shadow-sm relative">
-                    <img
-                      src={activePassport.photoUrl}
-                      alt={activePassport.fullName}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-28 h-36 rounded-xl border border-gray-200 overflow-hidden bg-gray-100 shrink-0 shadow-sm relative flex items-center justify-center">
+                    {activePassport.photoUrl ? (
+                      <img
+                        src={activePassport.photoUrl}
+                        alt={activePassport.fullName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-gray-400 gap-1 p-2 text-center">
+                        <User className="w-8 h-8 text-gray-300" />
+                        <span className="text-[10px]">صورة رسمية</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Grid details */}

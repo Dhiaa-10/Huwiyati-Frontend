@@ -127,25 +127,32 @@ export function UnifiedPortalLayout({
             active: pathname === "/passports",
           },
           {
-            label: "إدارة ضباط وموظفي الفرع",
-            href: "/passports/employees",
-            icon: Users,
-            active: pathname === "/passports/employees",
+            label: "سجل الجوازات الإلكترونية والإصدار",
+            href: "/passports/issued",
+            icon: BookOpenCheck,
+            active: pathname.startsWith("/passports/issued"),
           },
           {
-            label: "تقارير المعاملات والرقابة",
+            label: "الرقابة بالمنافذ وسجلات السفر",
+            href: "/passports/travel-records",
+            icon: Plane,
+            active: pathname.startsWith("/passports/travel-records"),
+          },
+          {
+            label: "تقارير وإحصائيات السفر",
             href: "/passports/reports",
             icon: BarChart3,
             active: pathname === "/passports/reports",
           },
           {
-            label: "اعتماد وفحص طلبات الجوازات",
-            href: "/passports/requests",
-            icon: FileCheck2,
-            active: pathname === "/passports/requests",
+            label: "إدارة ضباط وموظفي الفرع",
+            href: "/passports/employees",
+            icon: Users,
+            active: pathname === "/passports/employees",
           },
         ];
       }
+
 
       if (portalType === "traffic") {
         return [
@@ -268,22 +275,16 @@ export function UnifiedPortalLayout({
     if (portalType === "passports") {
       return [
         {
-          label: "فحص ومعالجة طلبات الجوازات",
-          href: "/passports/requests",
-          icon: FileCheck2,
-          active: pathname === "/passports/requests",
+          label: "سجل الجوازات الإلكترونية المعتمدة",
+          href: "/passports/issued",
+          icon: BookOpenCheck,
+          active: pathname.startsWith("/passports/issued"),
         },
         {
           label: "الرقابة بالمنافذ وسجلات السفر",
           href: "/passports/travel-records",
           icon: Plane,
-          active: pathname === "/passports/travel-records",
-        },
-        {
-          label: "سجل الجوازات الإلكترونية المعتمدة",
-          href: "/passports/issued",
-          icon: BookOpenCheck,
-          active: pathname === "/passports/issued",
+          active: pathname.startsWith("/passports/travel-records"),
         },
       ];
     }
