@@ -1,10 +1,25 @@
+/**
+ * Huwiyati — Hospital Service (Live HTTP Only)
+ * =============================================
+ * Connects directly to the Huwiyati.API backend.
+ * No mock fallback — if the endpoint is unavailable, a clear ServiceUnavailableError is thrown.
+ *
+ * NOTE: The following endpoints are NOT yet implemented in the backend:
+ *   GET  /api/hospitals/metrics
+ *   GET  /api/hospitals/records
+ *   GET  /api/hospitals/records/{nid}
+ *   POST /api/hospitals/records/diagnoses
+ *   POST /api/hospitals/records/operations
+ *   POST /api/hospitals/records/chronic-diseases
+ *   PATCH /api/hospitals/records/{id}/visibility
+ *
+ * When these endpoints return errors, the service throws a ServiceUnavailableError
+ * so that pages can display a clear "service not available" message.
+ */
+
 import { apiClient } from "./client";
-import { mockStore } from "./mockStore";
 import {
   MedicalRecord,
-  MedicalDiagnosis,
-  MedicalOperation,
-  ChronicDisease,
   HospitalDashboardMetrics,
   AddDiagnosisDto,
   AddOperationDto,
@@ -12,8 +27,15 @@ import {
   ToggleVisibilityDto,
 } from "@/types/hospitals";
 
-const simulateDelay = (ms: number = 200) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+/** Thrown when a backend endpoint is not yet implemented or unavailable */
+export class ServiceUnavailableError extends Error {
+  constructor(endpoint: string) {
+    super(
+      `الخدمة غير متوفرة حالياً من الخادم (${endpoint}). سيتم تفعيلها عند اكتمال بناء الواجهة الخلفية.`
+    );
+    this.name = "ServiceUnavailableError";
+  }
+}
 
 export interface IHospitalService {
   getDashboardMetrics(): Promise<HospitalDashboardMetrics>;
@@ -25,70 +47,37 @@ export interface IHospitalService {
   toggleRecordVisibility(dto: ToggleVisibilityDto): Promise<MedicalRecord>;
 }
 
-class MockHospitalService implements IHospitalService {
-  async getDashboardMetrics(): Promise<HospitalDashboardMetrics> {
-    await simulateDelay(150);
-    return mockStore.getHospitalDashboardMetrics();
-  }
-
-  async getMedicalRecords(search?: string): Promise<MedicalRecord[]> {
-    await simulateDelay(200);
-    return mockStore.getMedicalRecords(search);
-  }
-
-  async getMedicalRecordByNationalNumber(nid: string): Promise<MedicalRecord | null> {
-    await simulateDelay(150);
-    return mockStore.getMedicalRecordByNationalNumber(nid);
-  }
-
-  async addDiagnosis(dto: AddDiagnosisDto): Promise<MedicalRecord> {
-    await simulateDelay(250);
-    return mockStore.addDiagnosis(dto);
-  }
-
-  async addOperation(dto: AddOperationDto): Promise<MedicalRecord> {
-    await simulateDelay(250);
-    return mockStore.addOperation(dto);
-  }
-
-  async addChronicDisease(dto: AddChronicDiseaseDto): Promise<MedicalRecord> {
-    await simulateDelay(250);
-    return mockStore.addChronicDisease(dto);
-  }
-
-  async toggleRecordVisibility(dto: ToggleVisibilityDto): Promise<MedicalRecord> {
-    await simulateDelay(200);
-    return mockStore.toggleRecordVisibility(dto);
-  }
-}
-
 class HttpHospitalService implements IHospitalService {
-  private fallback = new MockHospitalService();
-
   async getDashboardMetrics(): Promise<HospitalDashboardMetrics> {
     try {
       const res = await apiClient.get<HospitalDashboardMetrics>("/api/hospitals/metrics");
       return res.data;
-    } catch {
-      return this.fallback.getDashboardMetrics();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ServiceUnavailableError(`GET /api/hospitals/metrics — ${msg}`);
     }
   }
 
   async getMedicalRecords(search?: string): Promise<MedicalRecord[]> {
     try {
-      const res = await apiClient.get<MedicalRecord[]>("/api/hospitals/records", { search });
-      return res.data;
-    } catch {
-      return this.fallback.getMedicalRecords(search);
+      const res = await apiClient.get<MedicalRecord[]>(
+        "/api/hospitals/records",
+        search ? { search } : undefined
+      );
+      return res.data ?? [];
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ServiceUnavailableError(`GET /api/hospitals/records — ${msg}`);
     }
   }
 
   async getMedicalRecordByNationalNumber(nid: string): Promise<MedicalRecord | null> {
     try {
       const res = await apiClient.get<MedicalRecord>(`/api/hospitals/records/${nid}`);
-      return res.data;
-    } catch {
-      return this.fallback.getMedicalRecordByNationalNumber(nid);
+      return res.data ?? null;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ServiceUnavailableError(`GET /api/hospitals/records/${nid} — ${msg}`);
     }
   }
 
@@ -96,8 +85,9 @@ class HttpHospitalService implements IHospitalService {
     try {
       const res = await apiClient.post<MedicalRecord>("/api/hospitals/records/diagnoses", dto);
       return res.data;
-    } catch {
-      return this.fallback.addDiagnosis(dto);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ServiceUnavailableError(`POST /api/hospitals/records/diagnoses — ${msg}`);
     }
   }
 
@@ -105,8 +95,9 @@ class HttpHospitalService implements IHospitalService {
     try {
       const res = await apiClient.post<MedicalRecord>("/api/hospitals/records/operations", dto);
       return res.data;
-    } catch {
-      return this.fallback.addOperation(dto);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ServiceUnavailableError(`POST /api/hospitals/records/operations — ${msg}`);
     }
   }
 
@@ -114,23 +105,26 @@ class HttpHospitalService implements IHospitalService {
     try {
       const res = await apiClient.post<MedicalRecord>("/api/hospitals/records/chronic-diseases", dto);
       return res.data;
-    } catch {
-      return this.fallback.addChronicDisease(dto);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ServiceUnavailableError(`POST /api/hospitals/records/chronic-diseases — ${msg}`);
     }
   }
 
   async toggleRecordVisibility(dto: ToggleVisibilityDto): Promise<MedicalRecord> {
     try {
-      const res = await apiClient.patch<MedicalRecord>(`/api/hospitals/records/${dto.recordId}/visibility`, dto);
+      const res = await apiClient.patch<MedicalRecord>(
+        `/api/hospitals/records/${dto.recordId}/visibility`,
+        dto
+      );
       return res.data;
-    } catch {
-      return this.fallback.toggleRecordVisibility(dto);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ServiceUnavailableError(
+        `PATCH /api/hospitals/records/${dto.recordId}/visibility — ${msg}`
+      );
     }
   }
 }
 
-const isMockMode = process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
-
-export const hospitalService: IHospitalService = isMockMode
-  ? new MockHospitalService()
-  : new HttpHospitalService();
+export const hospitalService: IHospitalService = new HttpHospitalService();

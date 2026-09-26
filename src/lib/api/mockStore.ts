@@ -14,7 +14,7 @@ import initialTravelRecords from "@/data/mock/travel_records.json";
 import initialVehicles from "@/data/mock/vehicles.json";
 import initialDrivingLicenses from "@/data/mock/driving_licenses.json";
 import initialTrafficViolations from "@/data/mock/traffic_violations.json";
-import initialMedicalRecords from "@/data/mock/medical_records.json";
+
 
 import {
   MedicalRecord,
@@ -150,7 +150,7 @@ class MockStoreManager {
   private vehicles: Vehicle[] = initialVehicles as Vehicle[];
   private drivingLicenses: DrivingLicense[] = initialDrivingLicenses as DrivingLicense[];
   private trafficViolations: TrafficViolation[] = initialTrafficViolations as TrafficViolation[];
-  private medicalRecords: MedicalRecord[] = initialMedicalRecords as MedicalRecord[];
+  private medicalRecords: MedicalRecord[] = [];
 
   constructor() {
     this.init();
@@ -173,7 +173,7 @@ class MockStoreManager {
       this.vehicles = getStored(STORAGE_KEYS.VEHICLES, initialVehicles as Vehicle[]);
       this.drivingLicenses = getStored(STORAGE_KEYS.DRIVING_LICENSES, initialDrivingLicenses as DrivingLicense[]);
       this.trafficViolations = getStored(STORAGE_KEYS.TRAFFIC_VIOLATIONS, initialTrafficViolations as TrafficViolation[]);
-      this.medicalRecords = getStored(STORAGE_KEYS.MEDICAL_RECORDS, initialMedicalRecords as MedicalRecord[]);
+      this.medicalRecords = getStored(STORAGE_KEYS.MEDICAL_RECORDS, []);
     }
   }
 
@@ -196,7 +196,7 @@ class MockStoreManager {
     this.vehicles = [...(initialVehicles as Vehicle[])];
     this.drivingLicenses = [...(initialDrivingLicenses as DrivingLicense[])];
     this.trafficViolations = [...(initialTrafficViolations as TrafficViolation[])];
-    this.medicalRecords = [...(initialMedicalRecords as MedicalRecord[])];
+    this.medicalRecords = [];
     this.saveAll();
   }
 

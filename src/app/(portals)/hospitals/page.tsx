@@ -3,87 +3,67 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  Activity,
   Stethoscope,
-  Users,
   Baby,
   HeartPulse,
   History,
   Search,
-  Plus,
-  FileDown,
   ShieldCheck,
   AlertTriangle,
-  ArrowUpRight,
   TrendingUp,
   Bed,
-  CheckCircle2,
-  Clock,
   Eye,
-  FileText,
   UserCheck,
+  Loader2,
 } from "lucide-react";
-import { hospitalService } from "@/lib/api/hospitalService";
+import { hospitalService, ServiceUnavailableError } from "@/lib/api/hospitalService";
+import { employeesService } from "@/lib/api/employeesService";
 import { HospitalDashboardMetrics } from "@/types/hospitals";
+import { Employee } from "@/types/admin";
 import { useAuth } from "@/context/AuthContext";
 
 export default function HospitalsDashboardPage() {
   const { user } = useAuth();
   const [metrics, setMetrics] = useState<HospitalDashboardMetrics | null>(null);
+  const [metricsUnavailable, setMetricsUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [staffList, setStaffList] = useState<Employee[]>([]);
+  const [staffLoading, setStaffLoading] = useState(true);
   const [patientSearch, setPatientSearch] = useState("");
 
-  const sampleStaff = [
-    {
-      id: "MD-883492",
-      name: "د. سامي فؤاد المنصوب",
-      email: "sami.mansoob@thawra.gov.ye",
-      role: "AuthorizedDoctor",
-      roleLabel: "استشاري أمراض باطنية",
-      lastLogin: "اليوم، 08:45 ص",
-      status: "Active",
-    },
-    {
-      id: "MD-883493",
-      name: "د. جميلة عبدالكريم الصبري",
-      email: "jamila.sabri@thawra.gov.ye",
-      role: "AuthorizedDoctor",
-      roleLabel: "أخصائية قلب وقسطرة",
-      lastLogin: "اليوم، 09:12 ص",
-      status: "Active",
-    },
-    {
-      id: "MD-883494",
-      name: "د. نجيب طه العريقي",
-      email: "najeeb.oraigi@thawra.gov.ye",
-      role: "Surgeon",
-      roleLabel: "استشاري جراحة عامة ومناظير",
-      lastLogin: "أمس، 06:30 م",
-      status: "Active",
-    },
-    {
-      id: "ST-502118",
-      name: "أمل يحيى الأنسي",
-      email: "amal.ansi@thawra.gov.ye",
-      role: "DataEntry",
-      roleLabel: "أخصائية تسجيل وقائع حيوية",
-      lastLogin: "اليوم، 07:50 ص",
-      status: "Active",
-    },
-  ];
-
   useEffect(() => {
-    async function loadData() {
+    // Load dashboard metrics
+    async function loadMetrics() {
       try {
         const m = await hospitalService.getDashboardMetrics();
         setMetrics(m);
       } catch (err) {
-        console.error("Failed to load hospital metrics:", err);
+        if (err instanceof ServiceUnavailableError) {
+          setMetricsUnavailable(true);
+        } else {
+          console.error("Failed to load hospital metrics:", err);
+        }
       } finally {
         setLoading(false);
       }
     }
-    loadData();
+
+    // Load real staff list from backend
+    async function loadStaff() {
+      try {
+        const result = await employeesService.getEmployees();
+        if (result.isSuccess) {
+          setStaffList(result.employees.filter((e) => e.isActive).slice(0, 8));
+        }
+      } catch (err) {
+        console.error("Failed to load staff list:", err);
+      } finally {
+        setStaffLoading(false);
+      }
+    }
+
+    loadMetrics();
+    loadStaff();
   }, []);
 
   return (
@@ -99,7 +79,7 @@ export default function HospitalsDashboardPage() {
             <span className="text-xs text-secondary">| ربط مركزي مع الأحوال المدنية</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold text-primary font-headline-lg">
-            هيئة مستشفى الثورة العام النموذجي - صنعاء
+            {user.branchName || "بوابة هيئة المستشفيات"}
           </h1>
           <p className="text-secondary text-sm md:text-base mt-1">
             نظرة عامة على إدارة المستشفى، تدقيق السجلات الطبية الموحدة، ومتابعة تسجيل المواليد والوفيات
@@ -157,7 +137,7 @@ export default function HospitalsDashboardPage() {
         </Link>
       </div>
 
-      {/* Bento Grid: KPI Cards (Matching Stitch Screen 01) */}
+      {/* Bento Grid: KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Card 1: Vital Events */}
         <div className="bg-surface-container-lowest rounded-xl p-5 shadow-[0_4px_20px_rgba(11,79,108,0.05)] border border-outline-variant/30 relative overflow-hidden group hover:border-tertiary-container/30 hover:shadow-md transition-all">
@@ -166,16 +146,16 @@ export default function HospitalsDashboardPage() {
               <Baby className="w-5 h-5" />
             </div>
             <span className="font-label-md text-xs font-bold bg-tertiary-container/10 text-tertiary-container px-2.5 py-1 rounded-full flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5" /> +12% هذا الشهر
+              <TrendingUp className="w-3.5 h-3.5" /> الوقائع الحيوية
             </span>
           </div>
           <h3 className="text-xs font-semibold text-secondary mb-1">الأحداث الحيوية المسجلة</h3>
           <div className="text-2xl md:text-3xl font-bold text-primary font-headline-lg tabular-nums">
-            {metrics ? metrics.registeredVitalEventsCount.toLocaleString("ar-YE") : "1,248"}
+            {loading ? <Loader2 className="w-6 h-6 animate-spin text-secondary" /> : metricsUnavailable ? "—" : (metrics?.registeredVitalEventsCount ?? 0).toLocaleString("ar-YE")}
           </div>
           <div className="mt-3 pt-3 border-t border-surface-container flex justify-between text-xs text-secondary">
-            <span>مواليد: <strong className="text-tertiary font-mono">1,102</strong></span>
-            <span>وفيات: <strong className="text-error font-mono">146</strong></span>
+            <span>مواليد: <strong className="text-tertiary font-mono">{metrics?.monthlyBirthsCount ?? "—"}</strong></span>
+            <span>وفيات: <strong className="text-error font-mono">{metrics?.monthlyDeathsCount ?? "—"}</strong></span>
           </div>
         </div>
 
@@ -191,11 +171,10 @@ export default function HospitalsDashboardPage() {
           </div>
           <h3 className="text-xs font-semibold text-secondary mb-1">الأطباء والكادر الطبي النشط</h3>
           <div className="text-2xl md:text-3xl font-bold text-primary font-headline-lg tabular-nums">
-            {metrics ? metrics.activeDoctorsCount.toLocaleString("ar-YE") : "342"}
+            {loading ? <Loader2 className="w-6 h-6 animate-spin text-secondary" /> : metricsUnavailable ? "—" : (metrics?.activeDoctorsCount ?? 0).toLocaleString("ar-YE")}
           </div>
           <div className="mt-3 pt-3 border-t border-surface-container flex justify-between text-xs text-secondary">
-            <span>على رأس العمل: <strong className="text-tertiary font-mono">85</strong></span>
-            <span>في إجازة: <strong className="text-secondary font-mono">12</strong></span>
+            <span>إجمالي الكادر: <strong className="text-tertiary font-mono">{metrics?.totalAuthorizedStaff ?? "—"}</strong></span>
           </div>
         </div>
 
@@ -205,17 +184,16 @@ export default function HospitalsDashboardPage() {
             <div className="p-2.5 bg-secondary-container rounded-lg text-primary">
               <History className="w-5 h-5" />
             </div>
-            <span className="font-label-md text-xs font-bold bg-error/10 text-error px-2.5 py-1 rounded-full flex items-center gap-1">
-              <AlertTriangle className="w-3.5 h-3.5" /> 3 تنبيهات
+            <span className="font-label-md text-xs font-bold bg-surface-container text-secondary px-2.5 py-1 rounded-full">
+              سجلات الوصول
             </span>
           </div>
           <h3 className="text-xs font-semibold text-secondary mb-1">سجلات الوصول للسجل الطبي</h3>
           <div className="text-2xl md:text-3xl font-bold text-primary font-headline-lg tabular-nums">
-            {metrics ? metrics.accessLogsCount.toLocaleString("ar-YE") : "8,930"}
+            {loading ? <Loader2 className="w-6 h-6 animate-spin text-secondary" /> : metricsUnavailable ? "—" : (metrics?.accessLogsCount ?? 0).toLocaleString("ar-YE")}
           </div>
-          <div className="mt-3 pt-3 border-t border-surface-container flex justify-between text-xs text-secondary">
-            <span>قراءة واستعراض: <strong className="font-mono">7,500</strong></span>
-            <span>تحديث وتشخيص: <strong className="font-mono">1,430</strong></span>
+          <div className="mt-3 pt-3 border-t border-surface-container text-xs text-secondary">
+            <span>وصول مسجل ومراقَب من الخادم</span>
           </div>
         </div>
 
@@ -226,19 +204,19 @@ export default function HospitalsDashboardPage() {
               <Bed className="w-5 h-5" />
             </div>
             <span className="font-label-md text-xs font-bold bg-error/10 text-error px-2.5 py-1 rounded-full">
-              العناية المركزة 82%
+              {metrics ? `ICU ${metrics.icuOccupancyPercentage ?? "—"}%` : "العناية المركزة"}
             </span>
           </div>
           <h3 className="text-xs font-semibold text-secondary mb-1">المرضى المنومين بالهيئة</h3>
           <div className="text-2xl md:text-3xl font-bold text-primary font-headline-lg tabular-nums">
-            {metrics ? metrics.activeInpatients.toLocaleString("ar-YE") : "184"}
+            {loading ? <Loader2 className="w-6 h-6 animate-spin text-secondary" /> : metricsUnavailable ? "—" : (metrics?.activeInpatients ?? 0).toLocaleString("ar-YE")}
           </div>
-          <div className="mt-3 pt-3 border-t border-surface-container flex justify-between text-xs text-secondary">
-            <span>السعة الكلية: <strong className="font-mono">250 سرير</strong></span>
-            <span>الأسرة المتاحة: <strong className="text-tertiary font-mono">66</strong></span>
+          <div className="mt-3 pt-3 border-t border-surface-container text-xs text-secondary">
+            <span>بيانات مباشرة من الخادم</span>
           </div>
         </div>
       </div>
+
 
       {/* Second Row: Staff Table & Live EHR Access Logs */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -261,50 +239,67 @@ export default function HospitalsDashboardPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead className="bg-surface-container border-b border-outline-variant/40 font-semibold text-secondary">
-                <tr>
-                  <th className="py-3 px-4">الاسم</th>
-                  <th className="py-3 px-4">رقم الترخيص</th>
-                  <th className="py-3 px-4">الفئة والتخصص</th>
-                  <th className="py-3 px-4">آخر دخول</th>
-                  <th className="py-3 px-4">الحالة</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/20 font-body-sm text-on-surface">
-                {sampleStaff.map((staff, idx) => (
-                  <tr key={idx} className="hover:bg-surface-container-low/50 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-primary-container text-white flex items-center justify-center font-bold text-xs">
-                          {staff.name.slice(0, 1)}
-                        </div>
-                        <div>
-                          <div className="font-bold text-primary">{staff.name}</div>
-                          <div className="text-[10px] text-secondary font-mono">{staff.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-semibold text-secondary">
-                      {staff.id}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold text-[11px]">
-                        <Stethoscope className="w-3 h-3" />
-                        {staff.roleLabel}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-secondary">{staff.lastLogin}</td>
-                    <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-tertiary-container/10 text-tertiary-container font-semibold text-[11px]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>
-                        نشط بالخدمة
-                      </span>
-                    </td>
+            {staffLoading ? (
+              <div className="flex justify-center items-center py-10">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <span className="mr-2 text-sm text-secondary">جاري تحميل كادر المستشفى...</span>
+              </div>
+            ) : staffList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-secondary text-sm gap-2">
+                <UserCheck className="w-8 h-8 text-outline" />
+                <p>لا يوجد موظفون نشطون في الفرع حالياً</p>
+                <Link href="/hospitals/employees" className="text-primary text-xs font-semibold hover:underline">
+                  إضافة موظف جديد ←
+                </Link>
+              </div>
+            ) : (
+              <table className="w-full text-right text-xs">
+                <thead className="bg-surface-container border-b border-outline-variant/40 font-semibold text-secondary">
+                  <tr>
+                    <th className="py-3 px-4">الاسم</th>
+                    <th className="py-3 px-4">الرقم الوظيفي</th>
+                    <th className="py-3 px-4">الوصف الوظيفي</th>
+                    <th className="py-3 px-4">الرقم الوطني</th>
+                    <th className="py-3 px-4">الحالة</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/20 font-body-sm text-on-surface">
+                  {staffList.map((emp) => (
+                    <tr key={emp.id} className="hover:bg-surface-container-low/50 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-primary-container text-white flex items-center justify-center font-bold text-xs">
+                            {emp.fullName.slice(0, 1)}
+                          </div>
+                          <div>
+                            <div className="font-bold text-primary">{emp.fullName}</div>
+                            <div className="text-[10px] text-secondary font-mono">{emp.email || "—"}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-semibold text-secondary">
+                        {emp.employeeNumber || "—"}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold text-[11px]">
+                          <Stethoscope className="w-3 h-3" />
+                          {emp.roleLabel || "موظف"}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-secondary text-[11px]">
+                        {emp.nationalNumber}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold text-[11px] ${emp.isActive ? "bg-tertiary-container/10 text-tertiary-container" : "bg-error/10 text-error"}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${emp.isActive ? "bg-tertiary-container" : "bg-error"}`}></span>
+                          {emp.isActive ? "نشط بالخدمة" : "معطّل"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 

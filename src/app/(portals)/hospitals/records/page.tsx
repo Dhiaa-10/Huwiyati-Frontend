@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { hospitalService } from "@/lib/api/hospitalService";
+import { hospitalService, ServiceUnavailableError } from "@/lib/api/hospitalService";
+import { useAuth } from "@/context/AuthContext";
 import {
   MedicalRecord,
   MedicalDiagnosis,
@@ -31,13 +32,16 @@ import {
   X,
   Check,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 
 export default function MedicalRecordsPage() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [allRecords, setAllRecords] = useState<MedicalRecord[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isServiceUnavailable, setIsServiceUnavailable] = useState(false);
   const [activeTab, setActiveTab] = useState<"diagnoses" | "operations" | "chronic">("diagnoses");
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
@@ -47,11 +51,11 @@ export default function MedicalRecordsPage() {
   const [showAddChronicModal, setShowAddChronicModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
 
-  // Form states
+  // Form states — dynamically filled from user session
   const [diagnosisForm, setDiagnosisForm] = useState<AddDiagnosisDto>({
     diagnosisName: "",
-    doctorName: "د. عبدالحكيم السقاف",
-    hospitalName: "مستشفى الثورة العام - صنعاء",
+    doctorName: user.fullName || "",
+    hospitalName: user.branchName || "",
     icdCode: "",
     description: "",
     treatmentPlan: "",
@@ -60,8 +64,8 @@ export default function MedicalRecordsPage() {
 
   const [operationForm, setOperationForm] = useState<AddOperationDto>({
     operationName: "",
-    surgeonName: "د. هاني الأصبحي",
-    hospitalName: "مستشفى الثورة العام - صنعاء",
+    surgeonName: user.fullName || "",
+    hospitalName: user.branchName || "",
     operationDate: new Date().toISOString().split("T")[0],
     anesthesiaType: "تخدير كلي",
     complications: "لا توجد مضاعفات بحمد الله",
@@ -71,7 +75,7 @@ export default function MedicalRecordsPage() {
   const [chronicForm, setChronicForm] = useState<AddChronicDiseaseDto>({
     diseaseName: "",
     diagnosedDate: new Date().toISOString().split("T")[0],
-    treatingDoctor: "د. عفاف حميد",
+    treatingDoctor: user.fullName || "",
     medications: [],
     severity: "Moderate",
     status: "Active",
@@ -92,8 +96,12 @@ export default function MedicalRecordsPage() {
         setSelectedRecord(data[0]);
       }
     } catch (err) {
-      console.error(err);
-      showToast("حدث خطأ أثناء تحميل السجلات الطبية", "error");
+      if (err instanceof ServiceUnavailableError) {
+        setIsServiceUnavailable(true);
+      } else {
+        console.error(err);
+        showToast("حدث خطأ أثناء تحميل السجلات الطبية", "error");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -113,12 +121,17 @@ export default function MedicalRecordsPage() {
       const rec = await hospitalService.getMedicalRecordByNationalNumber(searchQuery.trim());
       if (rec) {
         setSelectedRecord(rec);
-        showToast(`تم العثور على الملف الطبي للمواطن: ${rec.patientFullName || (rec as any).citizenName}`);
+        showToast(`تم العثور على الملف الطبي للمواطن: ${rec.patientFullName}`);
       } else {
         showToast("لم يتم العثور على سجل طبي بهذا الرقم الوطني", "error");
       }
-    } catch {
-      showToast("خطأ أثناء البحث", "error");
+    } catch (err) {
+      if (err instanceof ServiceUnavailableError) {
+        setIsServiceUnavailable(true);
+        showToast("الخدمة غير متوفرة من الخادم حالياً", "error");
+      } else {
+        showToast("خطأ أثناء البحث", "error");
+      }
     }
   };
 
@@ -310,6 +323,22 @@ export default function MedicalRecordsPage() {
           })}
         </div>
       </div>
+
+      {/* Service Unavailable Banner */}
+      {isServiceUnavailable && (
+        <div className="bg-amber-950/70 border border-amber-500/50 rounded-2xl p-5 text-amber-200 shadow-xl flex items-start gap-4">
+          <div className="p-2.5 bg-amber-900/60 rounded-xl text-amber-400 shrink-0">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-bold text-sm text-amber-300">الخدمة غير متوفرة من الخادم حالياً</h3>
+            <p className="text-xs text-amber-200/80 mt-1 leading-relaxed">
+              واجهات برمجة التطبيقات (API Endpoints) الخاصة بالسجلات الطبية الإلكترونية (EHR) والتشخيصات السريرية قيد التطوير في الخادم الخلفي. 
+              تم تعطيل البيانات الوهمية (Mock Data) استجابة للتحديث المباشر للمنظومة.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main Patient Content Area */}
       {selectedRecord ? (
@@ -727,9 +756,26 @@ export default function MedicalRecordsPage() {
         </div>
       ) : (
         <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-16 text-center text-slate-400">
-          <AlertCircle className="w-12 h-12 mx-auto mb-3 text-cyan-500" />
-          <h3 className="text-white text-lg font-bold">لا يوجد مريض محدد</h3>
-          <p className="text-sm mt-1">يرجى البحث بالرقم الوطني أو اختيار أحد السجلات السريعة بالأعلى.</p>
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-10 h-10 animate-spin text-cyan-400" />
+              <p className="text-sm">جاري الاستعلام من الخادم...</p>
+            </div>
+          ) : isServiceUnavailable ? (
+            <div className="flex flex-col items-center justify-center gap-2">
+              <AlertCircle className="w-12 h-12 text-amber-500 mb-2" />
+              <h3 className="text-white text-lg font-bold">الخدمة غير متوفرة من الخادم حالياً</h3>
+              <p className="text-sm text-slate-400 max-w-md">
+                خدمة استعراض وإدارة السجلات الطبية الموحدة (EHR) قيد البناء في الخادم الخلفي. تم إيقاف البيانات التجريبية لعرض الحالة الفعلية للربط.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <AlertCircle className="w-12 h-12 mx-auto mb-3 text-cyan-500" />
+              <h3 className="text-white text-lg font-bold">لا يوجد مريض محدد</h3>
+              <p className="text-sm mt-1">يرجى البحث بالرقم الوطني للمريض (11 رقماً) لاستعراض السجل الطبي.</p>
+            </div>
+          )}
         </div>
       )}
 

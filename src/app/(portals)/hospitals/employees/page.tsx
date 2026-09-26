@@ -364,7 +364,7 @@ export default function HospitalEmployeesPage() {
                       {emp.accountStatus === "Active" ? "مفعّل" : "موقوف مؤقتاً"}
                     </span>
                   </td>
-                  <td className="p-3.5 font-mono text-slate-400 text-[11px]">{emp.lastLogin || "اليوم 08:30"}</td>
+                  <td className="p-3.5 font-mono text-slate-400 text-[11px]">{emp.lastLogin || "—"}</td>
                   <td className="p-3.5">
                     <div className="flex items-center justify-center gap-1.5">
                       <button

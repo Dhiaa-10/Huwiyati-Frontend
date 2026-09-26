@@ -385,7 +385,11 @@ class CivilRegistryService {
     };
   }
 
-  public async registerBirth(dto: RegisterBirthCertificateDto): Promise<VitalEvent> {
+  public async registerBirth(
+    dto: RegisterBirthCertificateDto,
+    hospitalBranchId: string = "018f7d9a-2000-7000-8000-000000000005",
+    issuingBranchId: string = "018f7d9a-2000-7000-8000-000000000002"
+  ): Promise<VitalEvent> {
     const res = await this.issueBirthCertificate({
       fatherNationalNumber: dto.fatherNationalNumber,
       motherNationalNumber: dto.motherNationalNumber,
@@ -397,8 +401,8 @@ class CivilRegistryService {
       governorate: dto.governorate,
       district: dto.district,
       addressDetails: "",
-      hospitalBranchId: "018f7d9a-2000-7000-8000-000000000005",
-      issuingBranchId: "018f7d9a-2000-7000-8000-000000000002",
+      hospitalBranchId,
+      issuingBranchId,
     });
     return {
       id: res.id,
@@ -416,11 +420,15 @@ class CivilRegistryService {
     };
   }
 
-  public async registerDeath(dto: RegisterDeathCertificateDto): Promise<VitalEvent> {
+  public async registerDeath(
+    dto: RegisterDeathCertificateDto,
+    hospitalBranchId: string = "018f7d9a-2000-7000-8000-000000000005",
+    issuingBranchId: string = "018f7d9a-2000-7000-8000-000000000002"
+  ): Promise<VitalEvent> {
     const res = await this.issueDeathCertificate({
       nationalNumber: dto.deceasedNationalNumber,
-      hospitalBranchId: "018f7d9a-2000-7000-8000-000000000005",
-      issuingBranchId: "018f7d9a-2000-7000-8000-000000000002",
+      hospitalBranchId,
+      issuingBranchId,
       deathDate: dto.deathDate,
       placeOfDeath: dto.placeOfDeath,
       causeOfDeath: dto.causeOfDeath,
