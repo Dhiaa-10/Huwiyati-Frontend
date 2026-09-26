@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { hospitalService } from "@/lib/api/hospitalService";
+import { hospitalService, ServiceUnavailableError } from "@/lib/api/hospitalService";
 import { MedicalRecord } from "@/types/hospitals";
 import {
   AlertOctagon,
@@ -18,12 +18,14 @@ import {
   Plus,
   Clock,
   ArrowRight,
+  AlertCircle,
 } from "lucide-react";
 
 export default function EmergencyTriagePage() {
-  const [nationalIdInput, setNationalIdInput] = useState("1010045678");
+  const [nationalIdInput, setNationalIdInput] = useState("");
   const [patientRecord, setPatientRecord] = useState<MedicalRecord | null>(null);
   const [isSearched, setIsSearched] = useState(false);
+  const [isServiceUnavailable, setIsServiceUnavailable] = useState(false);
   const [emergencyOverrideActive, setEmergencyOverrideActive] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "warning" } | null>(null);
 
@@ -64,15 +66,21 @@ export default function EmergencyTriagePage() {
       } else {
         showToast("لم يتم العثور على سجل طبي بهذا الرقم الوطني", "error");
       }
-    } catch {
-      showToast("خطأ أثناء استعلام سجل الطوارئ", "error");
+    } catch (err) {
+      if (err instanceof ServiceUnavailableError) {
+        setIsServiceUnavailable(true);
+        setIsSearched(true);
+        showToast("الخدمة غير متوفرة من الخادم حالياً", "error");
+      } else {
+        showToast("خطأ أثناء استعلام سجل الطوارئ", "error");
+      }
     }
   };
 
   const handleRequestEmergencyOverride = () => {
     setEmergencyOverrideActive(true);
     showToast(
-      "تم تفعيل صلاحية الفرز الطارئ الاستثنائي وتوثيق الإجراء في السجل الأمني المركزي للرقابة.",
+      "تم تفعيل صلاحية الفرز الطارئ الاستثنائي وعرض السجل السريري الكامل.",
       "success"
     );
   };
@@ -129,8 +137,8 @@ export default function EmergencyTriagePage() {
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
               <input
                 type="text"
-                maxLength={10}
-                placeholder="أدخل الرقم الوطني للمصاب..."
+                maxLength={11}
+                placeholder="أدخل الرقم الوطني للمصاب (11 رقماً)..."
                 value={nationalIdInput}
                 onChange={(e) => setNationalIdInput(e.target.value)}
                 className="w-full pl-3 pr-9 py-2.5 bg-slate-950/80 border border-rose-900/60 rounded-xl text-white text-sm font-mono placeholder-slate-400 focus:outline-none focus:border-rose-400"
@@ -147,33 +155,21 @@ export default function EmergencyTriagePage() {
         </div>
       </div>
 
-      {/* Quick Access ID buttons for simulation */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex items-center gap-2 overflow-x-auto text-xs">
-        <span className="text-slate-400 shrink-0 flex items-center gap-1 font-semibold">
-          <User className="w-3.5 h-3.5 text-cyan-400" />
-          حالات للاختبار السريع:
-        </span>
-        <button
-          onClick={() => {
-            setNationalIdInput("1010045678");
-            setTimeout(() => handleSearch(), 50);
-          }}
-          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-rose-300 rounded-lg border border-slate-700 font-mono flex items-center gap-1"
-        >
-          <span className="w-2 h-2 rounded-full bg-amber-400" />
-          1010045678 (سجل محجوب بالخصوصية)
-        </button>
-        <button
-          onClick={() => {
-            setNationalIdInput("1010023456");
-            setTimeout(() => handleSearch(), 50);
-          }}
-          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg border border-slate-700 font-mono flex items-center gap-1"
-        >
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          1010023456 (سجل كامل مفتوح O+)
-        </button>
-      </div>
+      {/* Service Unavailable Banner */}
+      {isServiceUnavailable && (
+        <div className="bg-amber-950/70 border border-amber-500/50 rounded-2xl p-5 text-amber-200 shadow-xl flex items-start gap-4">
+          <div className="p-2.5 bg-amber-900/60 rounded-xl text-amber-400 shrink-0">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-bold text-sm text-amber-300">الخدمة غير متوفرة من الخادم حالياً</h3>
+            <p className="text-xs text-amber-200/80 mt-1 leading-relaxed">
+              واجهات برمجة التطبيقات (API) الخاصة بفرز الطوارئ وقراءة السجلات الإسعافية قيد التطوير في الخادم الخلفي. 
+              تم إيقاف البيانات التجريبية لعرض الحالة الواقعية.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main Results Area */}
       {patientRecord ? (
@@ -464,14 +460,14 @@ export default function EmergencyTriagePage() {
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-16 text-center text-slate-400">
           <AlertOctagon className="w-12 h-12 mx-auto mb-3 text-rose-500" />
           <h3 className="text-white text-lg font-bold">لم يتم العثور على سجل بالرقم الوطني المدخل</h3>
-          <p className="text-xs mt-1">تأكد من كتابة الرقم الوطني المكون من 10 أرقام بدقة.</p>
+          <p className="text-xs mt-1">تأكد من كتابة الرقم الوطني المكون من 11 رقماً بدقة.</p>
         </div>
       ) : (
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-16 text-center text-slate-400">
           <Heart className="w-12 h-12 mx-auto mb-3 text-cyan-500" />
-          <h3 className="text-white text-lg font-bold">يرجى البحث بالرقم الوطني للفرز الإسعافي</h3>
+          <h3 className="text-white text-lg font-bold">يرجى إدخال الرقم الوطني للفرز الإسعافي</h3>
           <p className="text-xs mt-1">
-            أو اختر أحد الأرقام التجريبية في الشريط العلوي لتجربة سيناريو السجل المحجوب وسيناريو السجل المفتوح.
+            أدخل الرقم الوطني للمصاب المكون من 11 رقماً في شريط البحث بالأعلى للوصول الفوري للبيانات المنقذة للحياة.
           </p>
         </div>
       )}

@@ -16,12 +16,15 @@ import {
   Stethoscope,
   CheckCircle2,
   Users,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
-import { hospitalService } from "@/lib/api/hospitalService";
+import { hospitalService, ServiceUnavailableError } from "@/lib/api/hospitalService";
 import { HospitalDashboardMetrics } from "@/types/hospitals";
 
 export default function HospitalReportsPage() {
   const [metrics, setMetrics] = useState<HospitalDashboardMetrics | null>(null);
+  const [isUnavailable, setIsUnavailable] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState("2026-09");
   const [selectedFacility, setSelectedFacility] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -33,7 +36,11 @@ export default function HospitalReportsPage() {
         const data = await hospitalService.getDashboardMetrics();
         setMetrics(data);
       } catch (err) {
-        console.error("Error loading hospital metrics:", err);
+        if (err instanceof ServiceUnavailableError) {
+          setIsUnavailable(true);
+        } else {
+          console.error("Error loading hospital metrics:", err);
+        }
       } finally {
         setLoading(false);
       }
@@ -94,6 +101,21 @@ export default function HospitalReportsPage() {
         </div>
       </div>
 
+      {/* Service Unavailable Banner */}
+      {isUnavailable && (
+        <div className="bg-amber-950/70 border border-amber-500/50 rounded-2xl p-5 text-amber-200 shadow-xl flex items-start gap-4">
+          <div className="p-2.5 bg-amber-900/60 rounded-xl text-amber-400 shrink-0">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-bold text-sm text-amber-300">خدمة التقارير والمؤشرات المركزية غير متوفرة من الخادم حالياً</h3>
+            <p className="text-xs text-amber-200/80 mt-1 leading-relaxed">
+              واجهات الإحصاءات السريرية والتحليلات الوبائية قيد التطوير في الخادم الخلفي. تم إيقاف المؤشرات الوهمية لضمان سلامة التقارير الرسمية.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Filters Bar */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 text-xs">
         <div className="flex items-center gap-3 flex-wrap">
@@ -140,29 +162,32 @@ export default function HospitalReportsPage() {
         {/* Total Consultations */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-semibold">التشخيصات والزيارات</span>
+            <span className="text-xs text-slate-400 font-semibold">الوقائع الحيوية المسجلة</span>
             <div className="w-9 h-9 rounded-xl bg-cyan-950/80 border border-cyan-800/60 flex items-center justify-center text-cyan-400">
               <Stethoscope className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white font-mono mt-3">3,842</div>
-          <div className="text-[11px] text-emerald-400 flex items-center gap-1 mt-2">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>زيادة 12.4% عن الشهر السابق</span>
+          <div className="text-2xl font-black text-white font-mono mt-3">
+            {loading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" /> : isUnavailable ? "—" : (metrics?.registeredVitalEventsCount ?? 0).toLocaleString("ar-YE")}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-2">
+            إجمالي الأحداث المسجلة رسمياً
           </div>
         </div>
 
-        {/* Surgical Operations */}
+        {/* Active Doctors */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-semibold">التدخلات الجراحية المنجزة</span>
+            <span className="text-xs text-slate-400 font-semibold">الكادر الطبي المصرح له</span>
             <div className="w-9 h-9 rounded-xl bg-rose-950/80 border border-rose-800/60 flex items-center justify-center text-rose-400">
               <Activity className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-rose-400 font-mono mt-3">412</div>
+          <div className="text-2xl font-black text-rose-400 font-mono mt-3">
+            {loading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" /> : isUnavailable ? "—" : (metrics?.activeDoctorsCount ?? 0).toLocaleString("ar-YE")}
+          </div>
           <div className="text-[11px] text-slate-400 mt-2">
-            بنسبة نجاح سريري تفوق 98.6%
+            أطباء وكوادر نشطة بالخدمة
           </div>
         </div>
 
@@ -174,7 +199,9 @@ export default function HospitalReportsPage() {
               <Heart className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-emerald-400 font-mono mt-3">584</div>
+          <div className="text-2xl font-black text-emerald-400 font-mono mt-3">
+            {loading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" /> : isUnavailable ? "—" : (metrics?.monthlyBirthsCount ?? 0).toLocaleString("ar-YE")}
+          </div>
           <div className="text-[11px] text-emerald-400 mt-2">
             تم إصدار قيودهم إلكترونياً
           </div>
@@ -188,7 +215,9 @@ export default function HospitalReportsPage() {
               <ShieldCheck className="w-4 h-4 text-cyan-400" />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-200 font-mono mt-3">128</div>
+          <div className="text-2xl font-black text-slate-200 font-mono mt-3">
+            {loading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" /> : isUnavailable ? "—" : (metrics?.monthlyDeathsCount ?? 0).toLocaleString("ar-YE")}
+          </div>
           <div className="text-[11px] text-slate-400 mt-2">
             مستكملة التقرير الطبي والشرعي
           </div>

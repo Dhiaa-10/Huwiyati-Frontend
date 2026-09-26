@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { civilRegistryService } from "@/lib/api/civilRegistryService";
 import { VitalEvent } from "@/types/civilRegistry";
+import { useAuth } from "@/context/AuthContext";
 import {
   Send,
   UserCheck,
@@ -19,42 +20,43 @@ import {
 } from "lucide-react";
 
 export default function HospitalVitalEventsPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"birth" | "death" | "history">("birth");
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [recentEvents, setRecentEvents] = useState<VitalEvent[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Birth Form
+  // Birth Form — cleared defaults, hospital/doctor auto-filled from session
   const [birthForm, setBirthForm] = useState({
-    fatherNationalId: "1010023456",
-    motherNationalId: "1010098765",
-    childFullName: "يوسف سالم محمد اليافعي",
+    fatherNationalId: "",
+    motherNationalId: "",
+    childFullName: "",
     dateOfBirth: new Date().toISOString().slice(0, 16),
     gender: "ذكر",
-    birthWeight: "3.4",
+    birthWeight: "",
     deliveryType: "ولادة طبيعية",
-    doctorName: "د. أروى القباطي",
-    hospitalName: "مستشفى الثورة العام - صنعاء",
-    governorate: "أمانة العاصمة",
-    district: "مديرية التحرير",
-    notes: "المولود والأم بصحة ممتازة بفضل الله",
+    doctorName: user.fullName || "",
+    hospitalName: user.branchName || "",
+    governorate: "",
+    district: "",
+    notes: "",
   });
-  const [fatherName, setFatherName] = useState<string>("سالم محمد صالح اليافعي");
-  const [motherName, setMotherName] = useState<string>("فاطمة علي ناصر العولقي");
+  const [fatherName, setFatherName] = useState<string>("");
+  const [motherName, setMotherName] = useState<string>("");
 
-  // Death Form
+  // Death Form — cleared defaults, hospital/doctor auto-filled from session
   const [deathForm, setDeathForm] = useState({
-    deceasedNationalId: "1010045678",
+    deceasedNationalId: "",
     deathDateTime: new Date().toISOString().slice(0, 16),
-    causeOfDeath: "توقف مفاجئ في عضلة القلب وقصور حاد بالدورة الدموية",
-    department: "قسم العناية المركزة (ICU)",
-    certifyingDoctor: "د. هاني الأصبحي",
-    hospitalName: "مستشفى الثورة العام - صنعاء",
-    governorate: "أمانة العاصمة",
-    district: "مديرية التحرير",
-    notes: "تمت محاولات الإنعاش القلبي الرئوي (CPR) لمدة 45 دقيقة دون استجابة",
+    causeOfDeath: "",
+    department: "",
+    certifyingDoctor: user.fullName || "",
+    hospitalName: user.branchName || "",
+    governorate: "",
+    district: "",
+    notes: "",
   });
-  const [deceasedName, setDeceasedName] = useState<string>("أحمد عبدالله علي الرازحي");
+  const [deceasedName, setDeceasedName] = useState<string>("");
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setNotification({ message, type });
@@ -74,42 +76,62 @@ export default function HospitalVitalEventsPage() {
     loadRecentEvents();
   }, []);
 
-  // Lookup Father
+  // Update hospital/doctor fields when user session loads
+  useEffect(() => {
+    setBirthForm((prev) => ({
+      ...prev,
+      doctorName: prev.doctorName || user.fullName || "",
+      hospitalName: prev.hospitalName || user.branchName || "",
+    }));
+    setDeathForm((prev) => ({
+      ...prev,
+      certifyingDoctor: prev.certifyingDoctor || user.fullName || "",
+      hospitalName: prev.hospitalName || user.branchName || "",
+    }));
+  }, [user.fullName, user.branchName]);
+
+  // Lookup Father — NID must be 11 digits
   const handleLookupFather = async (nid: string) => {
     setBirthForm((prev) => ({ ...prev, fatherNationalId: nid }));
-    if (nid.length === 10) {
+    if (nid.length === 11) {
       const citizen = await civilRegistryService.searchCitizenByNationalId(nid);
       if (citizen) {
         setFatherName(citizen.fullName);
       } else {
         setFatherName("رقم غير مسجل في السجل المدني");
       }
+    } else {
+      setFatherName("");
     }
   };
 
-  // Lookup Mother
+  // Lookup Mother — NID must be 11 digits
   const handleLookupMother = async (nid: string) => {
     setBirthForm((prev) => ({ ...prev, motherNationalId: nid }));
-    if (nid.length === 10) {
+    if (nid.length === 11) {
       const citizen = await civilRegistryService.searchCitizenByNationalId(nid);
       if (citizen) {
         setMotherName(citizen.fullName);
       } else {
         setMotherName("رقم غير مسجل في السجل المدني");
       }
+    } else {
+      setMotherName("");
     }
   };
 
-  // Lookup Deceased
+  // Lookup Deceased — NID must be 11 digits
   const handleLookupDeceased = async (nid: string) => {
     setDeathForm((prev) => ({ ...prev, deceasedNationalId: nid }));
-    if (nid.length === 10) {
+    if (nid.length === 11) {
       const citizen = await civilRegistryService.searchCitizenByNationalId(nid);
       if (citizen) {
         setDeceasedName(citizen.fullName);
       } else {
         setDeceasedName("رقم غير مسجل في السجل المدني");
       }
+    } else {
+      setDeceasedName("");
     }
   };
 
@@ -119,28 +141,36 @@ export default function HospitalVitalEventsPage() {
       showToast("يرجى ملء كافة بيانات المولود والأبوين المطلوبة", "error");
       return;
     }
+    if (!user.branchId) {
+      showToast("لم يتم تحديد فرع المستشفى من الجلسة الحالية. يرجى تسجيل الدخول مجدداً.", "error");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
-      await civilRegistryService.registerBirth({
-        childFirstName: birthForm.childFullName,
-        childGender: birthForm.gender === "ذكر" ? "Male" : "Female",
-        fatherNationalNumber: birthForm.fatherNationalId,
-        motherNationalNumber: birthForm.motherNationalId,
-        dateOfBirth: birthForm.dateOfBirth.split("T")[0],
-        placeOfBirth: birthForm.hospitalName,
-        hospitalOrganizationId: "11111111-aaaa-bbbb-cccc-000000000005",
-        governorate: birthForm.governorate,
-        district: birthForm.district,
-      });
+      await civilRegistryService.registerBirth(
+        {
+          childFirstName: birthForm.childFullName,
+          childGender: birthForm.gender === "ذكر" ? "Male" : "Female",
+          fatherNationalNumber: birthForm.fatherNationalId,
+          motherNationalNumber: birthForm.motherNationalId,
+          dateOfBirth: birthForm.dateOfBirth.split("T")[0],
+          placeOfBirth: birthForm.hospitalName,
+          governorate: birthForm.governorate,
+          district: birthForm.district,
+        },
+        user.branchId,
+        user.branchId
+      );
 
       showToast(
         `تم تسجيل بلاغ الميلاد بنجاح وإرسال الإخطار الرسمي إلى مصلحة الأحوال المدنية (المولود: ${birthForm.childFullName})`
       );
       loadRecentEvents();
       setActiveTab("history");
-    } catch {
-      showToast("فشل إرسال بلاغ الولادة للأحوال المدنية", "error");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "فشل إرسال بلاغ الولادة للأحوال المدنية";
+      showToast(msg, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -152,26 +182,34 @@ export default function HospitalVitalEventsPage() {
       showToast("يرجى تعبئة كافة الحقول الخاصة بواقعة الوفاة", "error");
       return;
     }
+    if (!user.branchId) {
+      showToast("لم يتم تحديد فرع المستشفى من الجلسة الحالية. يرجى تسجيل الدخول مجدداً.", "error");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
-      await civilRegistryService.registerDeath({
-        deceasedNationalNumber: deathForm.deceasedNationalId,
-        deathDate: deathForm.deathDateTime.split("T")[0],
-        causeOfDeath: deathForm.causeOfDeath,
-        placeOfDeath: `${deathForm.hospitalName} - ${deathForm.department}`,
-        hospitalOrganizationId: "11111111-aaaa-bbbb-cccc-000000000005",
-        governorate: deathForm.governorate,
-        district: deathForm.district,
-      });
+      await civilRegistryService.registerDeath(
+        {
+          deceasedNationalNumber: deathForm.deceasedNationalId,
+          deathDate: deathForm.deathDateTime.split("T")[0],
+          causeOfDeath: deathForm.causeOfDeath,
+          placeOfDeath: `${deathForm.hospitalName} - ${deathForm.department}`,
+          governorate: deathForm.governorate,
+          district: deathForm.district,
+        },
+        user.branchId,
+        user.branchId
+      );
 
       showToast(
         `تم قيد واقعة الوفاة وتثبيتها في السجل المدني الموحد للمتوفى ذو الرقم الوطني ${deathForm.deceasedNationalId}`
       );
       loadRecentEvents();
       setActiveTab("history");
-    } catch {
-      showToast("فشل إرسال إخطار الوفاة للأحوال المدنية", "error");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "فشل إرسال إخطار الوفاة للأحوال المدنية";
+      showToast(msg, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -273,14 +311,14 @@ export default function HospitalVitalEventsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-4 rounded-xl bg-slate-950/60 border border-slate-800">
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">
-                  الرقم الوطني للأب * (10 أرقام)
+                  الرقم الوطني للأب * (11 رقماً)
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     required
-                    maxLength={10}
-                    placeholder="مثال: 1010023456"
+                    maxLength={11}
+                    placeholder="مثال: 01010000001"
                     value={birthForm.fatherNationalId}
                     onChange={(e) => handleLookupFather(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono focus:outline-none focus:border-cyan-500"
@@ -297,14 +335,14 @@ export default function HospitalVitalEventsPage() {
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">
-                  الرقم الوطني للأم * (10 أرقام)
+                  الرقم الوطني للأم * (11 رقماً)
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     required
-                    maxLength={10}
-                    placeholder="مثال: 1010098765"
+                    maxLength={11}
+                    placeholder="مثال: 01010000002"
                     value={birthForm.motherNationalId}
                     onChange={(e) => handleLookupMother(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono focus:outline-none focus:border-cyan-500"
@@ -464,14 +502,14 @@ export default function HospitalVitalEventsPage() {
             {/* Deceased Verification */}
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800">
               <label className="block text-slate-300 font-semibold mb-1">
-                الرقم الوطني للمتوفى * (10 أرقام)
+                الرقم الوطني للمتوفى * (11 رقماً)
               </label>
               <div className="relative max-w-md">
                 <input
                   type="text"
                   required
-                  maxLength={10}
-                  placeholder="أدخل الرقم الوطني للمتوفى..."
+                  maxLength={11}
+                  placeholder="أدخل الرقم الوطني للمتوفى (11 رقماً)..."
                   value={deathForm.deceasedNationalId}
                   onChange={(e) => handleLookupDeceased(e.target.value)}
                   className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono focus:outline-none focus:border-rose-500"

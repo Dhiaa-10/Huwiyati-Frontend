@@ -148,7 +148,7 @@ export interface RegisterBirthCertificateDto {
   placeOfBirth: string;
   fatherNationalNumber: string;
   motherNationalNumber: string;
-  hospitalOrganizationId: string;
+  hospitalOrganizationId?: string;
   governorate: string;
   district: string;
 }
