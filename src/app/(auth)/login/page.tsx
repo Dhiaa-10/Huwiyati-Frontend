@@ -57,6 +57,14 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
   },
   {
     role: "ADMIN",
+    roleLabel: "أدمن مصلحة الجوازات",
+    nationalNumber: "01011135651",
+    name: "أحمد محمود علي المدير",
+    agency: "الجوازات",
+    badgeColor: "bg-blue-100 text-blue-700 border-blue-200",
+  },
+  {
+    role: "ADMIN",
     roleLabel: "أدمن الأحوال المدنية",
     nationalNumber: "01011135651",
     name: "أحمد محمود علي المدير",
@@ -69,7 +77,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011135650",
     name: "مصعب محمد أحمد ناشر النجري",
     agency: "الأحوال المدنية",
-    badgeColor: "bg-sky-100 text-sky-700 border-sky-200",
+    badgeColor: "bg-emerald-100 text-emerald-700 border-emerald-200",
   },
 ];
 
@@ -187,29 +195,45 @@ export default function LoginPage() {
       actualJobTitle = "مشرف عام المنظومة الوطنية (سوبر أدمن)";
       actualBranchName = "المركز الوطني لتقنية المعلومات - ديوان الوزارة";
     } else if (resolvedRole === "ADMIN") {
-      // Query backend for assigned branch & organization
-      try {
-        const empRes = await employeesService.getEmployees();
-        if (empRes.isSuccess && (empRes.organizationName || empRes.branchName)) {
-          const orgName = empRes.organizationName ?? "";
-          if (orgName.includes("أحوال") || orgName.includes("السجل المدني")) {
-            resolvedAgency = "الأحوال المدنية";
-          } else if (orgName.includes("جوازات") || orgName.includes("هجرة")) {
-            resolvedAgency = "الجوازات";
-          } else if (orgName.includes("مرور")) {
-            resolvedAgency = "المرور";
-          } else if (orgName.includes("مستشف") || orgName.includes("صحة")) {
-            resolvedAgency = "المستشفيات";
-          } else if (agency && agency !== "وزارة الداخلية") {
-            resolvedAgency = agency;
+      // Honor user's explicit selection if made in UI; otherwise fallback to backend detection
+      if (agency && agency !== "وزارة الداخلية") {
+        resolvedAgency = agency;
+      } else {
+        try {
+          const empRes = await employeesService.getEmployees();
+          if (empRes.isSuccess && (empRes.organizationName || empRes.branchName)) {
+            const orgName = empRes.organizationName ?? "";
+            if (orgName.includes("أحوال") || orgName.includes("السجل المدني")) {
+              resolvedAgency = "الأحوال المدنية";
+            } else if (orgName.includes("جوازات") || orgName.includes("هجرة")) {
+              resolvedAgency = "الجوازات";
+            } else if (orgName.includes("مرور")) {
+              resolvedAgency = "المرور";
+            } else if (orgName.includes("مستشف") || orgName.includes("صحة")) {
+              resolvedAgency = "المستشفيات";
+            }
           }
-
-          if (empRes.branchName) actualBranchName = empRes.branchName;
-          if (empRes.branchId) actualBranchId = empRes.branchId;
-          actualJobTitle = `مدير فرع (${actualBranchName || resolvedAgency})`;
+        } catch (e) {
+          console.warn("[Login] Could not auto-detect admin branch/agency:", e);
         }
-      } catch (e) {
-        console.warn("[Login] Could not auto-detect admin branch/agency:", e);
+      }
+
+      if (resolvedAgency === "الجوازات") {
+        actualBranchName = "مصلحة الهجرة والجوازات والجنسية - صنعاء";
+        actualBranchId = "018f7d9a-2000-7000-8000-000000000005";
+        actualJobTitle = "مدير عام فرع الهجرة والجوازات";
+      } else if (resolvedAgency === "الأحوال المدنية") {
+        actualBranchName = actualBranchName || "مصلحة الأحوال المدنية - صنعاء";
+        actualBranchId = actualBranchId || "018f7d9a-2000-7000-8000-000000000001";
+        actualJobTitle = "مدير فرع الأحوال المدنية";
+      } else if (resolvedAgency === "المرور") {
+        actualBranchName = "إدارة شرطة السير والمرور - صنعاء";
+        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
+        actualJobTitle = "مدير إدارة المرور";
+      } else if (resolvedAgency === "المستشفيات") {
+        actualBranchName = "مستشفى الثورة العام";
+        actualBranchId = "018f7d9a-2000-7000-8000-000000000004";
+        actualJobTitle = "مدير عام المستشفى";
       }
     }
 
@@ -632,7 +656,7 @@ export default function LoginPage() {
           <div className="space-y-2">
             {DEMO_ACCOUNTS.map((acc) => (
               <div
-                key={acc.nationalNumber}
+                key={`${acc.nationalNumber}-${acc.agency}`}
                 className="flex items-center justify-between p-2 rounded-xl bg-gray-50/80 hover:bg-gray-100 transition-colors border border-gray-200/60"
               >
                 <div className="min-w-0 pr-1">

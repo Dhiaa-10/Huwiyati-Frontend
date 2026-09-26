@@ -107,7 +107,63 @@ export interface PassportsDirectorMetrics {
   }[];
 }
 
-// ======================== DTOs ========================
+// ======================== Live Backend DTOs & Commands ========================
+
+export interface BackendPassportDto {
+  id: string;
+  personId: string;
+  personFullName: string;
+  nationalNumber: string;
+  photoUrl?: string | null;
+  passportNumber: string;
+  passportType: "Regular" | "Diplomatic" | "Special" | number;
+  issueDate: string;
+  expiryDate: string;
+  qrCodePayload?: string | null;
+  status: "Active" | "Expired" | "Canceled" | number;
+  issuingBranchId: string;
+  issuingBranchName: string;
+  createdAt: string;
+}
+
+export interface BackendTravelRecordDto {
+  id: string;
+  passportId: string;
+  passportNumber: string;
+  personId: string;
+  personFullName: string;
+  nationalNumber: string;
+  issuingBranchId: string;
+  issuingBranchName: string;
+  country: string;
+  entryDate: string;
+  exitDate?: string | null;
+  createdAt: string;
+}
+
+export interface IssuePassportCommand {
+  nationalNumber: string;
+  photoUrl?: string | null;
+  passportType: "Regular" | "Diplomatic" | "Special" | number;
+  issuingBranchId: string;
+}
+
+export interface RenewPassportCommand {
+  nationalNumber: string;
+  issuingBranchId: string;
+  photoUrl?: string | null;
+  passportType?: "Regular" | "Diplomatic" | "Special" | number | null;
+}
+
+export interface AddTravelRecordCommand {
+  passportNumber: string;
+  issuingBranchId: string;
+  country: string;
+  entryDate: string;
+  exitDate?: string | null;
+}
+
+// ======================== Legacy Compatibility Types ========================
 
 export interface PassportRequestFilterParams extends PaginationParams {
   status?: string;
