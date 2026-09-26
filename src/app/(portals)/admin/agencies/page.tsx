@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Building2,
@@ -29,7 +29,7 @@ import {
   UpdateBranchDto,
 } from "@/types/admin";
 
-export default function AgenciesAndBranchesPage() {
+function AgenciesAndBranchesContent() {
   const searchParams = useSearchParams();
   const initialOrgId = searchParams.get("orgId") || "all";
 
@@ -656,5 +656,13 @@ export default function AgenciesAndBranchesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AgenciesAndBranchesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">جاري التحميل...</div>}>
+      <AgenciesAndBranchesContent />
+    </Suspense>
   );
 }

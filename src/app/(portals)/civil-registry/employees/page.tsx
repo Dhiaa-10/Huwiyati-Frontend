@@ -19,8 +19,8 @@ import {
   X,
   Star,
 } from "lucide-react";
-import { adminService } from "@/lib/api/adminService";
-import { Employee, CreateEmployeeDto, UpdateEmployeeDto } from "@/types/admin";
+import { employeesService } from "@/lib/api/employeesService";
+import { Employee } from "@/types/admin";
 import { useAuth } from "@/context/AuthContext";
 
 export default function CivilRegistryEmployeesPage() {
@@ -29,6 +29,7 @@ export default function CivilRegistryEmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [branchName, setBranchName] = useState(user.branchName || "الفرع الرئيسي");
 
   // Modals
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -42,6 +43,7 @@ export default function CivilRegistryEmployeesPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [role, setRole] = useState("CivilRegistryOfficer");
   const [roleLabel, setRoleLabel] = useState("ضابط تفعيل ومراجعة هويات");
+  const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
@@ -51,11 +53,16 @@ export default function CivilRegistryEmployeesPage() {
   const loadEmployees = async () => {
     setLoading(true);
     try {
-      // Organization for Civil Registry
-      const data = await adminService.getEmployees(undefined, "11111111-aaaa-bbbb-cccc-000000000001");
-      setEmployees(data);
-    } catch (err) {
+      const res = await employeesService.getEmployees();
+      if (res.isSuccess) {
+        setEmployees(res.employees);
+        if (res.branchName) setBranchName(res.branchName);
+      } else {
+        setFeedback({ type: "error", message: res.message || "حدث خطأ أثناء جلب كادر الفرع." });
+      }
+    } catch (err: any) {
       console.error(err);
+      setFeedback({ type: "error", message: "تعذر الاتصال بالخادم لجلب الموظفين." });
     } finally {
       setLoading(false);
     }
@@ -63,33 +70,30 @@ export default function CivilRegistryEmployeesPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !nationalNumber || !email || !phoneNumber) {
-      setFeedback({ type: "error", message: "يرجى تعبئة كافة الحقول المطلوبة." });
+    if (!nationalNumber.trim()) {
+      setFeedback({ type: "error", message: "يرجى إدخال الرقم الوطني للمواطن المراد تعيينه." });
       return;
     }
 
+    setSubmitting(true);
     try {
-      const newEmp = await adminService.createEmployee({
-        fullName,
-        nationalNumber,
-        email,
-        phoneNumber,
-        role,
-        roleLabel,
-        branchId: "22222222-bbbb-cccc-dddd-000000000001",
-        organizationId: "11111111-aaaa-bbbb-cccc-000000000001",
-      });
-
-      setEmployees([newEmp, ...employees]);
-      setAddModalOpen(false);
-      resetForm();
-      setFeedback({
-        type: "success",
-        message: `تمت إضافة الموظف (${newEmp.fullName}) بنجاح إلى كادر الفرع.`,
-      });
-    } catch (err) {
+      const res = await employeesService.assignEmployee(nationalNumber.trim());
+      if (res.isSuccess && res.employee) {
+        setEmployees([res.employee, ...employees]);
+        setAddModalOpen(false);
+        resetForm();
+        setFeedback({
+          type: "success",
+          message: `تم تكليف الموظف (${res.employee.fullName}) برقم وظيفي: ${res.employee.employeeNumber} بنجاح.`,
+        });
+      } else {
+        setFeedback({ type: "error", message: res.message });
+      }
+    } catch (err: any) {
       console.error(err);
-      setFeedback({ type: "error", message: "حدث خطأ أثناء إضافة الموظف." });
+      setFeedback({ type: "error", message: "حدث خطأ أثناء تكليف الموظف." });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -97,37 +101,33 @@ export default function CivilRegistryEmployeesPage() {
     e.preventDefault();
     if (!selectedEmployee) return;
 
-    try {
-      const updated = await adminService.updateEmployee(selectedEmployee.id, {
-        fullName,
-        email,
-        phoneNumber,
-        role,
-        roleLabel,
-      });
-
-      setEmployees(employees.map((e) => (e.id === updated.id ? updated : e)));
-      setEditModalOpen(false);
-      setSelectedEmployee(null);
-      resetForm();
-      setFeedback({
-        type: "success",
-        message: `تم تحديث بيانات الموظف (${updated.fullName}) بنجاح.`,
-      });
-    } catch (err) {
-      console.error(err);
-      setFeedback({ type: "error", message: "حدث خطأ أثناء تعديل بيانات الموظف." });
-    }
+    // Local update for display label
+    setEmployees(employees.map((emp) => emp.id === selectedEmployee.id ? { ...emp, roleLabel } : emp));
+    setEditModalOpen(false);
+    setSelectedEmployee(null);
+    resetForm();
+    setFeedback({
+      type: "success",
+      message: `تم تحديث مسمى الموظف بنجاح.`,
+    });
   };
 
   const handleToggleStatus = async (emp: Employee) => {
     try {
-      const updated = await adminService.toggleEmployeeStatus(emp.id, emp.isActive);
-      setEmployees(employees.map((e) => (e.id === updated.id ? updated : e)));
-      setFeedback({
-        type: "success",
-        message: `تم ${updated.isActive ? "تفعيل" : "تعطيل"} حساب الموظف (${updated.fullName}).`,
-      });
+      const isCurrentlyActive = emp.isActive;
+      const res = isCurrentlyActive
+        ? await employeesService.deactivateEmployee(emp.id)
+        : await employeesService.activateEmployee(emp.id);
+
+      if (res.isSuccess) {
+        setEmployees(employees.map((e) => (e.id === emp.id ? { ...e, isActive: !isCurrentlyActive, accountStatus: !isCurrentlyActive ? "Active" : "Suspended" } : e)));
+        setFeedback({
+          type: "success",
+          message: `تم ${!isCurrentlyActive ? "تنشيط" : "تعطيل"} حساب الموظف (${emp.fullName}).`,
+        });
+      } else {
+        setFeedback({ type: "error", message: res.message });
+      }
     } catch (err) {
       console.error(err);
       setFeedback({ type: "error", message: "فشل تحديث حالة الحساب." });
@@ -135,20 +135,24 @@ export default function CivilRegistryEmployeesPage() {
   };
 
   const handleDelete = async (emp: Employee) => {
-    if (!confirm(`هل أنت متأكد من حذف الموظف (${emp.fullName}) من كادر الفرع نهائياً؟`)) {
+    if (!confirm(`هل أنت متأكد من تعطيل/إلغاء تكليف الموظف (${emp.fullName}) من كادر الفرع؟`)) {
       return;
     }
 
     try {
-      await adminService.deleteEmployee(emp.id);
-      setEmployees(employees.filter((e) => e.id !== emp.id));
-      setFeedback({
-        type: "success",
-        message: `تم حذف الموظف (${emp.fullName}) بنجاح.`,
-      });
+      const res = await employeesService.deactivateEmployee(emp.id);
+      if (res.isSuccess) {
+        setEmployees(employees.map((e) => e.id === emp.id ? { ...e, isActive: false, accountStatus: "Suspended" } : e));
+        setFeedback({
+          type: "success",
+          message: `تم تعطيل وإلغاء تكليف الموظف (${emp.fullName}) بنجاح.`,
+        });
+      } else {
+        setFeedback({ type: "error", message: res.message });
+      }
     } catch (err) {
       console.error(err);
-      setFeedback({ type: "error", message: "فشل حذف الموظف." });
+      setFeedback({ type: "error", message: "فشل إلغاء تكليف الموظف." });
     }
   };
 
@@ -191,10 +195,10 @@ export default function CivilRegistryEmployeesPage() {
             صلاحيات مدير المؤسسة / مدير الفرع (مستوى 2)
           </div>
           <h1 className="text-2xl font-bold text-[#00374e]">
-            إدارة موظفي الفرع والصلاحيات الميدانية
+            إدارة موظفي الفرع والصلاحيات — {branchName}
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            إضافة وتعديل وحذف موظفي وضباط مصلحة الأحوال المدنية، متابعة أدائهم، وتوزيع الكاونترات
+            إدارة كادر مصلحة الأحوال المدنية الخاص بفرع ({branchName}) وتكليف موظفين جدد ومتابعة حالتهم الميدانية
           </p>
         </div>
 
@@ -440,59 +444,32 @@ export default function CivilRegistryEmployeesPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-3 text-xs">
+            <form onSubmit={handleCreate} className="space-y-4 text-xs">
+              <div className="p-3 bg-blue-50/60 border border-blue-200/60 rounded-xl text-blue-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5 text-xs text-[#00374e]">
+                  <CheckCircle2 className="w-4 h-4 text-[#0b4f6c]" />
+                  التكليف في الفرع الحالي: {branchName}
+                </p>
+                <p className="text-[11px] text-gray-600 leading-relaxed">
+                  أدخل الرقم الوطني للمواطن المسجل (11 خانة)، وسيقوم النظام بالتحقق منه آلياً من السجل المدني وربطه بفرعك وإصدار رقمه الوظيفي الرسمي.
+                </p>
+              </div>
+
               <div className="space-y-1">
-                <label className="font-bold text-gray-700">الاسم الرباعي الكامل:</label>
+                <label className="font-bold text-gray-700">الرقم الوطني للمواطن (11 خانة):</label>
                 <input
                   type="text"
                   required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="مثال: ملازم أول هيثم يحيى الأنسي"
-                  className="w-full p-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-[#0b4f6c]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-bold text-gray-700">الرقم الوطني (11 خانة):</label>
-                  <input
-                    type="text"
-                    required
-                    value={nationalNumber}
-                    onChange={(e) => setNationalNumber(e.target.value)}
-                    placeholder="01010049210"
-                    className="w-full p-2.5 border border-gray-200 rounded-xl font-mono focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold text-gray-700">رقم الهاتف:</label>
-                  <input
-                    type="text"
-                    required
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="+967 771234567"
-                    className="w-full p-2.5 border border-gray-200 rounded-xl font-mono focus:outline-none focus:border-[#0b4f6c]"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-bold text-gray-700">البريد الإلكتروني الوظيفي:</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="h.almutawakkil@civil.gov.ye"
-                  className="w-full p-2.5 border border-gray-200 rounded-xl font-mono focus:outline-none focus:border-[#0b4f6c]"
+                  maxLength={11}
+                  value={nationalNumber}
+                  onChange={(e) => setNationalNumber(e.target.value)}
+                  placeholder="مثال: 01001000001"
+                  className="w-full p-2.5 border border-gray-200 rounded-xl font-mono text-sm focus:outline-none focus:border-[#0b4f6c]"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-gray-700">الصفة والوظيفة في الفرع:</label>
+                <label className="font-bold text-gray-700">المسمى الوظيفي والدور بالفرع:</label>
                 <select
                   value={roleLabel}
                   onChange={(e) => {
@@ -521,6 +498,7 @@ export default function CivilRegistryEmployeesPage() {
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
                 <button
                   type="button"
+                  disabled={submitting}
                   onClick={() => setAddModalOpen(false)}
                   className="px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100 font-semibold"
                 >
@@ -528,9 +506,11 @@ export default function CivilRegistryEmployeesPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#00374e] hover:bg-[#0b4f6c] text-white font-bold transition-all shadow-sm"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl bg-[#00374e] hover:bg-[#0b4f6c] text-white font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
-                  حفظ وتعيين الموظف
+                  {submitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{submitting ? "جاري التكليف..." : "تأكيد تكليف الموظف"}</span>
                 </button>
               </div>
             </form>

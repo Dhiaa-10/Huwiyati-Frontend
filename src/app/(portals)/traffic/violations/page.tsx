@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Car,
@@ -28,7 +28,7 @@ import { trafficService } from "@/lib/api/trafficService";
 import { Vehicle, TrafficViolation, RecordViolationDto } from "@/types/traffic";
 import { useAuth } from "@/context/AuthContext";
 
-export default function ViolationsPage() {
+function ViolationsContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const initialPlate = searchParams.get("plate") || "";
@@ -878,5 +878,13 @@ export default function ViolationsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ViolationsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">جاري التحميل...</div>}>
+      <ViolationsContent />
+    </Suspense>
   );
 }

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-export type RoleType = "SUPER_ADMIN" | "ADMIN" | "EMPLOYEE";
+export type RoleType = "SUPER_ADMIN" | "ADMIN" | "EMPLOYEE" | "NONE";
 export type AgencyType = "الأحوال المدنية" | "الجوازات" | "المرور" | "المستشفيات" | "وزارة الداخلية";
 
 export interface UserSession {
@@ -24,6 +24,8 @@ export interface UserSession {
 
 interface AuthContextType {
   user: UserSession;
+  isAuthenticated: boolean;
+  isInitialized: boolean;
   setRole: (role: RoleType) => void;
   setAgency: (agency: AgencyType) => void;
   updateSession: (partial: Partial<UserSession>) => void;
@@ -31,6 +33,17 @@ interface AuthContextType {
 }
 
 const STORAGE_KEY = "hwyati_auth_session";
+
+export const EMPTY_USER: UserSession = {
+  fullName: "",
+  nationalNumber: "",
+  role: "NONE",
+  agency: "وزارة الداخلية",
+  branchName: "",
+  branchId: "",
+  jobTitle: "",
+  loginSource: "login_page",
+};
 
 const DEFAULT_USER: UserSession = {
   fullName: "ضياء محمد عبدالمجيد السالمي",
@@ -44,6 +57,16 @@ const DEFAULT_USER: UserSession = {
 };
 
 export const getProfileForRoleAndAgency = (role: RoleType, agency: AgencyType) => {
+  if (role === "NONE") {
+    return {
+      fullName: "",
+      nationalNumber: "",
+      agency,
+      jobTitle: "",
+      branchName: "",
+    };
+  }
+
   if (role === "SUPER_ADMIN") {
     return {
       fullName: "ضياء محمد عبدالمجيد السالمي",
@@ -129,7 +152,9 @@ export const getProfileForRoleAndAgency = (role: RoleType, agency: AgencyType) =
 };
 
 const AuthContext = createContext<AuthContextType>({
-  user: DEFAULT_USER,
+  user: EMPTY_USER,
+  isAuthenticated: false,
+  isInitialized: false,
   setRole: () => {},
   setAgency: () => {},
   updateSession: () => {},
@@ -137,23 +162,42 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserSession>(DEFAULT_USER);
+  const [user, setUser] = useState<UserSession>(EMPTY_USER);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
         const stored = window.localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          setUser(JSON.parse(stored));
+        const token = window.localStorage.getItem("hwyati_auth_token");
+        if (stored && token) {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.role && parsed.role !== "NONE") {
+            setUser(parsed);
+            setIsAuthenticated(true);
+          } else {
+            setUser(EMPTY_USER);
+            setIsAuthenticated(false);
+          }
+        } else {
+          setUser(EMPTY_USER);
+          setIsAuthenticated(false);
         }
       } catch (e) {
         console.error("Failed to load auth session", e);
+        setUser(EMPTY_USER);
+        setIsAuthenticated(false);
+      } finally {
+        setIsInitialized(true);
       }
     }
   }, []);
 
   const saveUser = (newUser: UserSession) => {
     setUser(newUser);
+    const authed = newUser.role !== "NONE";
+    setIsAuthenticated(authed);
     if (typeof window !== "undefined") {
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
@@ -200,11 +244,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.removeItem(STORAGE_KEY);
       window.localStorage.removeItem("hwyati_auth_token");
     }
-    setUser(DEFAULT_USER);
+    setUser(EMPTY_USER);
+    setIsAuthenticated(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, setRole, setAgency, updateSession, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated,
+        isInitialized,
+        setRole,
+        setAgency,
+        updateSession,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

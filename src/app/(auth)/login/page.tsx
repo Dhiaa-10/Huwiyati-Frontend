@@ -31,17 +31,50 @@ import {
   decodeRolesFromToken,
   type LoginResult,
 } from "@/lib/api/authService";
+import { employeesService } from "@/lib/api/employeesService";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const defaultCredentials: Record<RoleType, { id: string; pass: string; agency: AgencyType }> = {
-  SUPER_ADMIN: { id: "01011131317", pass: "Password123", agency: "وزارة الداخلية" },
-  ADMIN: { id: "01011135650", pass: "Password123", agency: "الأحوال المدنية" },
-  EMPLOYEE: { id: "01011108594", pass: "Password123", agency: "الأحوال المدنية" },
-};
+type ActiveRoleType = Exclude<RoleType, "NONE">;
+
+interface DemoAccount {
+  role: ActiveRoleType;
+  roleLabel: string;
+  nationalNumber: string;
+  name: string;
+  agency: AgencyType;
+  badgeColor: string;
+}
+
+const DEMO_ACCOUNTS: DemoAccount[] = [
+  {
+    role: "SUPER_ADMIN",
+    roleLabel: "سوبر أدمن",
+    nationalNumber: "01011131317",
+    name: "ضياء محمد عبدالمجيد السالمي",
+    agency: "وزارة الداخلية",
+    badgeColor: "bg-rose-100 text-rose-700 border-rose-200",
+  },
+  {
+    role: "ADMIN",
+    roleLabel: "أدمن الأحوال المدنية",
+    nationalNumber: "01011135651",
+    name: "أحمد محمود علي المدير",
+    agency: "الأحوال المدنية",
+    badgeColor: "bg-sky-100 text-sky-700 border-sky-200",
+  },
+  {
+    role: "ADMIN",
+    roleLabel: "أدمن الأحوال (فرع السبعين)",
+    nationalNumber: "01011135650",
+    name: "مصعب محمد أحمد ناشر النجري",
+    agency: "الأحوال المدنية",
+    badgeColor: "bg-sky-100 text-sky-700 border-sky-200",
+  },
+];
 
 /** Map backend role string → our frontend RoleType */
-function mapBackendRole(roles: string[]): RoleType {
+function mapBackendRole(roles: string[]): ActiveRoleType {
   if (roles.some((r) => r === "SuperAdmin")) return "SUPER_ADMIN";
   if (roles.some((r) => r === "Admin")) return "ADMIN";
   return "EMPLOYEE";
@@ -74,7 +107,7 @@ export default function LoginPage() {
   const { updateSession } = useAuth();
 
   // UI State
-  const [role, setRole] = useState<RoleType>("SUPER_ADMIN");
+  const [role, setRole] = useState<ActiveRoleType>("SUPER_ADMIN");
   const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false);
   const [agency, setAgency] = useState<AgencyType>("وزارة الداخلية");
   const [isAgencyOverlayOpen, setIsAgencyOverlayOpen] = useState(false);
@@ -82,9 +115,9 @@ export default function LoginPage() {
   // Step: "credentials" or "device_otp"
   const [step, setStep] = useState<LoginStep>("credentials");
 
-  // Form fields (prefilled with SuperAdmin defaults)
-  const [identifier, setIdentifier] = useState("01011131317");
-  const [password, setPassword] = useState("Password123");
+  // Form fields — strictly empty by default (no unwanted auto-fill)
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
 
   // Pending device verification data
@@ -98,20 +131,22 @@ export default function LoginPage() {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  const roleConfig = {
+  const roleConfig: Record<ActiveRoleType, { label: string; indicatorColor: string }> = {
     SUPER_ADMIN: { label: "سوبر أدمن", indicatorColor: "bg-[#ba1a1a]" },
     ADMIN: { label: "أدمن", indicatorColor: "bg-[#00374e]" },
     EMPLOYEE: { label: "موظف", indicatorColor: "bg-[#003c27]" },
   };
 
-  const handleRoleSelect = (newRole: RoleType) => {
+  const handleRoleSelect = (newRole: ActiveRoleType) => {
     setRole(newRole);
     setIsRoleMenuOpen(false);
     setErrorMessage("");
-    // Automatically switch inputs to match the selected role
-    setIdentifier(defaultCredentials[newRole].id);
-    setPassword(defaultCredentials[newRole].pass);
-    setAgency(defaultCredentials[newRole].agency);
+    // Keep identifier and password intact without auto-fill
+    if (newRole === "SUPER_ADMIN") {
+      setAgency("وزارة الداخلية");
+    } else if (agency === "وزارة الداخلية") {
+      setAgency("الأحوال المدنية");
+    }
   };
 
   const handleAgencySelect = (selected: AgencyType) => {
@@ -120,28 +155,77 @@ export default function LoginPage() {
   };
 
   /** Complete the session after a successful authentication */
-  const completeSession = (result: LoginResult) => {
+  const completeSession = async (result: LoginResult) => {
     // Persist JWT
     saveToken(result.accessToken);
 
-    // Prioritize the role explicitly chosen on the login screen
-    const resolvedRole: RoleType = role;
+    // Decode actual backend roles from token
+    const backendRoles = decodeRolesFromToken(result.accessToken);
+    const isSuperAdminInToken = backendRoles.includes("SuperAdmin");
+    const isAdminInToken = backendRoles.includes("Admin");
 
-    // Determine agency from role
-    const resolvedAgency: AgencyType =
-      resolvedRole === "SUPER_ADMIN" ? "وزارة الداخلية" : agency;
+    // Resolve authoritative role from token claims
+    let resolvedRole: RoleType = "EMPLOYEE";
+    if (isSuperAdminInToken) {
+      resolvedRole = "SUPER_ADMIN";
+    } else if (isAdminInToken) {
+      resolvedRole = "ADMIN";
+    } else if (backendRoles.includes("Employee")) {
+      resolvedRole = "EMPLOYEE";
+    } else {
+      resolvedRole = role;
+    }
 
-    // Load appropriate institutional profile
+    // Resolve agency
+    let resolvedAgency: AgencyType = agency;
+    let actualBranchName = "";
+    let actualBranchId = "";
+    let actualJobTitle = "";
+
+    if (resolvedRole === "SUPER_ADMIN") {
+      resolvedAgency = "وزارة الداخلية";
+      actualJobTitle = "مشرف عام المنظومة الوطنية (سوبر أدمن)";
+      actualBranchName = "المركز الوطني لتقنية المعلومات - ديوان الوزارة";
+    } else if (resolvedRole === "ADMIN") {
+      // Query backend for assigned branch & organization
+      try {
+        const empRes = await employeesService.getEmployees();
+        if (empRes.isSuccess && (empRes.organizationName || empRes.branchName)) {
+          const orgName = empRes.organizationName ?? "";
+          if (orgName.includes("أحوال") || orgName.includes("السجل المدني")) {
+            resolvedAgency = "الأحوال المدنية";
+          } else if (orgName.includes("جوازات") || orgName.includes("هجرة")) {
+            resolvedAgency = "الجوازات";
+          } else if (orgName.includes("مرور")) {
+            resolvedAgency = "المرور";
+          } else if (orgName.includes("مستشف") || orgName.includes("صحة")) {
+            resolvedAgency = "المستشفيات";
+          } else if (agency && agency !== "وزارة الداخلية") {
+            resolvedAgency = agency;
+          }
+
+          if (empRes.branchName) actualBranchName = empRes.branchName;
+          if (empRes.branchId) actualBranchId = empRes.branchId;
+          actualJobTitle = `مدير فرع (${actualBranchName || resolvedAgency})`;
+        }
+      } catch (e) {
+        console.warn("[Login] Could not auto-detect admin branch/agency:", e);
+      }
+    }
+
     const profile = getProfileForRoleAndAgency(resolvedRole, resolvedAgency);
+    if (!actualBranchName) actualBranchName = profile.branchName;
+    if (!actualJobTitle) actualJobTitle = profile.jobTitle;
 
-    // Update AuthContext session
+    // Update AuthContext session with verified live data
     updateSession({
       fullName: result.fullName || profile.fullName,
       nationalNumber: result.nationalNumber || profile.nationalNumber,
       role: resolvedRole,
       agency: resolvedAgency,
-      branchName: profile.branchName,
-      jobTitle: profile.jobTitle,
+      branchName: actualBranchName,
+      branchId: actualBranchId,
+      jobTitle: actualJobTitle,
       loginSource: "login_page",
     });
 
@@ -198,7 +282,7 @@ export default function LoginPage() {
 
       // Case A: trusted device → direct login
       if (!loginData.requiresDeviceVerification) {
-        completeSession(loginData);
+        await completeSession(loginData);
         return;
       }
 
@@ -241,7 +325,7 @@ export default function LoginPage() {
         return;
       }
 
-      completeSession(res.data);
+      await completeSession(res.data);
     } catch (err) {
       setErrorMessage("تعذّر التحقق من الرمز. حاول مرة أخرى.");
       console.error("[VerifyDevice]", err);
@@ -537,6 +621,51 @@ export default function LoginPage() {
           <p className="text-center">هذه البوابة تخضع لإشراف ورقابة الجهات الحكومية المختصة.</p>
         </div>
       </main>
+
+      {/* Quick Test Accounts Card (Optional helper for development / QA) */}
+      {step === "credentials" && (
+        <div className="w-full max-w-md mt-4 bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-[#c0c7ce]/40 shadow-xs z-10">
+          <div className="flex items-center justify-between font-bold text-[#00374e] mb-2.5">
+            <span className="text-xs">💡 حسابات معتمدة في قاعدة البيانات (للتجربة السريعة):</span>
+            <span className="text-[10px] text-gray-500 font-mono">كلمة المرور: Password123</span>
+          </div>
+          <div className="space-y-2">
+            {DEMO_ACCOUNTS.map((acc) => (
+              <div
+                key={acc.nationalNumber}
+                className="flex items-center justify-between p-2 rounded-xl bg-gray-50/80 hover:bg-gray-100 transition-colors border border-gray-200/60"
+              >
+                <div className="min-w-0 pr-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${acc.badgeColor}`}>
+                      {acc.roleLabel}
+                    </span>
+                    <span className="font-semibold text-gray-800 text-[11px] truncate">
+                      {acc.name}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 font-mono mt-0.5">
+                    {acc.nationalNumber} • {acc.agency}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIdentifier(acc.nationalNumber);
+                    setPassword("Password123");
+                    setRole(acc.role);
+                    setAgency(acc.agency);
+                    setErrorMessage("");
+                  }}
+                  className="text-[11px] font-bold text-[#0b4f6c] hover:text-[#00374e] bg-white hover:bg-[#0b4f6c]/10 border border-[#0b4f6c]/30 px-2.5 py-1 rounded-lg transition-all shrink-0 cursor-pointer shadow-2xs"
+                >
+                  تعبئة الحقول
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Agency Selection Overlay */}
       {isAgencyOverlayOpen && (
