@@ -20,7 +20,7 @@ import {
   Heart,
   Stethoscope,
 } from "lucide-react";
-import { adminService } from "@/lib/api/adminService";
+import { employeesService } from "@/lib/api/employeesService";
 import { Employee } from "@/types/admin";
 import { useAuth } from "@/context/AuthContext";
 
@@ -30,6 +30,7 @@ export default function HospitalEmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [branchName, setBranchName] = useState(user.branchName || "المستشفى العام");
 
   // Modals
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -43,6 +44,7 @@ export default function HospitalEmployeesPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [role, setRole] = useState("Doctor");
   const [roleLabel, setRoleLabel] = useState("طبيب استشاري باطنية");
+  const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
@@ -52,12 +54,16 @@ export default function HospitalEmployeesPage() {
   const loadEmployees = async () => {
     setLoading(true);
     try {
-      // Organization for Hospitals & Health Sector
-      const data = await adminService.getEmployees(undefined, "11111111-aaaa-bbbb-cccc-000000000004");
-      setEmployees(data);
-    } catch (err) {
+      const res = await employeesService.getEmployees();
+      if (res.isSuccess) {
+        setEmployees(res.employees);
+        if (res.branchName) setBranchName(res.branchName);
+      } else {
+        setFeedback({ type: "error", message: res.message || "حدث خطأ أثناء جلب الكادر الصحي" });
+      }
+    } catch (err: any) {
       console.error(err);
-      setFeedback({ type: "error", message: "حدث خطأ أثناء جلب الكادر الطبي" });
+      setFeedback({ type: "error", message: "تعذر الاتصال بالخادم لجلب الكادر الطبي" });
     } finally {
       setLoading(false);
     }
@@ -65,14 +71,22 @@ export default function HospitalEmployeesPage() {
 
   const handleToggleStatus = async (emp: Employee) => {
     try {
-      const updated = await adminService.toggleEmployeeStatus(emp.id);
-      setEmployees((prev) =>
-        prev.map((e) => (e.id === updated.id ? updated : e))
-      );
-      setFeedback({
-        type: "success",
-        message: `تم تغيير حالة حساب الكادر: ${updated.fullName} إلى (${updated.accountStatus === "Active" ? "نشط" : "موقوف"})`,
-      });
+      const isCurrentlyActive = emp.isActive;
+      const res = isCurrentlyActive
+        ? await employeesService.deactivateEmployee(emp.id)
+        : await employeesService.activateEmployee(emp.id);
+
+      if (res.isSuccess) {
+        setEmployees((prev) =>
+          prev.map((e) => (e.id === emp.id ? { ...e, isActive: !isCurrentlyActive, accountStatus: !isCurrentlyActive ? "Active" : "Suspended" } : e))
+        );
+        setFeedback({
+          type: "success",
+          message: `تم ${!isCurrentlyActive ? "تنشيط" : "تعطيل"} حساب الكادر: (${emp.fullName}) بنجاح`,
+        });
+      } else {
+        setFeedback({ type: "error", message: res.message });
+      }
     } catch {
       setFeedback({ type: "error", message: "فشل تغيير حالة الحساب" });
     }
@@ -80,46 +94,40 @@ export default function HospitalEmployeesPage() {
 
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const newEmp = await adminService.createEmployee({
-        fullName,
-        nationalNumber,
-        email,
-        phoneNumber,
-        organizationId: "11111111-aaaa-bbbb-cccc-000000000004",
-        branchId: "22222222-bbbb-cccc-dddd-000000000011",
-        role,
-        roleLabel,
-      });
+    if (!nationalNumber.trim()) {
+      setFeedback({ type: "error", message: "يرجى إدخال الرقم الوطني للمواطن المراد تكليفه." });
+      return;
+    }
 
-      setEmployees((prev) => [newEmp, ...prev]);
-      setAddModalOpen(false);
-      resetForm();
-      setFeedback({ type: "success", message: `تم قيد الكادر الطبي/التمريضي الجديد (${fullName}) بنجاح` });
+    setSubmitting(true);
+    try {
+      const res = await employeesService.assignEmployee(nationalNumber.trim());
+      if (res.isSuccess && res.employee) {
+        setEmployees((prev) => [res.employee!, ...prev]);
+        setAddModalOpen(false);
+        resetForm();
+        setFeedback({
+          type: "success",
+          message: `تم تعيين الكادر الصحي (${res.employee.fullName}) برقم وظيفي: ${res.employee.employeeNumber} بنجاح`,
+        });
+      } else {
+        setFeedback({ type: "error", message: res.message });
+      }
     } catch {
-      setFeedback({ type: "error", message: "فشل إضافة الكادر الطبي" });
+      setFeedback({ type: "error", message: "حدث خطأ أثناء تكليف الكادر" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleEditEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEmployee) return;
-    try {
-      const updated = await adminService.updateEmployee(selectedEmployee.id, {
-        fullName,
-        email,
-        phoneNumber,
-        role,
-        roleLabel,
-      });
 
-      setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-      setEditModalOpen(false);
-      resetForm();
-      setFeedback({ type: "success", message: `تم تحديث بيانات الكادر (${fullName}) بنجاح` });
-    } catch {
-      setFeedback({ type: "error", message: "فشل تحديث البيانات" });
-    }
+    setEmployees((prev) => prev.map((e) => (e.id === selectedEmployee.id ? { ...e, roleLabel } : e)));
+    setEditModalOpen(false);
+    resetForm();
+    setFeedback({ type: "success", message: `تم تحديث المسمى الوظيفي بنجاح` });
   };
 
   const resetForm = () => {
@@ -193,9 +201,9 @@ export default function HospitalEmployeesPage() {
               <ShieldCheck className="w-4 h-4" />
               <span>إدارة الموارد البشرية والكوادر الصحية المعتمدة</span>
             </div>
-            <h1 className="text-2xl font-bold">دليل الأطباء والكوادر السريرية والتمريضية</h1>
+            <h1 className="text-2xl font-bold">دليل الأطباء والكوادر السريرية — {branchName}</h1>
             <p className="text-slate-300 text-sm mt-1">
-              إدارة حسابات وصلاحيات الأطباء، الجراحين، طواقم التمريض، ومسؤولي إدخال الوقائع الحيوية بالمستشفى
+              إدارة كادر ({branchName}) وحسابات وصلاحيات الأطباء، الجراحين، طواقم التمريض، ومسؤولي إدخال الوقائع الحيوية
             </p>
           </div>
 
@@ -407,90 +415,78 @@ export default function HospitalEmployeesPage() {
               </button>
             </div>
 
-            <form onSubmit={addModalOpen ? handleAddEmployee : handleEditEmployee} className="space-y-3">
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">الاسم الرباعي واللقب *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="مثال: د. عبدالرحمن صالح العولقي"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
-                />
-              </div>
+            <form onSubmit={addModalOpen ? handleAddEmployee : handleEditEmployee} className="space-y-4 text-xs">
+              {addModalOpen ? (
+                <>
+                  <div className="p-3 bg-cyan-950/40 border border-cyan-800/40 rounded-xl text-cyan-200 space-y-1">
+                    <p className="font-bold flex items-center gap-1.5 text-xs text-cyan-400">
+                      <CheckCircle2 className="w-4 h-4" />
+                      التكليف بالمنشأة الصحية: {branchName}
+                    </p>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      أدخل الرقم الوطني للمواطن المسجل (11 خانة)، وسيقوم النظام بالتحقق منه آلياً وتكليفه بكادر المستشفى وإصدار رقمه الوظيفي.
+                    </p>
+                  </div>
 
-              {addModalOpen && (
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">الرقم الوطني الموحد للمكلف (11 خانة) *</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={11}
+                      placeholder="مثال: 01001000001"
+                      value={nationalNumber}
+                      onChange={(e) => setNationalNumber(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">نوع الكادر / الدور</label>
+                      <select
+                        value={role}
+                        onChange={(e) => setRole(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
+                      >
+                        <option value="Doctor">طبيب استشاري / أخصائي</option>
+                        <option value="Surgeon">استشاري جراحة عامة</option>
+                        <option value="Nurse">تمريض عناية وفرز إسعافي</option>
+                        <option value="VitalEventsRegistrar">مسؤول قيد الوقائع الحيوية</option>
+                        <option value="HospitalAdmin">مشرف إداري وسريري</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">المسمى الوظيفي المعتمد</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="مثال: استشاري جراحة عامة"
+                        value={roleLabel}
+                        onChange={(e) => setRoleLabel(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
+                      >
+                      </input>
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">الرقم الوطني الموحد (10 أرقام) *</label>
+                  <label className="block text-slate-300 font-semibold mb-1">المسمى الوظيفي والدور السريري</label>
                   <input
                     type="text"
                     required
-                    maxLength={10}
-                    placeholder="10100XXXXX"
-                    value={nationalNumber}
-                    onChange={(e) => setNationalNumber(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">البريد الإلكتروني *</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="doctor@health.hwyati.gov.ye"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">رقم الهاتف *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="+967 77X XXX XXX"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">نوع الكادر / الدور</label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
-                  >
-                    <option value="Doctor">طبيب استشاري / أخصائي</option>
-                    <option value="Surgeon">استشاري جراحة عامة</option>
-                    <option value="Nurse">تمريض عناية وفرز إسعافي</option>
-                    <option value="VitalEventsRegistrar">مسؤول قيد الوقائع الحيوية</option>
-                    <option value="HospitalAdmin">مشرف إداري وسريري</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">المسمى الوظيفي المعتمد</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="مثال: استشاري جراحة المخ والأعصاب"
                     value={roleLabel}
                     onChange={(e) => setRoleLabel(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
-              </div>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
                 <button
                   type="button"
+                  disabled={submitting}
                   onClick={() => {
                     setAddModalOpen(false);
                     setEditModalOpen(false);
@@ -502,10 +498,15 @@ export default function HospitalEmployeesPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition flex items-center gap-1.5"
+                  disabled={submitting}
+                  className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{addModalOpen ? "حفظ واعتماد الكادر" : "تحديث البيانات"}</span>
+                  {submitting ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  <span>{submitting ? "جاري التكليف..." : addModalOpen ? "حفظ واعتماد الكادر" : "تحديث البيانات"}</span>
                 </button>
               </div>
             </form>

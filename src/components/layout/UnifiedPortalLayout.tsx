@@ -26,6 +26,7 @@ import {
   Car,
   HeartPulse,
   Settings,
+  CreditCard,
 } from "lucide-react";
 import { HwyatiLogo } from "@/components/ui/hwyati-logo";
 import { useAuth, RoleType } from "@/context/AuthContext";
@@ -48,15 +49,23 @@ export function UnifiedPortalLayout({
 }: UnifiedPortalLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated, isInitialized } = useAuth();
   const { language, openSettings } = useSettings();
   const isRtl = language === "ar";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Strict Role Boundary Isolation:
-  // SuperAdmin is strictly confined to /admin (sovereign supervision).
-  // Operational roles are strictly confined to their agency portals.
+  // Strict Role Boundary & Session Protection:
+  // 1. Unauthenticated sessions are redirected immediately to /login
+  // 2. SuperAdmin is strictly confined to /admin (sovereign supervision).
+  // 3. Operational roles are strictly confined to their agency portals.
   useEffect(() => {
+    if (!isInitialized) return;
+
+    if (!isAuthenticated || user.role === "NONE" || !user.role) {
+      router.replace("/login");
+      return;
+    }
+
     if (user.role === "SUPER_ADMIN" && portalType !== "admin") {
       router.replace("/admin");
     } else if (user.role !== "SUPER_ADMIN" && portalType === "admin") {
@@ -66,11 +75,11 @@ export function UnifiedPortalLayout({
       else if (user.agency === "المستشفيات") router.replace("/hospitals");
       else router.replace("/login");
     }
-  }, [user.role, user.agency, portalType, router]);
+  }, [user.role, user.agency, isAuthenticated, isInitialized, portalType, router]);
 
   const handleLogout = () => {
     logout();
-    router.push("/login");
+    router.replace("/login");
   };
 
   // Determine navigation items based on Role and PortalType
@@ -229,22 +238,28 @@ export function UnifiedPortalLayout({
           active: pathname === "/civil-registry",
         },
         {
+          label: "إدارة البطاقات الشخصية",
+          href: "/civil-registry/id-cards",
+          icon: CreditCard,
+          active: pathname.startsWith("/civil-registry/id-cards"),
+        },
+        {
+          label: "القيود والبطاقات العائلية",
+          href: "/civil-registry/families",
+          icon: Users,
+          active: pathname.startsWith("/civil-registry/families"),
+        },
+        {
+          label: "توثيق الوقائع الحيوية",
+          href: "/civil-registry/vital-events",
+          icon: ScrollText,
+          active: pathname.startsWith("/civil-registry/vital-events"),
+        },
+        {
           label: "إدارة موظفي الفرع والصلاحيات",
           href: "/civil-registry/employees",
-          icon: Users,
+          icon: UserCheck,
           active: pathname === "/civil-registry/employees",
-        },
-        {
-          label: "تقارير المعاملات والإحصائيات",
-          href: "/civil-registry/reports",
-          icon: BarChart3,
-          active: pathname === "/civil-registry/reports",
-        },
-        {
-          label: "مراجعة وتدقيق الطلبات",
-          href: "/civil-registry/requests",
-          icon: FileCheck2,
-          active: pathname === "/civil-registry/requests",
         },
       ];
     }
@@ -322,27 +337,48 @@ export function UnifiedPortalLayout({
     // Civil Registry Officer
     return [
       {
-        label: "تفعيل حسابات المواطنين حضورياً",
-        href: "/civil-registry/activations",
-        icon: UserCheck,
-        active: pathname === "/civil-registry/activations",
+        label: "لوحة تحكم السجل المدني",
+        href: "/civil-registry",
+        icon: LayoutDashboard,
+        active: pathname === "/civil-registry",
       },
       {
-        label: "مراجعة وتدقيق المستندات",
-        href: "/civil-registry/requests",
-        icon: FileCheck2,
-        active: pathname === "/civil-registry/requests",
+        label: "إدارة البطاقات الشخصية",
+        href: "/civil-registry/id-cards",
+        icon: CreditCard,
+        active: pathname.startsWith("/civil-registry/id-cards"),
       },
       {
-        label: "قيد وتوثيق الوقائع الحيوية",
+        label: "القيود والبطاقات العائلية",
+        href: "/civil-registry/families",
+        icon: Users,
+        active: pathname.startsWith("/civil-registry/families"),
+      },
+      {
+        label: "توثيق الوقائع الحيوية",
         href: "/civil-registry/vital-events",
         icon: ScrollText,
-        active: pathname === "/civil-registry/vital-events",
+        active: pathname.startsWith("/civil-registry/vital-events"),
       },
     ];
   };
 
   const navItems = getNavItems();
+
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-[#001e2d] flex items-center justify-center" dir="rtl">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-[#0b4f6c] border-t-[#8ac0e1] rounded-full animate-spin"></div>
+          <span className="text-[#8ac0e1] text-xs font-semibold">جارٍ التحقق من صلاحيات الجلسة...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || user.role === "NONE" || !user.role) {
+    return null;
+  }
 
   return (
     <div className="bg-[#f7f9fb] text-[#191c1e] min-h-screen flex flex-col md:flex-row font-['IBM_Plex_Sans_Arabic'] antialiased">
