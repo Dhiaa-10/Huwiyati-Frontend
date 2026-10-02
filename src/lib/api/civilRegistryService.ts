@@ -29,6 +29,68 @@ import {
   RegisterBirthCertificateDto,
   RegisterDeathCertificateDto,
 } from "@/types/civilRegistry";
+import {
+  serviceRequestsService,
+} from "./serviceRequestsService";
+import { ServiceRequestDto, RequestStatus } from "@/types/serviceRequests";
+import mockCivilRequests from "@/data/mock/civil_requests.json";
+
+function mapBackendToCivilRequest(dto: ServiceRequestDto): CivilServiceRequest {
+  const status: CivilServiceRequest["status"] =
+    dto.status === "Pending"
+      ? "Pending"
+      : dto.status === "UnderReview"
+      ? "UnderReview"
+      : dto.status === "Approved"
+      ? "Approved"
+      : dto.status === "Rejected"
+      ? "Rejected"
+      : dto.status === "Issued"
+      ? "Issued"
+      : "Pending";
+
+  let parsed: any = {};
+  if (dto.requestDataJson) {
+    try {
+      parsed = JSON.parse(dto.requestDataJson);
+    } catch {}
+  }
+
+  return {
+    id: dto.id,
+    requestNumber: dto.requestNumber,
+    personId: dto.personId,
+    personFullName: dto.personFullName || "مواطن يمني",
+    personNationalNumber: dto.nationalNumber || "01010000000",
+    personPhoto:
+      parsed.photoUrl ||
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
+    serviceTypeId: dto.serviceTypeId,
+    serviceName: dto.serviceTypeName || "خدمة السجل المدني",
+    serviceCode: dto.serviceTypeCode || "CIV_SVC",
+    branchId: dto.branchId,
+    branchName: dto.branchName || "فرع السجل المدني",
+    status,
+    submissionDate: dto.submissionDate || dto.createdAt,
+    completedDate: dto.completedDate || undefined,
+    fee: parsed.fee || 4500,
+    isPaid: true,
+    rejectionReason: dto.rejectionReason || undefined,
+    officerNotes: dto.statusHistory?.[0]?.note || undefined,
+    attachments: [
+      {
+        name: "وثيقة إثبات الهوية / عقد الزواج",
+        fileUrl: "/docs/identity_proof.pdf",
+        type: "pdf",
+      },
+      {
+        name: "سند تسديد الرسوم الإلكتروني",
+        fileUrl: "/docs/receipt.pdf",
+        type: "pdf",
+      },
+    ],
+  };
+}
 
 /**
  * Universal Civil Registry Live API Service
@@ -300,18 +362,96 @@ class CivilRegistryService {
   }
 
   public async getServiceRequests(params?: ServiceRequestFilterParams): Promise<PaginatedResponse<CivilServiceRequest>> {
+    try {
+      const backendRes = await serviceRequestsService.getBranchServiceRequests({
+        status: params?.status === "all" ? undefined : (params?.status as RequestStatus),
+        searchKeyword: params?.search,
+        pageNumber: params?.page || 1,
+        pageSize: params?.pageSize || 20,
+      });
+
+      if (backendRes.items && backendRes.items.length > 0) {
+        let mapped = backendRes.items.map(mapBackendToCivilRequest);
+
+        // Filter by serviceCode if requested
+        if (params?.serviceCode && params.serviceCode !== "all") {
+          mapped = mapped.filter((r) => r.serviceCode === params.serviceCode);
+        }
+
+        return {
+          items: mapped,
+          totalCount: backendRes.totalCount,
+          page: backendRes.pageIndex,
+          pageSize: params?.pageSize || 20,
+          totalPages: backendRes.totalPages,
+          hasNextPage: backendRes.hasNextPage,
+          hasPreviousPage: backendRes.hasPreviousPage,
+        };
+      }
+    } catch (err) {
+      console.warn("[CivilRegistryService] Backend requests failed, using mock data fallback:", err);
+    }
+
+    // Fallback to mock data if branch queue is empty or offline
+    let items = (mockCivilRequests as unknown as CivilServiceRequest[]) || [];
+    if (params?.search) {
+      const q = params.search.toLowerCase();
+      items = items.filter(
+        (r) =>
+          r.requestNumber.toLowerCase().includes(q) ||
+          r.personFullName.toLowerCase().includes(q) ||
+          r.personNationalNumber.includes(q)
+      );
+    }
+    if (params?.status && params.status !== "all") {
+      items = items.filter((r) => r.status === params.status);
+    }
+    if (params?.serviceCode && params.serviceCode !== "all") {
+      items = items.filter((r) => r.serviceCode === params.serviceCode);
+    }
+
     return {
-      items: [],
-      totalCount: 0,
+      items,
+      totalCount: items.length,
       page: 1,
-      pageSize: 10,
-      totalPages: 0,
+      pageSize: items.length || 10,
+      totalPages: 1,
       hasNextPage: false,
       hasPreviousPage: false,
     };
   }
 
   public async updateRequestStatus(dto: UpdateRequestStatusDto): Promise<CivilServiceRequest> {
+    // Check if ID looks like a real UUID from backend
+    const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dto.requestId);
+
+    if (isGuid) {
+      try {
+        const backendStatus =
+          dto.status === "Approved"
+            ? "Approved"
+            : dto.status === "Rejected"
+            ? "Rejected"
+            : dto.status === "UnderReview"
+            ? "UnderReview"
+            : dto.status === "Issued" || dto.status === "Completed"
+            ? "Issued"
+            : "Pending";
+
+        const updated = await serviceRequestsService.changeRequestStatus({
+          serviceRequestId: dto.requestId,
+          newStatus: backendStatus,
+          note: dto.officerNotes,
+          rejectionReason: dto.rejectionReason,
+        });
+
+        return mapBackendToCivilRequest(updated);
+      } catch (err) {
+        console.error("[CivilRegistryService] changeRequestStatus error:", err);
+        throw err;
+      }
+    }
+
     return {
       id: dto.requestId,
       requestNumber: "REQ-001",
@@ -329,6 +469,8 @@ class CivilRegistryService {
       fee: 0,
       isPaid: true,
       attachments: [],
+      officerNotes: dto.officerNotes,
+      rejectionReason: dto.rejectionReason,
     };
   }
 

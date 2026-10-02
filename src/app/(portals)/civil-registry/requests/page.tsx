@@ -77,6 +77,25 @@ export default function CivilRequestsPage() {
     setIsRejecting(false);
   };
 
+  const handleStartReview = async () => {
+    if (!selectedRequest) return;
+    try {
+      const updated = await civilRegistryService.updateRequestStatus({
+        requestId: selectedRequest.id,
+        status: "UnderReview",
+        officerNotes: officerNotes || "تم استلام المعاملة والبدء في فحص وتدقيق البيانات ومطابقة البصمة.",
+      });
+
+      setRequests((prev) =>
+        prev.map((r) => (r.id === updated.id ? updated : r))
+      );
+      setSelectedRequest(updated);
+      showNotification("info", `تم بدء فحص الطلب رقم ${updated.requestNumber}.`);
+    } catch (err) {
+      showNotification("error", "فشل تحديث حالة الطلب إلى قيد المراجعة.");
+    }
+  };
+
   const handleApprove = async () => {
     if (!selectedRequest) return;
     try {
@@ -89,10 +108,29 @@ export default function CivilRequestsPage() {
       setRequests((prev) =>
         prev.map((r) => (r.id === updated.id ? updated : r))
       );
-      setSelectedRequest(null);
+      setSelectedRequest(updated);
       showNotification("success", `تم اعتماد الطلب رقم ${updated.requestNumber} بنجاح.`);
     } catch (err) {
       showNotification("error", "فشلت عملية الاعتماد.");
+    }
+  };
+
+  const handleIssue = async () => {
+    if (!selectedRequest) return;
+    try {
+      const updated = await civilRegistryService.updateRequestStatus({
+        requestId: selectedRequest.id,
+        status: "Issued",
+        officerNotes: officerNotes || "تم إصدار وطباعة الوثيقة الرسمية والكرت الذكي بنجاح.",
+      });
+
+      setRequests((prev) =>
+        prev.map((r) => (r.id === updated.id ? updated : r))
+      );
+      setSelectedRequest(updated);
+      showNotification("success", `تم إصدار وطباعة وثيقة الطلب رقم ${updated.requestNumber} بنجاح.`);
+    } catch (err) {
+      showNotification("error", "فشلت عملية الإصدار والطباعة.");
     }
   };
 
@@ -114,7 +152,8 @@ export default function CivilRequestsPage() {
       setRequests((prev) =>
         prev.map((r) => (r.id === updated.id ? updated : r))
       );
-      setSelectedRequest(null);
+      setSelectedRequest(updated);
+      setIsRejecting(false);
       showNotification("info", `تم رفض الطلب رقم ${updated.requestNumber}.`);
     } catch (err) {
       showNotification("error", "فشلت عملية الرفض.");
@@ -187,6 +226,7 @@ export default function CivilRequestsPage() {
               <option value="Pending">قيد الانتظار (Pending)</option>
               <option value="UnderReview">قيد المراجعة الفنية (Under Review)</option>
               <option value="Approved">تم الاعتماد (Approved)</option>
+              <option value="Issued">تم الإصدار والطباعة (Issued)</option>
               <option value="Rejected">مرفوض (Rejected)</option>
             </select>
           </div>
@@ -276,8 +316,10 @@ export default function CivilRequestsPage() {
                     <td className="py-4 px-6">
                       <span
                         className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                          req.status === "Approved"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          req.status === "Issued"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-300"
+                            : req.status === "Approved"
+                            ? "bg-blue-50 text-blue-700 border border-blue-200"
                             : req.status === "UnderReview"
                             ? "bg-sky-50 text-[#0b4f6c] border border-sky-200"
                             : req.status === "Rejected"
@@ -285,13 +327,15 @@ export default function CivilRequestsPage() {
                             : "bg-amber-50 text-amber-700 border border-amber-200"
                         }`}
                       >
-                        {req.status === "Approved"
+                        {req.status === "Issued"
+                          ? "تم الإصدار والطباعة"
+                          : req.status === "Approved"
                           ? "معتمد"
                           : req.status === "UnderReview"
                           ? "قيد المراجعة"
                           : req.status === "Rejected"
                           ? "مرفوض"
-                          : "جديد"}
+                          : "قيد الانتظار"}
                       </span>
                     </td>
 
@@ -424,21 +468,55 @@ export default function CivilRequestsPage() {
               <div className="flex items-center gap-2">
                 {!isRejecting ? (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => setIsRejecting(true)}
-                      className="px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl font-bold"
-                    >
-                      رفض الطلب
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleApprove}
-                      className="px-6 py-2 bg-[#005539] hover:bg-[#003c27] text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>اعتماد وطباعة الوثيقة</span>
-                    </button>
+                    {selectedRequest.status !== "Issued" && selectedRequest.status !== "Rejected" && (
+                      <button
+                        type="button"
+                        onClick={() => setIsRejecting(true)}
+                        className="px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl font-bold"
+                      >
+                        رفض الطلب
+                      </button>
+                    )}
+
+                    {selectedRequest.status === "Pending" && (
+                      <button
+                        type="button"
+                        onClick={handleStartReview}
+                        className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Clock className="w-4 h-4" />
+                        <span>بدء التدقيق والفحص</span>
+                      </button>
+                    )}
+
+                    {selectedRequest.status === "UnderReview" && (
+                      <button
+                        type="button"
+                        onClick={handleApprove}
+                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>اعتماد الطلب</span>
+                      </button>
+                    )}
+
+                    {selectedRequest.status === "Approved" && (
+                      <button
+                        type="button"
+                        onClick={handleIssue}
+                        className="px-6 py-2 bg-[#005539] hover:bg-[#003c27] text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>إصدار وطباعة الوثيقة الرسمية</span>
+                      </button>
+                    )}
+
+                    {selectedRequest.status === "Issued" && (
+                      <div className="px-5 py-2 bg-emerald-100 text-emerald-800 rounded-xl font-bold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>تمت الطباعة والإصدار بنجاح</span>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
