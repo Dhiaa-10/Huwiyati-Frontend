@@ -31,6 +31,15 @@ export interface EmployeesFetchResult {
   message?: string;
 }
 
+function getRoleLabel(orgName?: string): string {
+  if (!orgName) return "موظف مختص";
+  if (orgName.includes("الأحوال") || orgName.includes("المدنية")) return "موظف أحوال مدنية";
+  if (orgName.includes("الجوازات") || orgName.includes("الهجرة")) return "ضابط جوازات ومنافذ";
+  if (orgName.includes("المرور") || orgName.includes("السير")) return "ضابط شرطة سير";
+  if (orgName.includes("المستشفى") || orgName.includes("الصحة")) return "كادر صحي وسريري";
+  return "موظف مختص";
+}
+
 function mapBackendEmployee(dto: BackendEmployeeDto): Employee {
   return {
     id: dto.employeeId,
@@ -45,7 +54,7 @@ function mapBackendEmployee(dto: BackendEmployeeDto): Employee {
     email: dto.email || "",
     phoneNumber: dto.phoneNumber || "",
     role: "EMPLOYEE",
-    roleLabel: "موظف مختص",
+    roleLabel: getRoleLabel(dto.organizationName),
     isActive: dto.isActive,
     accountStatus: dto.isActive ? "Active" : "Suspended",
     createdAt: dto.createdAt,
@@ -79,6 +88,33 @@ class EmployeesService {
         isSuccess: false,
         employees: [],
         message: errMsg || "فشل جلب موظفي الفرع من الخادم.",
+      };
+    }
+  }
+
+  /**
+   * Fetch single employee details by ID from current Admin's branch.
+   */
+  async getEmployeeById(employeeId: string): Promise<{ isSuccess: boolean; employee?: Employee; message?: string }> {
+    try {
+      const res = await apiClient.get<BackendEmployeeDto>(`/api/v1/Employees/${employeeId}`);
+      if (res.isSuccess && res.data) {
+        return {
+          isSuccess: true,
+          employee: mapBackendEmployee(res.data),
+          message: res.message,
+        };
+      }
+      return {
+        isSuccess: false,
+        message: res.message || "لم يتم العثور على بيانات الموظف في هذا الفرع.",
+      };
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("[EmployeesService] getEmployeeById failed:", err);
+      return {
+        isSuccess: false,
+        message: errMsg || "فشل جلب تفاصيل الموظف من الخادم.",
       };
     }
   }
