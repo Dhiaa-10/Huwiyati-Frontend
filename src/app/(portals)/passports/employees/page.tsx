@@ -7,12 +7,9 @@ import {
   Search,
   CheckCircle2,
   AlertCircle,
-  Clock,
-  Briefcase,
   Phone,
   Mail,
   Eye,
-  Trash2,
   Power,
   RefreshCw,
   X,
@@ -29,7 +26,7 @@ export default function PassportsEmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [branchName, setBranchName] = useState(user.branchName || "فرع الجوازات");
 
   // Modals
@@ -47,6 +44,13 @@ export default function PassportsEmployeesPage() {
     loadEmployees();
   }, []);
 
+  // Auto-dismiss feedback after 5 seconds
+  useEffect(() => {
+    if (!feedback) return;
+    const t = setTimeout(() => setFeedback(null), 5000);
+    return () => clearTimeout(t);
+  }, [feedback]);
+
   const loadEmployees = async () => {
     setLoading(true);
     try {
@@ -55,11 +59,10 @@ export default function PassportsEmployeesPage() {
         setEmployees(res.employees);
         if (res.branchName) setBranchName(res.branchName);
       } else {
-        setFeedback({ type: "error", message: res.message || "حدث خطأ أثناء جلب كادر الجوازات" });
+        setFeedback({ type: "error", message: res.message || "حدث خطأ أثناء جلب كادر الجوازات." });
       }
-    } catch (err: any) {
-      console.error(err);
-      setFeedback({ type: "error", message: "تعذر الاتصال بالخادم لجلب كادر الجوازات" });
+    } catch {
+      setFeedback({ type: "error", message: "تعذر الاتصال بالخادم لجلب كادر الجوازات." });
     } finally {
       setLoading(false);
     }
@@ -71,12 +74,11 @@ export default function PassportsEmployeesPage() {
       setFeedback({ type: "error", message: "يرجى إدخال الرقم الوطني للمواطن المراد تكليفه." });
       return;
     }
-
     setSubmitting(true);
     try {
       const res = await employeesService.assignEmployee(nationalNumber.trim());
       if (res.isSuccess && res.employee) {
-        setEmployees([res.employee, ...employees]);
+        setEmployees((prev) => [res.employee!, ...prev]);
         setAddModalOpen(false);
         setNationalNumber("");
         setFeedback({
@@ -86,8 +88,7 @@ export default function PassportsEmployeesPage() {
       } else {
         setFeedback({ type: "error", message: res.message });
       }
-    } catch (err: any) {
-      console.error(err);
+    } catch {
       setFeedback({ type: "error", message: "حدث خطأ أثناء تعيين الضابط." });
     } finally {
       setSubmitting(false);
@@ -102,18 +103,17 @@ export default function PassportsEmployeesPage() {
         : await employeesService.activateEmployee(emp.id);
 
       if (res.isSuccess) {
-        const updated = employees.map((e) =>
-          e.id === emp.id
-            ? { ...e, isActive: !isCurrentlyActive, accountStatus: (!isCurrentlyActive ? "Active" : "Suspended") as "Active" | "Suspended" }
-            : e
+        setEmployees((prev) =>
+          prev.map((e) =>
+            e.id === emp.id
+              ? { ...e, isActive: !isCurrentlyActive, accountStatus: (!isCurrentlyActive ? "Active" : "Suspended") as "Active" | "Suspended" }
+              : e
+          )
         );
-        setEmployees(updated);
         if (selectedEmployee && selectedEmployee.id === emp.id) {
-          setSelectedEmployee({
-            ...selectedEmployee,
-            isActive: !isCurrentlyActive,
-            accountStatus: (!isCurrentlyActive ? "Active" : "Suspended") as "Active" | "Suspended",
-          });
+          setSelectedEmployee((prev) =>
+            prev ? { ...prev, isActive: !isCurrentlyActive, accountStatus: (!isCurrentlyActive ? "Active" : "Suspended") as "Active" | "Suspended" } : null
+          );
         }
         setFeedback({
           type: "success",
@@ -122,34 +122,8 @@ export default function PassportsEmployeesPage() {
       } else {
         setFeedback({ type: "error", message: res.message });
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
       setFeedback({ type: "error", message: "فشل تحديث حالة الحساب." });
-    }
-  };
-
-  const handleDelete = async (emp: Employee) => {
-    if (!confirm(`هل أنت متأكد من تعطيل/إلغاء تكليف الضابط (${emp.fullName}) من سجل الفرع نهائياً؟`)) {
-      return;
-    }
-
-    try {
-      const res = await employeesService.deactivateEmployee(emp.id);
-      if (res.isSuccess) {
-        setEmployees(employees.map((e) => e.id === emp.id ? { ...e, isActive: false, accountStatus: "Suspended" } : e));
-        if (selectedEmployee && selectedEmployee.id === emp.id) {
-          setSelectedEmployee({ ...selectedEmployee, isActive: false, accountStatus: "Suspended" });
-        }
-        setFeedback({
-          type: "success",
-          message: `تم تعطيل وإلغاء تكليف الضابط (${emp.fullName}) بنجاح.`,
-        });
-      } else {
-        setFeedback({ type: "error", message: res.message });
-      }
-    } catch (err) {
-      console.error(err);
-      setFeedback({ type: "error", message: "فشل إلغاء تكليف الضابط." });
     }
   };
 
@@ -162,8 +136,8 @@ export default function PassportsEmployeesPage() {
       if (res.isSuccess && res.employee) {
         setSelectedEmployee(res.employee);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // keep optimistic data
     } finally {
       setFetchingDetails(false);
     }
@@ -171,14 +145,15 @@ export default function PassportsEmployeesPage() {
 
   const filtered = employees.filter((e) => {
     const matchesSearch =
-      e.fullName.includes(search) ||
+      e.fullName.toLowerCase().includes(search.toLowerCase()) ||
       e.nationalNumber.includes(search) ||
-      e.employeeNumber.toLowerCase().includes(search.toLowerCase());
-    const matchesDept =
-      departmentFilter === "all" ||
-      (departmentFilter === "active" && e.isActive) ||
-      (departmentFilter === "suspended" && !e.isActive);
-    return matchesSearch && matchesDept;
+      e.employeeNumber.toLowerCase().includes(search.toLowerCase()) ||
+      e.email.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" && e.isActive) ||
+      (statusFilter === "suspended" && !e.isActive);
+    return matchesSearch && matchesStatus;
   });
 
   return (
@@ -207,12 +182,8 @@ export default function PassportsEmployeesPage() {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0b4f6c]" : ""}`} />
           </button>
-
           <button
-            onClick={() => {
-              setNationalNumber("");
-              setAddModalOpen(true);
-            }}
+            onClick={() => { setNationalNumber(""); setAddModalOpen(true); }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00374e] hover:bg-[#0b4f6c] text-white text-xs font-bold shadow-sm transition-all"
           >
             <UserPlus className="w-4 h-4" />
@@ -221,9 +192,10 @@ export default function PassportsEmployeesPage() {
         </div>
       </div>
 
+      {/* Feedback */}
       {feedback && (
         <div
-          className={`p-4 rounded-xl border text-xs flex items-center justify-between animate-fade-in ${
+          className={`p-4 rounded-xl border text-xs flex items-center justify-between ${
             feedback.type === "success"
               ? "bg-emerald-50 border-emerald-200 text-emerald-800"
               : "bg-rose-50 border-rose-200 text-rose-800"
@@ -294,7 +266,7 @@ export default function PassportsEmployeesPage() {
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
+      {/* Filter and Search */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="relative w-full md:w-80">
           <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -306,11 +278,10 @@ export default function PassportsEmployeesPage() {
             className="w-full pl-3 pr-9 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#0b4f6c]"
           />
         </div>
-
         <div className="flex items-center gap-2 w-full md:w-auto">
           <select
-            value={departmentFilter}
-            onChange={(e) => setDepartmentFilter(e.target.value)}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
             className="px-3 py-2 rounded-xl border border-gray-200 text-xs font-medium focus:outline-none bg-white"
           >
             <option value="all">كافة الكوادر والضباط ({employees.length})</option>
@@ -320,7 +291,7 @@ export default function PassportsEmployeesPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Officers Table */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
@@ -338,27 +309,34 @@ export default function PassportsEmployeesPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-gray-400">
-                    جاري تحميل كادر ضباط الجوازات...
+                  <td colSpan={7} className="py-12 text-center">
+                    <div className="flex flex-col items-center gap-2 text-gray-400">
+                      <RefreshCw className="w-5 h-5 animate-spin text-[#0b4f6c]" />
+                      <span className="text-xs">جاري تحميل كادر ضباط الجوازات...</span>
+                    </div>
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-gray-400">
-                    لا يوجد ضباط يطابقون معايير البحث.
+                  <td colSpan={7} className="py-12 text-center text-gray-400 text-xs">
+                    {employees.length === 0
+                      ? "لا يوجد ضباط في هذا الفرع حتى الآن."
+                      : "لا يوجد ضباط يطابقون معايير البحث."}
                   </td>
                 </tr>
               ) : (
                 filtered.map((emp) => (
                   <tr key={emp.id} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="py-3.5 px-5 font-bold text-gray-900 flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-[#00374e] text-white flex items-center justify-center font-bold text-xs">
-                        {emp.fullName.slice(0, 2)}
-                      </div>
-                      <div>
-                        <div>{emp.fullName}</div>
-                        <div className="text-[10px] text-gray-400 font-normal">
-                          {emp.branchName || "مصلحة الجوازات"}
+                    <td className="py-3.5 px-5 font-bold text-gray-900">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-[#00374e] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                          {emp.fullName.slice(0, 2)}
+                        </div>
+                        <div>
+                          <div>{emp.fullName}</div>
+                          <div className="text-[10px] text-gray-400 font-normal">
+                            {emp.branchName || branchName}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -369,16 +347,19 @@ export default function PassportsEmployeesPage() {
                       {emp.nationalNumber}
                     </td>
                     <td className="py-3.5 px-5 font-medium text-gray-800">
-                      {emp.roleLabel}
+                      <div className="flex items-center gap-1.5">
+                        <Plane className="w-3 h-3 text-blue-400 shrink-0" />
+                        <span>{emp.roleLabel}</span>
+                      </div>
                     </td>
                     <td className="py-3.5 px-5 text-gray-600 space-y-0.5">
                       <div className="flex items-center gap-1 font-mono text-[11px]">
                         <Phone className="w-3 h-3 text-gray-400" />
-                        <span>{emp.phoneNumber}</span>
+                        <span>{emp.phoneNumber || "—"}</span>
                       </div>
                       <div className="flex items-center gap-1 text-[10px] text-gray-400">
                         <Mail className="w-3 h-3 text-gray-400" />
-                        <span>{emp.email}</span>
+                        <span className="truncate max-w-[150px]">{emp.email || "—"}</span>
                       </div>
                     </td>
                     <td className="py-3.5 px-5 text-center">
@@ -412,13 +393,6 @@ export default function PassportsEmployeesPage() {
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(emp)}
-                          className="p-1.5 rounded-lg border border-gray-200 hover:bg-rose-50 text-gray-600 hover:text-rose-600 transition-colors"
-                          title="حذف الضابط"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -432,7 +406,7 @@ export default function PassportsEmployeesPage() {
       {/* Add Officer Modal */}
       {addModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-xl border border-gray-100 animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-xl border border-gray-100">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <h3 className="text-sm font-bold text-[#00374e] flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-[#0b4f6c]" />
@@ -464,7 +438,7 @@ export default function PassportsEmployeesPage() {
                   required
                   maxLength={11}
                   value={nationalNumber}
-                  onChange={(e) => setNationalNumber(e.target.value)}
+                  onChange={(e) => setNationalNumber(e.target.value.replace(/\D/g, ""))}
                   placeholder="مثال: 01001000001"
                   className="w-full p-2.5 border border-gray-200 rounded-xl font-mono text-sm focus:outline-none focus:border-[#0b4f6c]"
                 />
@@ -496,16 +470,14 @@ export default function PassportsEmployeesPage() {
       {/* Officer Dossier Details Modal */}
       {detailsModalOpen && selectedEmployee && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-xl border border-gray-100 animate-fade-in text-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-xl border border-gray-100 text-xs">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-xl bg-[#00374e]/10 text-[#00374e]">
                   <ShieldCheck className="w-5 h-5 text-[#0b4f6c]" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-[#00374e]">
-                    ملف وبيانات الضابط المعتمدة
-                  </h3>
+                  <h3 className="text-sm font-bold text-[#00374e]">ملف وبيانات الضابط المعتمدة</h3>
                   <p className="text-[10px] text-gray-400">
                     {fetchingDetails ? "جاري مزامنة أحدث بيانات من الخادم..." : "سجل موثق من السجل المدني ومصلحة الجوازات"}
                   </p>
@@ -553,12 +525,10 @@ export default function PassportsEmployeesPage() {
                 <span className="text-[10px] text-gray-400 font-semibold block">الرقم الوطني الموحد</span>
                 <span className="font-mono font-bold text-gray-800 text-xs">{selectedEmployee.nationalNumber}</span>
               </div>
-
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 space-y-1">
                 <span className="text-[10px] text-gray-400 font-semibold block">الفرع الملحق به</span>
                 <span className="font-bold text-gray-800 text-xs">{selectedEmployee.branchName || branchName}</span>
               </div>
-
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 space-y-1">
                 <span className="text-[10px] text-gray-400 font-semibold block">رقم الهاتف</span>
                 <div className="flex items-center gap-1.5 font-mono text-xs text-gray-700">
@@ -566,7 +536,6 @@ export default function PassportsEmployeesPage() {
                   <span>{selectedEmployee.phoneNumber || "غير مسجل"}</span>
                 </div>
               </div>
-
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 space-y-1">
                 <span className="text-[10px] text-gray-400 font-semibold block">البريد الإلكتروني</span>
                 <div className="flex items-center gap-1.5 text-xs text-gray-700 truncate">
@@ -574,17 +543,19 @@ export default function PassportsEmployeesPage() {
                   <span className="truncate">{selectedEmployee.email || "غير مسجل"}</span>
                 </div>
               </div>
-
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 space-y-1">
                 <span className="text-[10px] text-gray-400 font-semibold block">المؤسسة التابعة</span>
                 <span className="font-semibold text-gray-700 text-xs">{selectedEmployee.organizationName || "مصلحة الهجرة والجوازات"}</span>
               </div>
-
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 space-y-1">
                 <span className="text-[10px] text-gray-400 font-semibold block">تاريخ الالتحاق والتكليف</span>
                 <div className="flex items-center gap-1.5 text-xs text-gray-700">
                   <Calendar className="w-3 h-3 text-gray-400" />
-                  <span>{selectedEmployee.createdAt ? new Date(selectedEmployee.createdAt).toLocaleDateString("ar-YE") : "—"}</span>
+                  <span>
+                    {selectedEmployee.createdAt
+                      ? new Date(selectedEmployee.createdAt).toLocaleDateString("ar-YE")
+                      : "—"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -609,7 +580,6 @@ export default function PassportsEmployeesPage() {
                 <Power className="w-3.5 h-3.5" />
                 <span>{selectedEmployee.isActive ? "تعطيل الصلاحيات مؤقتاً" : "إعادة تنشيط الصلاحيات"}</span>
               </button>
-
               <button
                 type="button"
                 onClick={() => setDetailsModalOpen(false)}

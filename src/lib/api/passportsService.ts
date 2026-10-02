@@ -18,11 +18,8 @@ import {
   PassportStatus,
   TravelMovementType,
 } from "@/types/passports";
-import {
-  serviceRequestsService,
-} from "./serviceRequestsService";
+import { serviceRequestsService } from "./serviceRequestsService";
 import { ServiceRequestDto, RequestStatus } from "@/types/serviceRequests";
-import mockPassportRequests from "@/data/mock/passport_requests.json";
 
 function mapBackendToPassportRequest(dto: ServiceRequestDto): PassportRequest {
   const status: PassportRequest["status"] =
@@ -502,37 +499,27 @@ class LivePassportsService implements IPassportsService {
           hasPreviousPage: backendRes.hasPreviousPage,
         };
       }
+      return {
+        items: [],
+        totalCount: 0,
+        page: backendRes.pageIndex || 1,
+        pageSize: params?.pageSize || 20,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
     } catch (err) {
-      console.warn("[PassportsService] Backend requests failed, using mock fallback:", err);
+      console.warn("[PassportsService] Backend requests failed:", err);
+      return {
+        items: [],
+        totalCount: 0,
+        page: 1,
+        pageSize: params?.pageSize || 20,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
     }
-
-    // Fallback to mock data if branch queue is empty or offline
-    let items = (mockPassportRequests as unknown as PassportRequest[]) || [];
-    if (params?.search) {
-      const q = params.search.toLowerCase();
-      items = items.filter(
-        (r) =>
-          r.requestNumber.toLowerCase().includes(q) ||
-          r.fullName.toLowerCase().includes(q) ||
-          r.nationalNumber.includes(q)
-      );
-    }
-    if (params?.status && params.status !== "all") {
-      items = items.filter((r) => r.status === params.status);
-    }
-    if (params?.urgentOnly) {
-      items = items.filter((r) => r.urgentPriority);
-    }
-
-    return {
-      items,
-      totalCount: items.length,
-      page: 1,
-      pageSize: items.length || 10,
-      totalPages: 1,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    };
   }
 
   public async updatePassportRequestStatus(dto: UpdatePassportRequestStatusDto): Promise<PassportRequest> {

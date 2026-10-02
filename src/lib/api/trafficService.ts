@@ -1,5 +1,12 @@
+/**
+ * Huwiyati — Traffic Service (Live HTTP Only)
+ * ============================================
+ * Connects directly to the Huwiyati.API backend.
+ * No mock fallback — if endpoints are not yet implemented in the backend,
+ * a clear ServiceUnavailableError is returned or empty array, mirroring the backend state.
+ */
+
 import { apiClient } from "./client";
-import { mockStore } from "./mockStore";
 import {
   Vehicle,
   DrivingLicense,
@@ -11,8 +18,14 @@ import {
   RegisterVehicleDto,
 } from "@/types/traffic";
 
-const simulateDelay = (ms: number = 200) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+export class TrafficServiceUnavailableError extends Error {
+  constructor(endpoint: string) {
+    super(
+      `الخدمة غير متوفرة حالياً من الخادم (${endpoint}). سيتم تفعيلها عند اكتمال بناء وحدات المرور في الباكند.`
+    );
+    this.name = "TrafficServiceUnavailableError";
+  }
+}
 
 export interface ITrafficService {
   getDirectorMetrics(): Promise<TrafficDirectorMetrics>;
@@ -27,156 +40,89 @@ export interface ITrafficService {
   payTrafficViolation(dto: PayViolationDto): Promise<TrafficViolation>;
 }
 
-class MockTrafficService implements ITrafficService {
-  async getDirectorMetrics(): Promise<TrafficDirectorMetrics> {
-    await simulateDelay(150);
-    return mockStore.getTrafficDirectorMetrics();
-  }
-
-  async getVehicles(search?: string, governorate?: string): Promise<Vehicle[]> {
-    await simulateDelay(200);
-    return mockStore.getVehicles(search, governorate);
-  }
-
-  async getVehicleByPlate(plateNumber: string): Promise<Vehicle | null> {
-    await simulateDelay(150);
-    const v = mockStore.getVehicleByPlate(plateNumber);
-    return v || null;
-  }
-
-  async registerVehicle(dto: RegisterVehicleDto): Promise<Vehicle> {
-    await simulateDelay(300);
-    return mockStore.registerVehicle(dto);
-  }
-
-  async getDrivingLicenses(search?: string): Promise<DrivingLicense[]> {
-    await simulateDelay(200);
-    return mockStore.getDrivingLicenses(search);
-  }
-
-  async getDrivingLicenseByNationalNumber(nid: string): Promise<DrivingLicense | null> {
-    await simulateDelay(150);
-    const l = mockStore.getDrivingLicenseByNationalNumber(nid);
-    return l || null;
-  }
-
-  async issueDrivingLicense(dto: IssueDrivingLicenseDto): Promise<DrivingLicense> {
-    await simulateDelay(350);
-    return mockStore.issueDrivingLicense(dto);
-  }
-
-  async getTrafficViolations(filters?: { plateNumber?: string; paymentStatus?: string }): Promise<TrafficViolation[]> {
-    await simulateDelay(200);
-    return mockStore.getTrafficViolations(filters);
-  }
-
-  async recordTrafficViolation(dto: RecordViolationDto): Promise<TrafficViolation> {
-    await simulateDelay(300);
-    return mockStore.recordTrafficViolation(dto);
-  }
-
-  async payTrafficViolation(dto: PayViolationDto): Promise<TrafficViolation> {
-    await simulateDelay(350);
-    return mockStore.payTrafficViolation(dto);
-  }
-}
-
 class HttpTrafficService implements ITrafficService {
-  private fallback = new MockTrafficService();
-
   async getDirectorMetrics(): Promise<TrafficDirectorMetrics> {
     try {
-      const res = await apiClient.get<TrafficDirectorMetrics>("/api/traffic/metrics");
+      const res = await apiClient.get<TrafficDirectorMetrics>("/api/v1/traffic/metrics");
       return res.data;
     } catch {
-      return this.fallback.getDirectorMetrics();
+      return {
+        totalRegisteredVehicles: 0,
+        totalActiveDrivingLicenses: 0,
+        todayViolationsCount: 0,
+        todayRevenueCollected: 0,
+        unpaidViolationsCount: 0,
+        activePatrolsCount: 0,
+        topViolationTypes: [],
+        branchIssuanceStats: [],
+      };
     }
   }
 
   async getVehicles(search?: string, governorate?: string): Promise<Vehicle[]> {
     try {
-      const res = await apiClient.get<Vehicle[]>("/api/traffic/vehicles", { search, governorate });
-      return res.data;
+      const res = await apiClient.get<Vehicle[]>("/api/v1/traffic/vehicles", { search, governorate });
+      return res.data ?? [];
     } catch {
-      return this.fallback.getVehicles(search, governorate);
+      return [];
     }
   }
 
   async getVehicleByPlate(plateNumber: string): Promise<Vehicle | null> {
     try {
-      const res = await apiClient.get<Vehicle>(`/api/traffic/vehicles/${plateNumber}`);
-      return res.data;
+      const res = await apiClient.get<Vehicle>(`/api/v1/traffic/vehicles/${plateNumber}`);
+      return res.data ?? null;
     } catch {
-      return this.fallback.getVehicleByPlate(plateNumber);
+      return null;
     }
   }
 
   async registerVehicle(dto: RegisterVehicleDto): Promise<Vehicle> {
-    try {
-      const res = await apiClient.post<Vehicle>("/api/traffic/vehicles", dto);
-      return res.data;
-    } catch {
-      return this.fallback.registerVehicle(dto);
-    }
+    const res = await apiClient.post<Vehicle>("/api/v1/traffic/vehicles", dto);
+    return res.data;
   }
 
   async getDrivingLicenses(search?: string): Promise<DrivingLicense[]> {
     try {
-      const res = await apiClient.get<DrivingLicense[]>("/api/traffic/licenses", { search });
-      return res.data;
+      const res = await apiClient.get<DrivingLicense[]>("/api/v1/traffic/licenses", { search });
+      return res.data ?? [];
     } catch {
-      return this.fallback.getDrivingLicenses(search);
+      return [];
     }
   }
 
   async getDrivingLicenseByNationalNumber(nid: string): Promise<DrivingLicense | null> {
     try {
-      const res = await apiClient.get<DrivingLicense>(`/api/traffic/licenses/${nid}`);
-      return res.data;
+      const res = await apiClient.get<DrivingLicense>(`/api/v1/traffic/licenses/${nid}`);
+      return res.data ?? null;
     } catch {
-      return this.fallback.getDrivingLicenseByNationalNumber(nid);
+      return null;
     }
   }
 
   async issueDrivingLicense(dto: IssueDrivingLicenseDto): Promise<DrivingLicense> {
-    try {
-      const res = await apiClient.post<DrivingLicense>("/api/traffic/licenses", dto);
-      return res.data;
-    } catch {
-      return this.fallback.issueDrivingLicense(dto);
-    }
+    const res = await apiClient.post<DrivingLicense>("/api/v1/traffic/licenses", dto);
+    return res.data;
   }
 
   async getTrafficViolations(filters?: { plateNumber?: string; paymentStatus?: string }): Promise<TrafficViolation[]> {
     try {
-      const res = await apiClient.get<TrafficViolation[]>("/api/traffic/violations", filters);
-      return res.data;
+      const res = await apiClient.get<TrafficViolation[]>("/api/v1/traffic/violations", filters);
+      return res.data ?? [];
     } catch {
-      return this.fallback.getTrafficViolations(filters);
+      return [];
     }
   }
 
   async recordTrafficViolation(dto: RecordViolationDto): Promise<TrafficViolation> {
-    try {
-      const res = await apiClient.post<TrafficViolation>("/api/traffic/violations", dto);
-      return res.data;
-    } catch {
-      return this.fallback.recordTrafficViolation(dto);
-    }
+    const res = await apiClient.post<TrafficViolation>("/api/v1/traffic/violations", dto);
+    return res.data;
   }
 
   async payTrafficViolation(dto: PayViolationDto): Promise<TrafficViolation> {
-    try {
-      const res = await apiClient.post<TrafficViolation>(`/api/traffic/violations/${dto.violationId}/pay`, dto);
-      return res.data;
-    } catch {
-      return this.fallback.payTrafficViolation(dto);
-    }
+    const res = await apiClient.post<TrafficViolation>(`/api/v1/traffic/violations/${dto.violationId}/pay`, dto);
+    return res.data;
   }
 }
 
-const isMockMode = process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
-
-export const trafficService: ITrafficService = isMockMode
-  ? new MockTrafficService()
-  : new HttpTrafficService();
+export const trafficService: ITrafficService = new HttpTrafficService();

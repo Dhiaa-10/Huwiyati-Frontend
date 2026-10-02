@@ -205,7 +205,6 @@ class EmployeesService {
   async transferEmployee(employeeId: string, newBranchId: string): Promise<{ isSuccess: boolean; message: string }> {
     try {
       const res = await apiClient.put<BackendEmployeeDto>(`/api/v1/Employees/${employeeId}`, {
-        employeeId,
         newBranchId,
       });
       return {
