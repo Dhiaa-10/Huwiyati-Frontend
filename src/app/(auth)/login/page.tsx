@@ -57,7 +57,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011135650",
     name: "مصعب محمد أحمد ناشر النجري",
     agency: "وزارة الداخلية",
-    badgeColor: "bg-rose-100 text-rose-700 border-rose-200",
+    badgeColor: "bg-[#E6F1EE] text-[#052F31] border-[#BFE5DF]",
     category: "admin",
   },
   {
@@ -66,7 +66,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011135651",
     name: "أحمد محمود علي المدير",
     agency: "الأحوال المدنية",
-    badgeColor: "bg-sky-100 text-sky-700 border-sky-200",
+    badgeColor: "bg-[#E6F1EE] text-[#147A77] border-[#BFE5DF]",
     category: "admin",
   },
   {
@@ -75,7 +75,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200001",
     name: "يوسف حمود عبده المخلافي",
     agency: "المستشفيات",
-    badgeColor: "bg-teal-100 text-teal-700 border-teal-200",
+    badgeColor: "bg-[#EAF4FB] text-[#437CA4] border-[#BCE0F7]",
     category: "admin",
   },
   {
@@ -84,7 +84,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200002",
     name: "وليد ناجي محمد القباطي",
     agency: "الجوازات",
-    badgeColor: "bg-blue-100 text-blue-700 border-blue-200",
+    badgeColor: "bg-[#E6F1EE] text-[#147A77] border-[#BFE5DF]",
     category: "admin",
   },
   {
@@ -93,7 +93,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200003",
     name: "عمر فارع سالم الحمادي",
     agency: "المرور",
-    badgeColor: "bg-amber-100 text-amber-700 border-amber-200",
+    badgeColor: "bg-[#FFF3D8] text-[#9A762D] border-[#FCE1A8]",
     category: "admin",
   },
 
@@ -103,10 +103,10 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     role: "EMPLOYEE",
     roleLabel: "موظف الأحوال المدنية",
-    nationalNumber: "01011131317",
+    nationalNumber: "01011200007",
     name: "سارة عبد المجيد محمد السالمي",
     agency: "الأحوال المدنية",
-    badgeColor: "bg-cyan-100 text-cyan-800 border-cyan-200",
+    badgeColor: "bg-[#E6F1EE] text-[#147A77] border-[#BFE5DF]",
     category: "employee",
   },
   {
@@ -115,7 +115,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200004",
     name: "ريم طارق عبد الله الدهمشي",
     agency: "المستشفيات",
-    badgeColor: "bg-purple-100 text-purple-700 border-purple-200",
+    badgeColor: "bg-[#EAF4FB] text-[#437CA4] border-[#BCE0F7]",
     category: "employee",
   },
   {
@@ -124,7 +124,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200005",
     name: "باسل أمين خالد الشرعبي",
     agency: "الجوازات",
-    badgeColor: "bg-indigo-100 text-indigo-700 border-indigo-200",
+    badgeColor: "bg-[#E6F1EE] text-[#147A77] border-[#BFE5DF]",
     category: "employee",
   },
   {
@@ -133,7 +133,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200006",
     name: "منصور علي حسن الشوكاني",
     agency: "المرور",
-    badgeColor: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    badgeColor: "bg-[#FFF3D8] text-[#9A762D] border-[#FCE1A8]",
     category: "employee",
   },
 ];
@@ -202,9 +202,9 @@ export default function LoginPage() {
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   const roleConfig: Record<ActiveRoleType, { label: string; indicatorColor: string }> = {
-    SUPER_ADMIN: { label: "سوبر أدمن", indicatorColor: "bg-[#ba1a1a]" },
-    ADMIN: { label: "أدمن", indicatorColor: "bg-[#00374e]" },
-    EMPLOYEE: { label: "موظف", indicatorColor: "bg-[#003c27]" },
+    SUPER_ADMIN: { label: "سوبر أدمن", indicatorColor: "bg-[#052F31]" },
+    ADMIN: { label: "أدمن", indicatorColor: "bg-[#0C4A4E]" },
+    EMPLOYEE: { label: "موظف", indicatorColor: "bg-[#147A77]" },
   };
 
   const handleRoleSelect = (newRole: ActiveRoleType) => {
@@ -459,11 +459,11 @@ export default function LoginPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="bg-[#f7f9fb] min-h-screen flex flex-col items-center justify-center font-['IBM_Plex_Sans_Arabic'] text-[#191c1e] p-4 md:p-10 relative overflow-x-hidden">
+    <div className="bg-[#FBFBF8] min-h-screen flex flex-col items-center justify-center font-sans text-[#163D42] p-4 md:p-10 relative overflow-x-hidden">
       {/* Background Decorative Gradient Blobs */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden flex justify-center items-center opacity-40">
-        <div className="absolute w-[800px] h-[800px] bg-[#0b4f6c]/5 rounded-full blur-3xl -top-1/4 -right-1/4"></div>
-        <div className="absolute w-[600px] h-[600px] bg-[#e7ded9]/20 rounded-full blur-3xl bottom-0 -left-1/4"></div>
+        <div className="absolute w-[800px] h-[800px] bg-[#0C4A4E]/5 rounded-full blur-3xl -top-1/4 -right-1/4"></div>
+        <div className="absolute w-[600px] h-[600px] bg-[#147A77]/5 rounded-full blur-3xl bottom-0 -left-1/4"></div>
       </div>
 
       {/* Role Selector — top left corner */}
@@ -473,37 +473,37 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setIsRoleMenuOpen(!isRoleMenuOpen)}
-              className="bg-white border border-[#c0c7ce]/40 rounded-full py-2 px-4 flex items-center gap-2 shadow-xs hover:bg-[#f2f4f6] transition-colors cursor-pointer"
+              className="bg-white border border-[#E7EEEB] rounded-full py-2 px-4 flex items-center gap-2 shadow-xs hover:bg-[#F1F6F4] transition-colors cursor-pointer"
             >
               <div className={`w-3 h-3 rounded-full ${roleConfig[role].indicatorColor}`}></div>
-              <span className="text-sm font-medium text-[#191c1e]">{roleConfig[role].label}</span>
-              <ChevronDown className="w-4 h-4 text-[#71787e]" />
+              <span className="text-sm font-medium text-[#163D42]">{roleConfig[role].label}</span>
+              <ChevronDown className="w-4 h-4 text-[#6D898A]" />
             </button>
 
             {isRoleMenuOpen && (
-              <div className="absolute top-full mt-2 left-0 w-44 bg-white border border-[#c0c7ce]/40 rounded-xl shadow-lg overflow-hidden py-1 z-30 animate-in fade-in slide-in-from-top-2">
+              <div className="absolute top-full mt-2 left-0 w-44 bg-white border border-[#E7EEEB] rounded-xl shadow-lg overflow-hidden py-1 z-30 animate-in fade-in slide-in-from-top-2">
                 <button
                   type="button"
                   onClick={() => handleRoleSelect("SUPER_ADMIN")}
-                  className="w-full text-right px-4 py-2.5 hover:bg-[#f2f4f6] text-sm text-[#191c1e] flex items-center gap-2.5 cursor-pointer"
+                  className="w-full text-right px-4 py-2.5 hover:bg-[#F1F6F4] text-sm text-[#163D42] flex items-center gap-2.5 cursor-pointer"
                 >
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#ba1a1a]"></div>
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#052F31]"></div>
                   <span>سوبر أدمن</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleRoleSelect("ADMIN")}
-                  className="w-full text-right px-4 py-2.5 hover:bg-[#f2f4f6] text-sm text-[#191c1e] flex items-center gap-2.5 cursor-pointer"
+                  className="w-full text-right px-4 py-2.5 hover:bg-[#F1F6F4] text-sm text-[#163D42] flex items-center gap-2.5 cursor-pointer"
                 >
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#00374e]"></div>
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#0C4A4E]"></div>
                   <span>أدمن</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleRoleSelect("EMPLOYEE")}
-                  className="w-full text-right px-4 py-2.5 hover:bg-[#f2f4f6] text-sm text-[#191c1e] flex items-center gap-2.5 cursor-pointer"
+                  className="w-full text-right px-4 py-2.5 hover:bg-[#F1F6F4] text-sm text-[#163D42] flex items-center gap-2.5 cursor-pointer"
                 >
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#003c27]"></div>
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#147A77]"></div>
                   <span>موظف</span>
                 </button>
               </div>
@@ -513,18 +513,18 @@ export default function LoginPage() {
       )}
 
       {/* Main Login Card */}
-      <main className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-[#c0c7ce]/40 overflow-hidden z-10 relative">
+      <main className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-[#E7EEEB] overflow-hidden z-10 relative">
         {/* Accent top stripe */}
-        <div className="h-2 w-full bg-[#0b4f6c]"></div>
+        <div className="h-2 w-full bg-[#0C4A4E]"></div>
 
         <div className="p-8">
           {/* Header */}
           <div className="flex flex-col items-center mb-8">
             <HwyatiLogo size={64} showText={false} className="mb-4" />
-            <h1 className="text-2xl font-bold text-[#00374e] text-center tracking-tight">
+            <h1 className="text-2xl font-bold text-[#0C4A4E] text-center tracking-tight font-arabic">
               Hawiyati
             </h1>
-            <p className="text-sm text-[#41484d] text-center mt-1">
+            <p className="text-sm text-[#456A6D] text-center mt-1">
               {step === "credentials"
                 ? "بوابة تسجيل الدخول الموحدة"
                 : "التحقق من الجهاز الجديد"}
@@ -533,15 +533,15 @@ export default function LoginPage() {
 
           {/* Error Banner */}
           {errorMessage && (
-            <div className="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+            <div className="mb-4 p-3 rounded-lg bg-[#FFF0E7] border border-[#FACDC0] text-xs text-[#B76648]">
               {errorMessage}
             </div>
           )}
 
           {/* Success Banner */}
           {successMessage && (
-            <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+            <div className="mb-4 p-3 rounded-lg bg-[#E5F7EE] border border-[#A8E2C7] text-xs text-[#126B58] flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-[#126B58]" />
               <span>{successMessage}</span>
             </div>
           )}
@@ -552,17 +552,17 @@ export default function LoginPage() {
               {/* Agency Selector */}
               {role === "SUPER_ADMIN" ? (
                 <div>
-                  <label className="block text-sm font-medium text-[#191c1e] mb-1.5">
+                  <label className="block text-sm font-medium text-[#163D42] mb-1.5">
                     الجهة الحكومية
                   </label>
-                  <div className="w-full bg-[#f2f4f6] border border-[#c0c7ce]/60 rounded-xl py-3 px-4 flex items-center gap-2.5 text-[#191c1e]">
-                    <Shield className="w-5 h-5 text-[#00374e]" />
+                  <div className="w-full bg-[#F1F6F4] border border-[#E7EEEB] rounded-xl py-3 px-4 flex items-center gap-2.5 text-[#163D42]">
+                    <Shield className="w-5 h-5 text-[#0C4A4E]" />
                     <span className="text-sm font-semibold">وزارة الداخلية (نظام شامل)</span>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <label className="block text-sm font-medium text-[#191c1e] mb-1.5">
+                  <label className="block text-sm font-medium text-[#163D42] mb-1.5">
                     الجهة الحكومية
                   </label>
                   <div
@@ -574,17 +574,17 @@ export default function LoginPage() {
                       type="text"
                       value={agency}
                       placeholder="اختر الجهة"
-                      className="w-full bg-[#f2f4f6] border border-[#71787e]/40 rounded-xl py-3 px-4 pe-12 ps-10 focus:border-[#0b4f6c] focus:ring-2 focus:ring-[#0b4f6c]/20 transition-all text-sm text-[#191c1e] cursor-pointer group-hover:border-[#0b4f6c]"
+                      className="w-full bg-[#F1F6F4] border border-[#E7EEEB] rounded-xl py-3 px-4 pe-12 ps-10 focus:border-[#178A86] focus:ring-2 focus:ring-[#178A86]/20 transition-all text-sm text-[#163D42] cursor-pointer group-hover:border-[#147A77]"
                     />
-                    <Building2 className="w-5 h-5 absolute end-4 top-1/2 -translate-y-1/2 text-[#71787e]" />
-                    <ChevronDown className="w-4 h-4 absolute start-4 top-1/2 -translate-y-1/2 text-[#71787e]" />
+                    <Building2 className="w-5 h-5 absolute end-4 top-1/2 -translate-y-1/2 text-[#6D898A]" />
+                    <ChevronDown className="w-4 h-4 absolute start-4 top-1/2 -translate-y-1/2 text-[#6D898A]" />
                   </div>
                 </div>
               )}
 
               {/* National Number */}
               <div>
-                <label className="block text-sm font-medium text-[#191c1e] mb-1.5">
+                <label className="block text-sm font-medium text-[#163D42] mb-1.5">
                   رقم الهوية الوطنية
                 </label>
                 <div className="relative">
@@ -594,15 +594,15 @@ export default function LoginPage() {
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder="أدخل رقم الهوية"
-                    className="w-full bg-[#f2f4f6] border border-[#71787e]/40 rounded-xl py-3 px-4 pe-12 focus:border-[#0b4f6c] focus:ring-2 focus:ring-[#0b4f6c]/20 transition-all text-sm text-[#191c1e] placeholder-[#41484d]/50"
+                    className="w-full bg-[#F1F6F4] border border-[#E7EEEB] rounded-xl py-3 px-4 pe-12 focus:border-[#178A86] focus:ring-2 focus:ring-[#178A86]/20 transition-all text-sm text-[#163D42] placeholder-[#6D898A]/60"
                   />
-                  <User className="w-5 h-5 absolute end-4 top-1/2 -translate-y-1/2 text-[#71787e]" />
+                  <User className="w-5 h-5 absolute end-4 top-1/2 -translate-y-1/2 text-[#6D898A]" />
                 </div>
               </div>
 
               {/* Password */}
               <div>
-                <label className="block text-sm font-medium text-[#191c1e] mb-1.5">
+                <label className="block text-sm font-medium text-[#163D42] mb-1.5">
                   كلمة المرور
                 </label>
                 <div className="relative">
@@ -612,9 +612,9 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-[#f2f4f6] border border-[#71787e]/40 rounded-xl py-3 px-4 pe-12 focus:border-[#0b4f6c] focus:ring-2 focus:ring-[#0b4f6c]/20 transition-all text-sm text-[#191c1e] placeholder-[#41484d]/50"
+                    className="w-full bg-[#F1F6F4] border border-[#E7EEEB] rounded-xl py-3 px-4 pe-12 focus:border-[#178A86] focus:ring-2 focus:ring-[#178A86]/20 transition-all text-sm text-[#163D42] placeholder-[#6D898A]/60"
                   />
-                  <Lock className="w-5 h-5 absolute end-4 top-1/2 -translate-y-1/2 text-[#71787e]" />
+                  <Lock className="w-5 h-5 absolute end-4 top-1/2 -translate-y-1/2 text-[#6D898A]" />
                 </div>
                 <div className="flex justify-end mt-1.5">
                   <a
@@ -625,7 +625,7 @@ export default function LoginPage() {
                         "لنسيان كلمة المرور، يرجى التواصل مع مسؤول النظام أو استخدام خاصية نسيت كلمة المرور عند إتاحتها."
                       );
                     }}
-                    className="text-xs text-[#0b4f6c] hover:text-[#00374e] transition-colors"
+                    className="text-xs text-[#147A77] hover:text-[#0C4A4E] transition-colors"
                   >
                     نسيت كلمة المرور؟
                   </a>
@@ -635,7 +635,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-[#0b4f6c] text-white rounded-xl py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#00374e] transition-all active:scale-[0.98] mt-6 shadow-sm cursor-pointer disabled:opacity-70"
+                className="w-full bg-[#0C4A4E] text-white rounded-xl py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#052F31] transition-all active:scale-[0.98] mt-6 shadow-sm cursor-pointer disabled:opacity-70"
               >
                 {isLoading ? (
                   <>
@@ -656,17 +656,17 @@ export default function LoginPage() {
           {step === "device_otp" && (
             <form onSubmit={handleDeviceVerify} className="space-y-5">
               <div className="text-center">
-                <div className="w-14 h-14 rounded-2xl bg-[#0b4f6c]/10 text-[#0b4f6c] mx-auto flex items-center justify-center mb-3">
+                <div className="w-14 h-14 rounded-2xl bg-[#E6F1EE] text-[#0C4A4E] mx-auto flex items-center justify-center mb-3">
                   <KeyRound className="w-7 h-7" />
                 </div>
-                <p className="text-xs text-gray-500 leading-relaxed">
+                <p className="text-xs text-[#456A6D] leading-relaxed">
                   تم اكتشاف جهاز جديد. أدخل الرمز المُرسل إلى بريدك الإلكتروني المسجّل.
                 </p>
               </div>
 
               {/* OTP input */}
               <div>
-                <label className="block text-sm font-medium text-[#191c1e] mb-1.5">
+                <label className="block text-sm font-medium text-[#163D42] mb-1.5">
                   رمز التحقق (6 أرقام)
                 </label>
                 <input
@@ -676,7 +676,7 @@ export default function LoginPage() {
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                   placeholder="000000"
-                  className="w-full bg-[#f2f4f6] border border-[#71787e]/40 rounded-xl py-3 px-4 text-center text-2xl font-mono tracking-widest focus:border-[#0b4f6c] focus:ring-2 focus:ring-[#0b4f6c]/20 transition-all"
+                  className="w-full bg-[#F1F6F4] border border-[#E7EEEB] rounded-xl py-3 px-4 text-center text-2xl font-mono tracking-widest focus:border-[#178A86] focus:ring-2 focus:ring-[#178A86]/20 transition-all text-[#163D42]"
                 />
                 {/* Dev Helper: Fetch OTP from test endpoint */}
                 <div className="mt-2 text-center">
@@ -695,7 +695,7 @@ export default function LoginPage() {
                         console.error("Failed to fetch dev OTP", err);
                       }
                     }}
-                    className="text-xs text-[#0b4f6c] hover:underline cursor-pointer font-medium"
+                    className="text-xs text-[#147A77] hover:underline cursor-pointer font-medium"
                   >
                     ⚡ استرجاع رمز التحقق التجريبي تلقائياً (بيئة التطوير)
                   </button>
@@ -705,7 +705,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading || otpCode.length < 6}
-                className="w-full bg-[#0b4f6c] text-white rounded-xl py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#00374e] transition-all active:scale-[0.98] shadow-sm cursor-pointer disabled:opacity-70"
+                className="w-full bg-[#0C4A4E] text-white rounded-xl py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#052F31] transition-all active:scale-[0.98] shadow-sm cursor-pointer disabled:opacity-70"
               >
                 {isLoading ? (
                   <>
@@ -729,7 +729,7 @@ export default function LoginPage() {
                   setSuccessMessage("");
                   clearAuthStorage();
                 }}
-                className="w-full text-xs text-gray-400 hover:text-[#0b4f6c] transition-colors py-2"
+                className="w-full text-xs text-[#6D898A] hover:text-[#0C4A4E] transition-colors py-2"
               >
                 العودة لتسجيل الدخول
               </button>
@@ -738,18 +738,18 @@ export default function LoginPage() {
         </div>
 
         {/* Security Notice Footer */}
-        <div className="bg-[#eceef0]/80 py-4 px-8 border-t border-[#c0c7ce]/30 flex items-center justify-center gap-2 text-xs text-[#41484d]">
-          <ShieldCheck className="w-4 h-4 text-[#005539] shrink-0" />
+        <div className="bg-[#F1F6F4] py-4 px-8 border-t border-[#E7EEEB] flex items-center justify-center gap-2 text-xs text-[#456A6D]">
+          <ShieldCheck className="w-4 h-4 text-[#126B58] shrink-0" />
           <p className="text-center">هذه البوابة تخضع لإشراف ورقابة الجهات الحكومية المختصة.</p>
         </div>
       </main>
 
       {/* Quick Test Accounts Card (Optional helper for development / QA) */}
       {step === "credentials" && (
-        <div className="w-full max-w-md mt-4 bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-[#c0c7ce]/40 shadow-xs z-10">
-          <div className="flex items-center justify-between font-bold text-[#00374e] mb-2.5">
+        <div className="w-full max-w-md mt-4 bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-[#E7EEEB] shadow-xs z-10">
+          <div className="flex items-center justify-between font-bold text-[#0C4A4E] mb-2.5">
             <span className="text-xs">💡 حسابات معتمدة في قاعدة البيانات (للتجربة السريعة):</span>
-            <span className="text-[10px] text-gray-500 font-mono">كلمة المرور: Password123</span>
+            <span className="text-[10px] text-[#6D898A] font-mono">كلمة المرور: Password123</span>
           </div>
 
           {/* Category Filter Pills */}
@@ -759,8 +759,8 @@ export default function LoginPage() {
               onClick={() => setDemoFilter("all")}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                 demoFilter === "all"
-                  ? "bg-[#0b4f6c] text-white shadow-2xs"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  ? "bg-[#0C4A4E] text-white shadow-2xs"
+                  : "bg-[#F1F6F4] text-[#456A6D] hover:bg-[#E7EEEB]"
               }`}
             >
               الكل ({DEMO_ACCOUNTS.length})
@@ -770,8 +770,8 @@ export default function LoginPage() {
               onClick={() => setDemoFilter("admin")}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                 demoFilter === "admin"
-                  ? "bg-[#0b4f6c] text-white shadow-2xs"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  ? "bg-[#0C4A4E] text-white shadow-2xs"
+                  : "bg-[#F1F6F4] text-[#456A6D] hover:bg-[#E7EEEB]"
               }`}
             >
               حسابات الإدارة ({DEMO_ACCOUNTS.filter((a) => a.category === "admin").length})
@@ -781,8 +781,8 @@ export default function LoginPage() {
               onClick={() => setDemoFilter("employee")}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                 demoFilter === "employee"
-                  ? "bg-[#0b4f6c] text-white shadow-2xs"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  ? "bg-[#0C4A4E] text-white shadow-2xs"
+                  : "bg-[#F1F6F4] text-[#456A6D] hover:bg-[#E7EEEB]"
               }`}
             >
               حسابات الموظفين ({DEMO_ACCOUNTS.filter((a) => a.category === "employee").length})
@@ -803,8 +803,8 @@ export default function LoginPage() {
                   key={accountKey}
                   className={`flex items-center justify-between p-2 rounded-xl transition-all border ${
                     isFilled
-                      ? "bg-teal-50/90 border-teal-300 ring-1 ring-teal-300"
-                      : "bg-gray-50/80 hover:bg-gray-100 border-gray-200/60"
+                      ? "bg-[#E6F1EE] border-[#147A77] ring-1 ring-[#147A77]"
+                      : "bg-[#F1F6F4]/50 hover:bg-[#F1F6F4] border-[#E7EEEB]"
                   }`}
                 >
                   <div className="min-w-0 pr-1">
@@ -812,11 +812,11 @@ export default function LoginPage() {
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${acc.badgeColor}`}>
                         {acc.roleLabel}
                       </span>
-                      <span className="font-semibold text-gray-800 text-[11px] truncate">
+                      <span className="font-semibold text-[#163D42] text-[11px] truncate">
                         {acc.name}
                       </span>
                     </div>
-                    <p className="text-[10px] text-gray-500 font-mono mt-0.5">
+                    <p className="text-[10px] text-[#456A6D] font-mono mt-0.5">
                       {acc.nationalNumber} • {acc.agency}
                     </p>
                   </div>
@@ -833,8 +833,8 @@ export default function LoginPage() {
                     }}
                     className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all shrink-0 cursor-pointer shadow-2xs ${
                       isFilled
-                        ? "bg-teal-600 text-white border border-teal-600"
-                        : "text-[#0b4f6c] hover:text-[#00374e] bg-white hover:bg-[#0b4f6c]/10 border border-[#0b4f6c]/30"
+                        ? "bg-[#126B58] text-white border border-[#126B58]"
+                        : "text-[#0C4A4E] hover:text-[#052F31] bg-white hover:bg-[#E6F1EE] border border-[#BFE5DF]"
                     }`}
                   >
                     {isFilled ? "✓ تم التحديد" : "تعبئة الحقول"}
@@ -853,14 +853,14 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setIsAgencyOverlayOpen(false)}
-              className="absolute top-5 left-5 text-[#71787e] hover:text-[#191c1e] p-1.5 rounded-full hover:bg-slate-200/50 transition-colors cursor-pointer"
+              className="absolute top-5 left-5 text-[#6D898A] hover:text-[#163D42] p-1.5 rounded-full hover:bg-[#F1F6F4] transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-[#0b4f6c] mb-2">اختيار الجهة الحكومية</h2>
-              <p className="text-sm text-[#41484d]">
+              <h2 className="text-2xl font-bold text-[#0C4A4E] mb-2 font-arabic">اختيار الجهة الحكومية</h2>
+              <p className="text-sm text-[#456A6D]">
                 الرجاء اختيار الجهة التابع لها للمتابعة في النظام
               </p>
             </div>
@@ -868,24 +868,24 @@ export default function LoginPage() {
             <div className="grid grid-cols-2 gap-4">
               {(
                 [
-                  { key: "المرور", icon: <Car className="w-7 h-7" />, color: "bg-amber-50 text-amber-700" },
-                  { key: "الجوازات", icon: <Plane className="w-7 h-7" />, color: "bg-indigo-50 text-indigo-700" },
-                  { key: "الأحوال المدنية", icon: <BadgeAlert className="w-7 h-7" />, color: "bg-sky-50 text-sky-700" },
-                  { key: "المستشفيات", icon: <HeartPulse className="w-7 h-7" />, color: "bg-teal-50 text-teal-700" },
+                  { key: "المرور", icon: <Car className="w-7 h-7" />, color: "bg-[#FFF3D8] text-[#9A762D]" },
+                  { key: "الجوازات", icon: <Plane className="w-7 h-7" />, color: "bg-[#E6F1EE] text-[#147A77]" },
+                  { key: "الأحوال المدنية", icon: <BadgeAlert className="w-7 h-7" />, color: "bg-[#E6F1EE] text-[#0C4A4E]" },
+                  { key: "المستشفيات", icon: <HeartPulse className="w-7 h-7" />, color: "bg-[#EAF4FB] text-[#437CA4]" },
                 ] as const
               ).map(({ key, icon, color }) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => handleAgencySelect(key as AgencyType)}
-                  className="agency-card glass-panel rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-[#0b4f6c]"
+                  className="agency-card glass-panel rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-[#178A86]"
                 >
                   <div
                     className={`w-14 h-14 rounded-2xl ${color} flex items-center justify-center group-hover:scale-110 transition-transform`}
                   >
                     {icon}
                   </div>
-                  <span className="text-base font-bold text-[#0b4f6c]">{key}</span>
+                  <span className="text-base font-bold text-[#163D42]">{key}</span>
                 </button>
               ))}
             </div>
@@ -894,7 +894,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setIsAgencyOverlayOpen(false)}
-                className="text-xs text-[#41484d] hover:text-[#0b4f6c] transition-colors py-2 px-5 rounded-full border border-transparent hover:border-[#c0c7ce] cursor-pointer"
+                className="text-xs text-[#456A6D] hover:text-[#0C4A4E] transition-colors py-2 px-5 rounded-full border border-transparent hover:border-[#E7EEEB] cursor-pointer"
               >
                 إلغاء والعودة
               </button>

@@ -1,21 +1,12 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
-
-const ibmPlexSansArabic = IBM_Plex_Sans_Arabic({
-  subsets: ["arabic", "latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-ibm-plex",
-  display: "swap",
-});
+import { AuthProvider } from "@/context/AuthContext";
+import { SettingsProvider } from "@/context/SettingsContext";
 
 export const metadata: Metadata = {
   title: "Hawiyati | منظومة هويتي الموحدة",
   description: "بوابة تسجيل الدخول الموحدة لمنظومة هويتي الوطنية",
 };
-
-import { AuthProvider } from "@/context/AuthContext";
-import { SettingsProvider } from "@/context/SettingsContext";
 
 export default function RootLayout({
   children,
@@ -23,8 +14,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={ibmPlexSansArabic.variable}>
-      <body className="min-h-screen bg-[#f7f9fb] text-[#191c1e] antialiased">
+    <html lang="ar" dir="rtl">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-screen bg-[#FBFBF8] text-[#163D42] antialiased">
         <AuthProvider>
           <SettingsProvider>
             {children}

@@ -35,15 +35,15 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-sm font-medium text-slate-700 select-none"
+            className="block text-sm font-medium text-[#163D42] select-none"
           >
             {label}
-            {props.required && <span className="text-rose-500 ms-1">*</span>}
+            {props.required && <span className="text-[#B76648] ms-1">*</span>}
           </label>
         )}
         <div className="relative flex items-center">
           {startIcon && (
-            <div className="absolute start-3 flex items-center pointer-events-none text-slate-400">
+            <div className="absolute start-3 flex items-center pointer-events-none text-[#6D898A]">
               {startIcon}
             </div>
           )}
@@ -53,12 +53,12 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             type={type}
             disabled={disabled}
             className={cn(
-              "w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors",
-              "focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600",
-              "disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed",
+              "w-full rounded-lg border bg-white px-3.5 py-2.5 text-sm text-[#163D42] placeholder:text-[#6D898A] transition-colors",
+              "focus:outline-none focus:ring-2 focus:ring-[#178A86]/20 focus:border-[#178A86]",
+              "disabled:bg-[#F1F6F4] disabled:text-[#6D898A] disabled:cursor-not-allowed",
               error
-                ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/20"
-                : "border-slate-300 hover:border-slate-400",
+                ? "border-[#B76648] focus:border-[#B76648] focus:ring-[#B76648]/20 bg-[#FFF0E7]/20"
+                : "border-[#E7EEEB] hover:border-[#147A77]/50",
               startIcon ? "ps-10" : "ps-3.5",
               endIcon ? "pe-10" : "pe-3.5",
               className
@@ -66,15 +66,15 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
           {endIcon && (
-            <div className="absolute end-3 flex items-center text-slate-400">
+            <div className="absolute end-3 flex items-center text-[#6D898A]">
               {endIcon}
             </div>
           )}
         </div>
         {error ? (
-          <p className="text-xs text-rose-600 font-medium">{error}</p>
+          <p className="text-xs text-[#B76648] font-medium">{error}</p>
         ) : helperText ? (
-          <p className="text-xs text-slate-500">{helperText}</p>
+          <p className="text-xs text-[#456A6D]">{helperText}</p>
         ) : null}
       </div>
     );

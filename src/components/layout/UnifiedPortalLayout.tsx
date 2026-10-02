@@ -368,10 +368,10 @@ export function UnifiedPortalLayout({
 
   if (!isInitialized) {
     return (
-      <div className="min-h-screen bg-[#001e2d] flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen bg-[#052F31] flex items-center justify-center" dir="rtl">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-[#0b4f6c] border-t-[#8ac0e1] rounded-full animate-spin"></div>
-          <span className="text-[#8ac0e1] text-xs font-semibold">جارٍ التحقق من صلاحيات الجلسة...</span>
+          <div className="w-10 h-10 border-4 border-[#0C4A4E] border-t-[#147A77] rounded-full animate-spin"></div>
+          <span className="text-[#BFE5DF] text-xs font-semibold">جارٍ التحقق من صلاحيات الجلسة...</span>
         </div>
       </div>
     );
@@ -382,9 +382,9 @@ export function UnifiedPortalLayout({
   }
 
   return (
-    <div className="bg-[#f7f9fb] text-[#191c1e] min-h-screen flex flex-col md:flex-row font-['IBM_Plex_Sans_Arabic'] antialiased">
+    <div className="bg-[#FBFBF8] text-[#163D42] min-h-screen flex flex-col md:flex-row antialiased font-sans">
       {/* Mobile Header Bar */}
-      <header className="md:hidden flex justify-between items-center w-full px-4 h-16 sticky top-0 z-50 bg-[#00374e] text-white border-b border-[#0b4f6c] shadow-md">
+      <header className="md:hidden flex justify-between items-center w-full px-4 h-16 sticky top-0 z-50 bg-[#052F31] text-white border-b border-[#0C4A4E] shadow-md">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setMobileMenuOpen(true)}
@@ -403,7 +403,7 @@ export function UnifiedPortalLayout({
           <button
             onClick={openSettings}
             title={isRtl ? "إعدادات المنظومة والمظهر" : "Settings"}
-            className="p-2 text-[#97cdef] hover:text-white"
+            className="p-2 text-[#BFE5DF] hover:text-white"
           >
             <Settings className="w-5 h-5" />
           </button>
@@ -415,7 +415,7 @@ export function UnifiedPortalLayout({
 
       {/* Unified Side Navigation Bar (Desktop & Mobile Drawer) */}
       <aside
-        className={`fixed ${isRtl ? "right-0 border-l" : "left-0 border-r"} top-0 h-full flex flex-col z-[60] border-[#c0c7ce]/20 bg-[#00374e] text-white w-72 shadow-2xl transition-transform duration-300 ${
+        className={`fixed ${isRtl ? "right-0 border-l" : "left-0 border-r"} top-0 h-full flex flex-col z-[60] border-[#E7EEEB]/15 bg-[#052F31] text-white w-72 shadow-2xl transition-transform duration-300 ${
           mobileMenuOpen
             ? "translate-x-0"
             : isRtl
@@ -424,27 +424,27 @@ export function UnifiedPortalLayout({
         }`}
       >
         {/* Brand Header */}
-        <div className="p-6 flex flex-col items-center border-b border-[#c5e7ff]/10 relative text-center">
+        <div className="p-6 flex flex-col items-center border-b border-[#BFE5DF]/10 relative text-center">
           <button
             onClick={() => setMobileMenuOpen(false)}
             className={`md:hidden absolute top-4 ${isRtl ? "left-4" : "right-4"} text-white/70 hover:text-white`}
           >
             <X className="w-5 h-5" />
           </button>
-          <div className="w-16 h-16 rounded-2xl bg-[#0b4f6c] flex items-center justify-center mb-3 border-2 border-[#97cdef]/40 shadow-inner p-2">
+          <div className="w-16 h-16 rounded-2xl bg-[#0C4A4E] flex items-center justify-center mb-3 border-2 border-[#BFE5DF]/30 shadow-inner p-2">
             <HwyatiLogo size={46} showText={false} />
           </div>
           <h1 className="text-base font-extrabold text-white tracking-tight">
             {portalTitle}
           </h1>
-          <p className="text-xs text-[#8ac0e1] font-medium mt-1">
+          <p className="text-xs text-[#BFE5DF] font-medium mt-1">
             {portalSubtitle}
           </p>
 
           {/* Current Branch & Role Chip */}
-          <div className="mt-3 w-full bg-[#001e2d]/60 rounded-xl px-3 py-2 border border-[#8ac0e1]/20 flex items-center justify-between text-right">
+          <div className="mt-3 w-full bg-[#031F21]/80 rounded-xl px-3 py-2 border border-[#BFE5DF]/15 flex items-center justify-between text-right">
             <div className="min-w-0 flex-1">
-              <span className="text-[10px] text-gray-400 block truncate">الفرع الحالي:</span>
+              <span className="text-[10px] text-[#BFE5DF]/70 block truncate">الفرع الحالي:</span>
               <span className="text-xs font-bold text-white truncate block">
                 {user.branchName}
               </span>
@@ -452,10 +452,10 @@ export function UnifiedPortalLayout({
             <span
               className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${
                 user.role === "SUPER_ADMIN"
-                  ? "bg-rose-500/20 text-rose-300 border border-rose-400/30"
+                  ? "bg-[#0C4A4E] text-[#BFE5DF] border border-[#BFE5DF]/30"
                   : user.role === "ADMIN"
-                  ? "bg-blue-500/20 text-blue-300 border border-blue-400/30"
-                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-400/30"
+                  ? "bg-[#103F43] text-[#BFE5DF] border border-[#147A77]/40"
+                  : "bg-[#147A77]/40 text-[#BFE5DF] border border-[#147A77]/50"
               }`}
             >
               {user.role === "SUPER_ADMIN"
@@ -482,12 +482,12 @@ export function UnifiedPortalLayout({
                 onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
                   item.active
-                    ? "bg-[#0b4f6c] text-[#8ac0e1] shadow-md border-r-4 border-[#97cdef] font-bold"
-                    : "text-white/75 hover:text-white hover:bg-white/5"
+                    ? "bg-[#0C4A4E] text-[#BFE5DF] shadow-md border-r-4 border-[#147A77] font-bold"
+                    : "text-white/75 hover:text-white hover:bg-white/10"
                 }`}
               >
                 <Icon
-                  className={`w-5 h-5 ${item.active ? "text-[#97cdef]" : "text-white/60"}`}
+                  className={`w-5 h-5 ${item.active ? "text-[#BFE5DF]" : "text-white/60"}`}
                 />
                 <span>{item.label}</span>
               </Link>
@@ -496,9 +496,9 @@ export function UnifiedPortalLayout({
         </nav>
 
         {/* User Card & Logout Button */}
-        <div className="p-4 border-t border-[#c5e7ff]/10 bg-[#001e2d]/60 mt-auto">
+        <div className="p-4 border-t border-[#BFE5DF]/10 bg-[#031F21]/80 mt-auto">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-[#0b4f6c] border border-[#8ac0e1]/40 flex items-center justify-center font-bold text-white text-xs shrink-0">
+            <div className="w-10 h-10 rounded-full bg-[#0C4A4E] border border-[#BFE5DF]/40 flex items-center justify-center font-bold text-white text-xs shrink-0">
               {(() => {
                 const cleaned = (user.fullName || "")
                   .replace(/^(م\.|د\.|العقيد\s+ركن|العقيد|العميد|المقدم|الرائد|النقيب|الملازم\s+أول|الملازم|المساعد|اللواء\s+د\.|اللواء|القاضي)\s+/, "")
@@ -509,13 +509,13 @@ export function UnifiedPortalLayout({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-white truncate">{user.fullName}</p>
-              <p className="text-[11px] text-[#8ac0e1] truncate">{user.jobTitle}</p>
+              <p className="text-[11px] text-[#BFE5DF] truncate">{user.jobTitle}</p>
             </div>
           </div>
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium text-rose-300 bg-rose-900/30 hover:bg-rose-900/50 border border-rose-800/40 transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium text-rose-200 bg-rose-900/30 hover:bg-rose-900/50 border border-rose-800/40 transition-colors"
           >
             <LogOut className="w-4 h-4" />
             <span>تسجيل الخروج من البوابة</span>
@@ -526,30 +526,30 @@ export function UnifiedPortalLayout({
       {/* Main Content Area */}
       <main className={`flex-1 ${isRtl ? "md:mr-72" : "md:ml-72"} min-h-screen flex flex-col overflow-x-hidden`}>
         {/* Top Navbar */}
-        <header className="h-16 bg-white border-b border-[#c0c7ce]/30 px-6 flex items-center justify-between sticky top-0 z-30 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <header className="h-16 bg-white border-b border-[#E7EEEB] px-6 flex items-center justify-between sticky top-0 z-30 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-3">
-            <div className="bg-[#0b4f6c]/10 text-[#0b4f6c] p-2 rounded-lg">
+            <div className="bg-[#E6F1EE] text-[#0C4A4E] p-2 rounded-lg">
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-[#00374e]">{portalTitle}</h2>
-              <p className="text-[11px] text-gray-500">{portalSubtitle}</p>
+              <h2 className="text-sm font-bold text-[#163D42]">{portalTitle}</h2>
+              <p className="text-[11px] text-[#456A6D]">{portalSubtitle}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Authority level badge — read-only display, strictly no switching */}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-xl border border-slate-200 text-xs">
+            {/* Authority level badge — read-only display */}
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#F1F6F4] rounded-xl border border-[#E7EEEB] text-xs">
               <span
                 className={`w-2 h-2 rounded-full ${
                   user.role === "SUPER_ADMIN"
-                    ? "bg-[#ba1a1a]"
+                    ? "bg-[#052F31]"
                     : user.role === "ADMIN"
-                    ? "bg-[#00374e]"
-                    : "bg-[#003c27]"
+                    ? "bg-[#0C4A4E]"
+                    : "bg-[#147A77]"
                 }`}
               />
-              <span className="font-bold text-[#00374e]">
+              <span className="font-bold text-[#163D42]">
                 {user.role === "SUPER_ADMIN"
                   ? "سوبر أدمن • الإشراف والرقابة المركزية"
                   : user.role === "ADMIN"
@@ -559,16 +559,16 @@ export function UnifiedPortalLayout({
             </div>
 
             {/* Notifications */}
-            <button className="p-2 text-gray-500 hover:text-[#0b4f6c] hover:bg-gray-100 rounded-lg relative transition-colors cursor-pointer">
+            <button className="p-2 text-[#456A6D] hover:text-[#0C4A4E] hover:bg-[#F1F6F4] rounded-lg relative transition-colors cursor-pointer">
               <Bell className="w-4 h-4" />
-              <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-2 right-2"></span>
+              <span className="w-2 h-2 rounded-full bg-[#B76648] absolute top-2 right-2"></span>
             </button>
 
             {/* Settings */}
             <button
               onClick={openSettings}
               title={isRtl ? "إعدادات المنظومة والمظهر" : "System & Appearance Settings"}
-              className="p-2 text-gray-500 hover:text-[#0b4f6c] dark:text-gray-400 dark:hover:text-[#8ac0e1] hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
+              className="p-2 text-[#456A6D] hover:text-[#0C4A4E] dark:text-[#BFE5DF] dark:hover:text-white hover:bg-[#F1F6F4] dark:hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -576,7 +576,7 @@ export function UnifiedPortalLayout({
         </header>
 
         {/* Portal Body Content */}
-        <div className="flex-1 p-4 md:p-8 bg-[#f7f9fb]">{children}</div>
+        <div className="flex-1 p-4 md:p-8 bg-[#FBFBF8]">{children}</div>
       </main>
 
       {/* Central System & Appearance Settings Modal */}

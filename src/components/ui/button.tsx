@@ -39,17 +39,17 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variantStyles = {
       primary:
-        "bg-emerald-700 text-white hover:bg-emerald-800 focus:ring-emerald-600 shadow-sm active:bg-emerald-900",
+        "bg-[#0C4A4E] text-white hover:bg-[#052F31] focus:ring-[#147A77] shadow-sm active:bg-[#052F31]",
       secondary:
-        "bg-slate-800 text-white hover:bg-slate-900 focus:ring-slate-700 shadow-sm",
+        "bg-[#147A77] text-white hover:bg-[#103F43] focus:ring-[#178A86] shadow-sm active:bg-[#0C4A4E]",
       outline:
-        "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400 focus:ring-slate-400 shadow-xs",
+        "border border-[#E7EEEB] bg-white text-[#163D42] hover:bg-[#F1F6F4] hover:border-[#147A77]/40 focus:ring-[#178A86] shadow-xs",
       ghost:
-        "bg-transparent text-slate-700 hover:bg-slate-100 focus:ring-slate-300",
+        "bg-transparent text-[#163D42] hover:bg-[#F1F6F4] hover:text-[#0C4A4E] focus:ring-[#178A86]",
       danger:
-        "bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-500 shadow-sm",
+        "bg-[#B76648] text-white hover:bg-[#9E5236] focus:ring-[#B76648] shadow-sm",
       success:
-        "bg-teal-600 text-white hover:bg-teal-700 focus:ring-teal-500 shadow-sm",
+        "bg-[#126B58] text-white hover:bg-[#0E5445] focus:ring-[#126B58] shadow-sm",
     };
 
     const sizeStyles = {
