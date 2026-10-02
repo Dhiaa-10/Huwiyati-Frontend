@@ -18,6 +18,74 @@ import {
   PassportStatus,
   TravelMovementType,
 } from "@/types/passports";
+import {
+  serviceRequestsService,
+} from "./serviceRequestsService";
+import { ServiceRequestDto, RequestStatus } from "@/types/serviceRequests";
+import mockPassportRequests from "@/data/mock/passport_requests.json";
+
+function mapBackendToPassportRequest(dto: ServiceRequestDto): PassportRequest {
+  const status: PassportRequest["status"] =
+    dto.status === "Issued"
+      ? "Printed"
+      : dto.status === "Approved"
+      ? "Approved"
+      : dto.status === "UnderReview"
+      ? "UnderReview"
+      : dto.status === "Rejected"
+      ? "Rejected"
+      : "Pending";
+
+  let parsed: any = {};
+  if (dto.requestDataJson) {
+    try {
+      parsed = JSON.parse(dto.requestDataJson);
+    } catch {}
+  }
+
+  const sType: PassportRequest["serviceType"] =
+    dto.serviceTypeCode === "PASSPORT_RENEW"
+      ? "PASSPORT_RENEW"
+      : dto.serviceTypeCode === "PASSPORT_REPLACE_LOST"
+      ? "PASSPORT_REPLACE_LOST"
+      : "PASSPORT_NEW";
+
+  return {
+    id: dto.id,
+    requestNumber: dto.requestNumber,
+    personId: dto.personId,
+    nationalNumber: dto.nationalNumber || "01010000000",
+    fullName: dto.personFullName || "مواطن يمني",
+    photoUrl:
+      parsed.photoUrl ||
+      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
+    serviceType: sType,
+    serviceName: dto.serviceTypeName || "جواز سفر إلكتروني",
+    branchId: dto.branchId,
+    branchName: dto.branchName || "مصلحة الهجرة والجوازات",
+    status,
+    previousPassportNumber: parsed.previousPassportNumber || undefined,
+    urgentPriority: parsed.urgentPriority ?? false,
+    fee: parsed.fee || 15000,
+    isPaid: true,
+    submissionDate: dto.submissionDate || dto.createdAt,
+    completedDate: dto.completedDate || undefined,
+    officerNotes: dto.statusHistory?.[0]?.note || undefined,
+    rejectionReason: dto.rejectionReason || undefined,
+    attachments: [
+      {
+        name: "البطاقة الشخصية الذكية سارية المفعول",
+        fileUrl: "/docs/national_id.pdf",
+        type: "pdf",
+      },
+      {
+        name: "سند تسديد الرسوم الحكومية",
+        fileUrl: "/docs/passport_fee.pdf",
+        type: "pdf",
+      },
+    ],
+  };
+}
 
 function mapBackendPassportToRecord(dto: BackendPassportDto): PassportRecord {
   const pType: PassportType =
@@ -402,18 +470,101 @@ class LivePassportsService implements IPassportsService {
   // ==========================================
 
   public async getPassportRequests(params?: PassportRequestFilterParams): Promise<PaginatedResponse<PassportRequest>> {
+    try {
+      const backendStatus =
+        params?.status === "Printed"
+          ? "Issued"
+          : params?.status === "all"
+          ? undefined
+          : (params?.status as RequestStatus);
+
+      const backendRes = await serviceRequestsService.getBranchServiceRequests({
+        status: backendStatus,
+        searchKeyword: params?.search,
+        pageNumber: params?.page || 1,
+        pageSize: params?.pageSize || 20,
+      });
+
+      if (backendRes.items && backendRes.items.length > 0) {
+        let mapped = backendRes.items.map(mapBackendToPassportRequest);
+
+        if (params?.urgentOnly) {
+          mapped = mapped.filter((r) => r.urgentPriority);
+        }
+
+        return {
+          items: mapped,
+          totalCount: backendRes.totalCount,
+          page: backendRes.pageIndex,
+          pageSize: params?.pageSize || 20,
+          totalPages: backendRes.totalPages,
+          hasNextPage: backendRes.hasNextPage,
+          hasPreviousPage: backendRes.hasPreviousPage,
+        };
+      }
+    } catch (err) {
+      console.warn("[PassportsService] Backend requests failed, using mock fallback:", err);
+    }
+
+    // Fallback to mock data if branch queue is empty or offline
+    let items = (mockPassportRequests as unknown as PassportRequest[]) || [];
+    if (params?.search) {
+      const q = params.search.toLowerCase();
+      items = items.filter(
+        (r) =>
+          r.requestNumber.toLowerCase().includes(q) ||
+          r.fullName.toLowerCase().includes(q) ||
+          r.nationalNumber.includes(q)
+      );
+    }
+    if (params?.status && params.status !== "all") {
+      items = items.filter((r) => r.status === params.status);
+    }
+    if (params?.urgentOnly) {
+      items = items.filter((r) => r.urgentPriority);
+    }
+
     return {
-      items: [],
-      totalCount: 0,
+      items,
+      totalCount: items.length,
       page: 1,
-      pageSize: params?.pageSize || 10,
-      totalPages: 0,
+      pageSize: items.length || 10,
+      totalPages: 1,
       hasNextPage: false,
       hasPreviousPage: false,
     };
   }
 
   public async updatePassportRequestStatus(dto: UpdatePassportRequestStatusDto): Promise<PassportRequest> {
+    const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dto.requestId);
+
+    if (isGuid) {
+      try {
+        const backendStatus =
+          dto.status === "Printed"
+            ? "Issued"
+            : dto.status === "Approved"
+            ? "Approved"
+            : dto.status === "UnderReview"
+            ? "UnderReview"
+            : dto.status === "Rejected"
+            ? "Rejected"
+            : "Pending";
+
+        const updated = await serviceRequestsService.changeRequestStatus({
+          serviceRequestId: dto.requestId,
+          newStatus: backendStatus,
+          note: dto.officerNotes,
+          rejectionReason: dto.rejectionReason,
+        });
+
+        return mapBackendToPassportRequest(updated);
+      } catch (err) {
+        console.error("[PassportsService] changeRequestStatus error:", err);
+        throw err;
+      }
+    }
+
     return {
       id: dto.requestId,
       requestNumber: "REQ-PASS-000",
@@ -431,6 +582,8 @@ class LivePassportsService implements IPassportsService {
       isPaid: true,
       submissionDate: new Date().toISOString(),
       attachments: [],
+      officerNotes: dto.officerNotes,
+      rejectionReason: dto.rejectionReason,
     };
   }
 }

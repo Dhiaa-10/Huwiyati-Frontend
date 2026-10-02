@@ -189,6 +189,7 @@ export default function PassportRequestsPage() {
                   { label: "قيد المراجعة", value: "UnderReview" },
                   { label: "تم الاعتماد", value: "Approved" },
                   { label: "تمت الطباعة", value: "Printed" },
+                  { label: "مرفوض", value: "Rejected" },
                 ].map((tab) => (
                   <button
                     key={tab.value}
