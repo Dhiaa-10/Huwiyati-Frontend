@@ -15,17 +15,17 @@ export function Alert({
   ...props
 }: AlertProps) {
   const icons = {
-    info: <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />,
-    success: <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />,
-    warning: <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />,
-    danger: <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />,
+    info: <Info className="w-5 h-5 text-[#437CA4] shrink-0 mt-0.5" />,
+    success: <CheckCircle2 className="w-5 h-5 text-[#126B58] shrink-0 mt-0.5" />,
+    warning: <AlertTriangle className="w-5 h-5 text-[#9A762D] shrink-0 mt-0.5" />,
+    danger: <AlertCircle className="w-5 h-5 text-[#B76648] shrink-0 mt-0.5" />,
   };
 
   const variantStyles = {
-    info: "bg-blue-50 border-blue-200 text-blue-900",
-    success: "bg-emerald-50 border-emerald-200 text-emerald-900",
-    warning: "bg-amber-50 border-amber-200 text-amber-900",
-    danger: "bg-rose-50 border-rose-200 text-rose-900",
+    info: "bg-[#EAF4FB] border-[#BCE0F7] text-[#163D42]",
+    success: "bg-[#E5F7EE] border-[#A8E2C7] text-[#163D42]",
+    warning: "bg-[#FFF3D8] border-[#FCE1A8] text-[#163D42]",
+    danger: "bg-[#FFF0E7] border-[#FACDC0] text-[#163D42]",
   };
 
   return (

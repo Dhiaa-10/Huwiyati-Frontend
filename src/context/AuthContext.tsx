@@ -142,8 +142,8 @@ export const getProfileForRoleAndAgency = (role: RoleType, agency: AgencyType) =
       };
     default:
       return {
-        fullName: "ملازم أول أمين عبدالله الحيمي",
-        nationalNumber: "01010048123",
+        fullName: "سارة عبد المجيد محمد السالمي",
+        nationalNumber: "01011200007",
         agency: "الأحوال المدنية" as AgencyType,
         jobTitle: "موظف كاونتر وتفعيل بيومتري حضوري",
         branchName: "صالة التفعيل الحضوري والتحقق البيومتري",
