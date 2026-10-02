@@ -11,14 +11,14 @@ import {
   Briefcase,
   Phone,
   Mail,
-  Edit2,
+  Eye,
   Trash2,
   Power,
   RefreshCw,
   X,
   Car,
   ShieldCheck,
-  Star,
+  Calendar,
   Zap,
 } from "lucide-react";
 import { employeesService } from "@/lib/api/employeesService";
@@ -35,16 +35,12 @@ export default function TrafficEmployeesPage() {
 
   // Modals
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [fetchingDetails, setFetchingDetails] = useState(false);
 
   // Form states
-  const [fullName, setFullName] = useState("");
   const [nationalNumber, setNationalNumber] = useState("");
-  const [email, setEmail] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [role, setRole] = useState("TrafficOfficer");
-  const [roleLabel, setRoleLabel] = useState("ضابط دورية ورصد مخالفات");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -83,7 +79,7 @@ export default function TrafficEmployeesPage() {
       if (res.isSuccess && res.employee) {
         setEmployees([res.employee, ...employees]);
         setAddModalOpen(false);
-        resetForm();
+        setNationalNumber("");
         setFeedback({
           type: "success",
           message: `تم تعيين الضابط (${res.employee.fullName}) برقم وظيفي: ${res.employee.employeeNumber} بنجاح.`,
@@ -99,20 +95,6 @@ export default function TrafficEmployeesPage() {
     }
   };
 
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedEmployee) return;
-
-    setEmployees(employees.map((emp) => (emp.id === selectedEmployee.id ? { ...emp, roleLabel } : emp)));
-    setEditModalOpen(false);
-    setSelectedEmployee(null);
-    resetForm();
-    setFeedback({
-      type: "success",
-      message: `تم تحديث بيانات الضابط بنجاح.`,
-    });
-  };
-
   const handleToggleStatus = async (emp: Employee) => {
     try {
       const isCurrentlyActive = emp.isActive;
@@ -121,7 +103,19 @@ export default function TrafficEmployeesPage() {
         : await employeesService.activateEmployee(emp.id);
 
       if (res.isSuccess) {
-        setEmployees(employees.map((e) => (e.id === emp.id ? { ...e, isActive: !isCurrentlyActive, accountStatus: !isCurrentlyActive ? "Active" : "Suspended" } : e)));
+        const updated = employees.map((e) =>
+          e.id === emp.id
+            ? { ...e, isActive: !isCurrentlyActive, accountStatus: (!isCurrentlyActive ? "Active" : "Suspended") as "Active" | "Suspended" }
+            : e
+        );
+        setEmployees(updated);
+        if (selectedEmployee && selectedEmployee.id === emp.id) {
+          setSelectedEmployee({
+            ...selectedEmployee,
+            isActive: !isCurrentlyActive,
+            accountStatus: (!isCurrentlyActive ? "Active" : "Suspended") as "Active" | "Suspended",
+          });
+        }
         setFeedback({
           type: "success",
           message: `تم ${!isCurrentlyActive ? "تنشيط" : "إيقاف"} حساب الضابط (${emp.fullName}) بنجاح.`,
@@ -135,30 +129,27 @@ export default function TrafficEmployeesPage() {
     }
   };
 
-  const openEditModal = (emp: Employee) => {
+  const openDetailsModal = async (emp: Employee) => {
     setSelectedEmployee(emp);
-    setFullName(emp.fullName);
-    setNationalNumber(emp.nationalNumber);
-    setEmail(emp.email);
-    setPhoneNumber(emp.phoneNumber);
-    setRole(emp.role);
-    setRoleLabel(emp.roleLabel);
-    setEditModalOpen(true);
-  };
-
-  const resetForm = () => {
-    setFullName("");
-    setNationalNumber("");
-    setEmail("");
-    setPhoneNumber("");
-    setRole("TrafficOfficer");
-    setRoleLabel("ضابط دورية ورصد مخالفات");
+    setDetailsModalOpen(true);
+    setFetchingDetails(true);
+    try {
+      const res = await employeesService.getEmployeeById(emp.id);
+      if (res.isSuccess && res.employee) {
+        setSelectedEmployee(res.employee);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setFetchingDetails(false);
+    }
   };
 
   const filteredEmployees = employees.filter((emp) => {
     const matchSearch =
       emp.fullName.toLowerCase().includes(search.toLowerCase()) ||
       emp.nationalNumber.includes(search) ||
+      emp.employeeNumber.toLowerCase().includes(search.toLowerCase()) ||
       emp.email.toLowerCase().includes(search.toLowerCase());
 
     if (!matchSearch) return false;
@@ -190,7 +181,7 @@ export default function TrafficEmployeesPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              resetForm();
+              setNationalNumber("");
               setAddModalOpen(true);
             }}
             className="px-4 py-2.5 bg-primary hover:bg-primary-container text-white rounded-lg text-sm font-semibold shadow-sm transition-all flex items-center gap-2 active:scale-95"
@@ -336,11 +327,11 @@ export default function TrafficEmployeesPage() {
                   <td className="py-4 px-5 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button
-                        onClick={() => openEditModal(emp)}
+                        onClick={() => openDetailsModal(emp)}
                         className="p-1.5 hover:bg-surface-container rounded-lg text-primary transition-colors"
-                        title="تعديل البيانات"
+                        title="عرض ملف وبيانات الضابط المعتمدة"
                       >
-                        <Edit2 className="w-4 h-4" />
+                        <Eye className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleToggleStatus(emp)}
@@ -384,41 +375,21 @@ export default function TrafficEmployeesPage() {
                   التكليف في الفرع الحالي: {branchName}
                 </p>
                 <p className="text-[11px] text-secondary leading-relaxed">
-                  أدخل الرقم الوطني للمواطن المسجل (11 خانة)، وسيقوم النظام بالتحقق منه آلياً وتكليفه بفرعك وإصدار رقمه الوظيفي العسكري.
+                  أدخل الرقم الوطني للمواطن المسجل (11 خانة). يتحقق النظام آلياً من سجله المدني وتفعيل حسابه، ثم يلحقه بكادر شرطة السير ويصدر رقمه الوظيفي العسكري المعتمد.
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-primary mb-1">الرقم الوطني للمواطن / المكلف (11 خانة)</label>
+                <label className="block text-xs font-bold text-primary mb-1">الرقم الوطني للمواطن / المكلف (11 خانة) *</label>
                 <input
                   type="text"
                   maxLength={11}
+                  required
                   value={nationalNumber}
                   onChange={(e) => setNationalNumber(e.target.value)}
                   placeholder="مثال: 01001000001"
                   className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-xs font-mono outline-none focus:border-primary"
-                  required
                 />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-primary mb-1">الدور والمهام الميدانية في الفرع</label>
-                <select
-                  value={role}
-                  onChange={(e) => {
-                    setRole(e.target.value);
-                    if (e.target.value === "TrafficOfficer") setRoleLabel("ضابط دورية ورصد مخالفات");
-                    if (e.target.value === "LicensingOfficer") setRoleLabel("ضابط إصدار الرخص الذكية");
-                    if (e.target.value === "RadarTech") setRoleLabel("مهندس تقني وفاحص رادارات");
-                    if (e.target.value === "InspectionOfficer") setRoleLabel("ضابط الفحص الفني الدوري");
-                  }}
-                  className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-xs outline-none font-semibold text-primary"
-                >
-                  <option value="TrafficOfficer">TrafficOfficer (دورية وضبط)</option>
-                  <option value="LicensingOfficer">LicensingOfficer (إصدار رخص)</option>
-                  <option value="RadarTech">RadarTech (تقني رادار)</option>
-                  <option value="InspectionOfficer">InspectionOfficer (فحص فني)</option>
-                </select>
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-3">
@@ -436,7 +407,7 @@ export default function TrafficEmployeesPage() {
                   className="px-6 py-2 bg-primary hover:bg-primary-container text-white rounded-lg text-xs font-semibold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
                 >
                   {submitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  <span>{submitting ? "جاري التكليف..." : "تعيين وحفظ"}</span>
+                  <span>{submitting ? "جاري التكليف..." : "تأكيد تعيين الضابط"}</span>
                 </button>
               </div>
             </form>
@@ -444,85 +415,129 @@ export default function TrafficEmployeesPage() {
         </div>
       )}
 
-      {/* Modal: Edit Officer */}
-      {editModalOpen && (
+      {/* Modal: Officer Dossier Details */}
+      {detailsModalOpen && selectedEmployee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-outline-variant max-w-lg w-full overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl border border-outline-variant max-w-lg w-full overflow-hidden text-xs">
             <div className="bg-primary text-white p-5 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Edit2 className="w-5 h-5 text-white" />
-                <h3 className="font-bold text-lg">تعديل بيانات الضابط</h3>
+                <ShieldCheck className="w-5 h-5 text-white" />
+                <div>
+                  <h3 className="font-bold text-base">ملف وبيانات الضابط المعتمدة</h3>
+                  <p className="text-[10px] text-white/80">
+                    {fetchingDetails ? "جاري مزامنة أحدث بيانات من الخادم..." : "سجل موثق من السجل المدني والإدارة العامة للمرور"}
+                  </p>
+                </div>
               </div>
               <button
-                onClick={() => setEditModalOpen(false)}
+                onClick={() => setDetailsModalOpen(false)}
                 className="p-1 hover:bg-white/20 rounded-full transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleUpdate} className="p-6 space-y-4 text-sm">
-              <div>
-                <label className="block text-xs font-bold text-primary mb-1">الاسم الكامل</label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-xs outline-none"
-                  required
-                />
+            <div className="p-6 space-y-4">
+              {/* Officer Card */}
+              <div className="p-4 bg-surface-container-lowest border border-outline-variant/40 rounded-xl flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-base">
+                  <Car className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-sm text-primary">{selectedEmployee.fullName}</h4>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                      معتمد
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-secondary mt-0.5 flex items-center gap-2">
+                    <span>الرقم العسكري:</span>
+                    <span className="font-mono font-bold text-primary">{selectedEmployee.employeeNumber}</span>
+                  </div>
+                </div>
+                <span
+                  className={`px-3 py-1 rounded-full text-[10px] font-bold ${
+                    selectedEmployee.isActive
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : "bg-rose-50 text-rose-700 border border-rose-200"
+                  }`}
+                >
+                  {selectedEmployee.isActive ? "نشط بالميدان" : "موقوف مؤقتاً"}
+                </span>
               </div>
 
+              {/* Details Grid */}
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-primary mb-1">البريد الإلكتروني</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-xs font-mono outline-none"
-                    required
-                  />
+                <div className="p-3 bg-surface rounded-xl border border-outline-variant/30 space-y-1">
+                  <span className="text-[10px] text-secondary font-semibold block">الرقم الوطني الموحد</span>
+                  <span className="font-mono font-bold text-on-surface text-xs">{selectedEmployee.nationalNumber}</span>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-primary mb-1">رقم الهاتف</label>
-                  <input
-                    type="text"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-xs font-mono outline-none"
-                    required
-                  />
+
+                <div className="p-3 bg-surface rounded-xl border border-outline-variant/30 space-y-1">
+                  <span className="text-[10px] text-secondary font-semibold block">فرع المرور التابع له</span>
+                  <span className="font-bold text-on-surface text-xs">{selectedEmployee.branchName || branchName}</span>
+                </div>
+
+                <div className="p-3 bg-surface rounded-xl border border-outline-variant/30 space-y-1">
+                  <span className="text-[10px] text-secondary font-semibold block">رقم الهاتف</span>
+                  <div className="flex items-center gap-1.5 font-mono text-xs text-on-surface">
+                    <Phone className="w-3 h-3 text-secondary" />
+                    <span>{selectedEmployee.phoneNumber || "غير مسجل"}</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-surface rounded-xl border border-outline-variant/30 space-y-1">
+                  <span className="text-[10px] text-secondary font-semibold block">البريد الإلكتروني</span>
+                  <div className="flex items-center gap-1.5 text-xs text-on-surface truncate">
+                    <Mail className="w-3 h-3 text-secondary shrink-0" />
+                    <span className="truncate">{selectedEmployee.email || "غير مسجل"}</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-surface rounded-xl border border-outline-variant/30 space-y-1">
+                  <span className="text-[10px] text-secondary font-semibold block">الإدارة العامة</span>
+                  <span className="font-semibold text-on-surface text-xs">{selectedEmployee.organizationName || "شرطة السير والمرور"}</span>
+                </div>
+
+                <div className="p-3 bg-surface rounded-xl border border-outline-variant/30 space-y-1">
+                  <span className="text-[10px] text-secondary font-semibold block">تاريخ الالتحاق والتكليف</span>
+                  <div className="flex items-center gap-1.5 text-xs text-on-surface">
+                    <Calendar className="w-3 h-3 text-secondary" />
+                    <span>{selectedEmployee.createdAt ? new Date(selectedEmployee.createdAt).toLocaleDateString("ar-YE") : "—"}</span>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-primary mb-1">المسمى الوظيفي</label>
-                <input
-                  type="text"
-                  value={roleLabel}
-                  onChange={(e) => setRoleLabel(e.target.value)}
-                  className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-xs outline-none"
-                  required
-                />
+              {/* Notification Banner */}
+              <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-xl text-amber-900 text-[11px] leading-relaxed">
+                <span className="font-bold block mb-0.5">ℹ️ تنبيه إداري ونظامي:</span>
+                البيانات الشخصية والاسم مستخرجة مركزياً من السجل المدني ولا يمكن تعديلها يدوياً من صلاحيات الفرع.
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-3">
+              {/* Modal Actions */}
+              <div className="pt-2 flex items-center justify-between border-t border-outline-variant/20">
                 <button
                   type="button"
-                  onClick={() => setEditModalOpen(false)}
-                  className="px-4 py-2 border border-outline-variant rounded-lg text-xs font-semibold text-secondary hover:bg-surface-container"
+                  onClick={() => handleToggleStatus(selectedEmployee)}
+                  className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all ${
+                    selectedEmployee.isActive
+                      ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200"
+                      : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200"
+                  }`}
                 >
-                  إلغاء
+                  <Power className="w-3.5 h-3.5" />
+                  <span>{selectedEmployee.isActive ? "إيقاف الصلاحيات مؤقتاً" : "إعادة تفعيل الصلاحيات"}</span>
                 </button>
+
                 <button
-                  type="submit"
-                  className="px-6 py-2 bg-primary hover:bg-primary-container text-white rounded-lg text-xs font-semibold shadow-sm transition-all"
+                  type="button"
+                  onClick={() => setDetailsModalOpen(false)}
+                  className="px-5 py-2 border border-outline-variant rounded-lg text-xs font-semibold text-secondary hover:bg-surface-container"
                 >
-                  تحديث البيانات
+                  إغلاق
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

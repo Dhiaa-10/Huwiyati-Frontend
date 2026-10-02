@@ -44,24 +44,21 @@ interface DemoAccount {
   name: string;
   agency: AgencyType;
   badgeColor: string;
+  category: "admin" | "employee";
 }
 
 const DEMO_ACCOUNTS: DemoAccount[] = [
+  // ══════════════════════════════════════════════════════════════════
+  // حسابات الإدارة والمشرفين
+  // ══════════════════════════════════════════════════════════════════
   {
     role: "SUPER_ADMIN",
     roleLabel: "سوبر أدمن",
-    nationalNumber: "01011131317",
-    name: "ضياء محمد عبدالمجيد السالمي",
+    nationalNumber: "01011135650",
+    name: "مصعب محمد أحمد ناشر النجري",
     agency: "وزارة الداخلية",
     badgeColor: "bg-rose-100 text-rose-700 border-rose-200",
-  },
-  {
-    role: "ADMIN",
-    roleLabel: "أدمن مصلحة الجوازات",
-    nationalNumber: "01011135651",
-    name: "أحمد محمود علي المدير",
-    agency: "الجوازات",
-    badgeColor: "bg-blue-100 text-blue-700 border-blue-200",
+    category: "admin",
   },
   {
     role: "ADMIN",
@@ -70,16 +67,77 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     name: "أحمد محمود علي المدير",
     agency: "الأحوال المدنية",
     badgeColor: "bg-sky-100 text-sky-700 border-sky-200",
+    category: "admin",
   },
   {
     role: "ADMIN",
-    roleLabel: "أدمن الأحوال (فرع السبعين)",
-    nationalNumber: "01011135650",
-    name: "مصعب محمد أحمد ناشر النجري",
+    roleLabel: "أدمن المستشفيات",
+    nationalNumber: "01011200001",
+    name: "يوسف حمود عبده المخلافي",
+    agency: "المستشفيات",
+    badgeColor: "bg-teal-100 text-teal-700 border-teal-200",
+    category: "admin",
+  },
+  {
+    role: "ADMIN",
+    roleLabel: "أدمن الجوازات",
+    nationalNumber: "01011200002",
+    name: "وليد ناجي محمد القباطي",
+    agency: "الجوازات",
+    badgeColor: "bg-blue-100 text-blue-700 border-blue-200",
+    category: "admin",
+  },
+  {
+    role: "ADMIN",
+    roleLabel: "أدمن المرور",
+    nationalNumber: "01011200003",
+    name: "عمر فارع سالم الحمادي",
+    agency: "المرور",
+    badgeColor: "bg-amber-100 text-amber-700 border-amber-200",
+    category: "admin",
+  },
+
+  // ══════════════════════════════════════════════════════════════════
+  // حسابات الموظفين التنفيذيين
+  // ══════════════════════════════════════════════════════════════════
+  {
+    role: "EMPLOYEE",
+    roleLabel: "موظف الأحوال المدنية",
+    nationalNumber: "01011131317",
+    name: "سارة عبد المجيد محمد السالمي",
     agency: "الأحوال المدنية",
-    badgeColor: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    badgeColor: "bg-cyan-100 text-cyan-800 border-cyan-200",
+    category: "employee",
+  },
+  {
+    role: "EMPLOYEE",
+    roleLabel: "موظف المستشفيات",
+    nationalNumber: "01011200004",
+    name: "ريم طارق عبد الله الدهمشي",
+    agency: "المستشفيات",
+    badgeColor: "bg-purple-100 text-purple-700 border-purple-200",
+    category: "employee",
+  },
+  {
+    role: "EMPLOYEE",
+    roleLabel: "موظف الجوازات",
+    nationalNumber: "01011200005",
+    name: "باسل أمين خالد الشرعبي",
+    agency: "الجوازات",
+    badgeColor: "bg-indigo-100 text-indigo-700 border-indigo-200",
+    category: "employee",
+  },
+  {
+    role: "EMPLOYEE",
+    roleLabel: "موظف المرور",
+    nationalNumber: "01011200006",
+    name: "منصور علي حسن الشوكاني",
+    agency: "المرور",
+    badgeColor: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    category: "employee",
   },
 ];
+
 
 /** Map backend role string → our frontend RoleType */
 function mapBackendRole(roles: string[]): ActiveRoleType {
@@ -137,6 +195,10 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  // Quick demo accounts filter & feedback
+  const [demoFilter, setDemoFilter] = useState<"all" | "admin" | "employee">("all");
+  const [filledAccountKey, setFilledAccountKey] = useState<string | null>(null);
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   const roleConfig: Record<ActiveRoleType, { label: string; indicatorColor: string }> = {
@@ -163,26 +225,40 @@ export default function LoginPage() {
   };
 
   /** Complete the session after a successful authentication */
-  const completeSession = async (result: LoginResult) => {
+  const completeSession = async (result: LoginResult, expectedRole?: ActiveRoleType) => {
     // Persist JWT
     saveToken(result.accessToken);
 
     // Decode actual backend roles from token
     const backendRoles = decodeRolesFromToken(result.accessToken);
-    const isSuperAdminInToken = backendRoles.includes("SuperAdmin");
-    const isAdminInToken = backendRoles.includes("Admin");
+    const tokenIsSuperAdmin = backendRoles.includes("SuperAdmin");
+    const tokenIsAdmin      = backendRoles.includes("Admin");
+    const tokenIsEmployee   = backendRoles.includes("Employee") || backendRoles.includes("Citizen");
 
-    // Resolve authoritative role from token claims
-    let resolvedRole: RoleType = "EMPLOYEE";
-    if (isSuperAdminInToken) {
-      resolvedRole = "SUPER_ADMIN";
-    } else if (isAdminInToken) {
-      resolvedRole = "ADMIN";
-    } else if (backendRoles.includes("Employee")) {
-      resolvedRole = "EMPLOYEE";
-    } else {
-      resolvedRole = role;
+    // ── STRICT ROLE CHECK ──────────────────────────────────────────────────────
+    // The role the user explicitly selected in the UI MUST match what the backend token says.
+    // This prevents SuperAdmin accounts from logging in as Employee/Admin and vice versa.
+    const selectedRole = expectedRole ?? role;
+
+    if (selectedRole === "SUPER_ADMIN" && !tokenIsSuperAdmin) {
+      clearAuthStorage();
+      setErrorMessage("هذا الحساب ليس سوبر أدمن. يرجى اختيار الرتبة الصحيحة من القائمة.");
+      return;
     }
+    if (selectedRole === "ADMIN" && !tokenIsAdmin) {
+      clearAuthStorage();
+      setErrorMessage("هذا الحساب ليس أدمناً. يرجى اختيار الرتبة الصحيحة (موظف / سوبر أدمن).");
+      return;
+    }
+    if (selectedRole === "EMPLOYEE" && !tokenIsEmployee) {
+      clearAuthStorage();
+      setErrorMessage("هذا الحساب ليس حساب موظف. يرجى اختيار الرتبة الصحيحة.");
+      return;
+    }
+
+    // ── RESOLVE AUTHORITATIVE ROLE ────────────────────────────────────────────
+    // Now that validation passed, use the selected role as authoritative
+    const resolvedRole: RoleType = selectedRole;
 
     // Resolve agency
     let resolvedAgency: AgencyType = agency;
@@ -194,6 +270,7 @@ export default function LoginPage() {
       resolvedAgency = "وزارة الداخلية";
       actualJobTitle = "مشرف عام المنظومة الوطنية (سوبر أدمن)";
       actualBranchName = "المركز الوطني لتقنية المعلومات - ديوان الوزارة";
+      actualBranchId = "22222222-bbbb-cccc-dddd-000000000001";
     } else if (resolvedRole === "ADMIN") {
       // Honor user's explicit selection if made in UI; otherwise fallback to backend detection
       if (agency && agency !== "وزارة الداخلية") {
@@ -223,17 +300,38 @@ export default function LoginPage() {
         actualBranchId = "018f7d9a-2000-7000-8000-000000000005";
         actualJobTitle = "مدير عام فرع الهجرة والجوازات";
       } else if (resolvedAgency === "الأحوال المدنية") {
-        actualBranchName = actualBranchName || "مصلحة الأحوال المدنية - صنعاء";
-        actualBranchId = actualBranchId || "018f7d9a-2000-7000-8000-000000000001";
+        actualBranchName = "مصلحة الأحوال المدنية - صنعاء";
+        actualBranchId = "018f7d9a-2000-7000-8000-000000000001";
         actualJobTitle = "مدير فرع الأحوال المدنية";
       } else if (resolvedAgency === "المرور") {
         actualBranchName = "إدارة شرطة السير والمرور - صنعاء";
         actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
         actualJobTitle = "مدير إدارة المرور";
       } else if (resolvedAgency === "المستشفيات") {
-        actualBranchName = "مستشفى الثورة العام";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000004";
+        actualBranchName = "هيئة مستشفى الثورة العام النموذجي";
+        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
         actualJobTitle = "مدير عام المستشفى";
+      }
+    } else if (resolvedRole === "EMPLOYEE") {
+      if (agency && agency !== "وزارة الداخلية") {
+        resolvedAgency = agency;
+      }
+      if (resolvedAgency === "الجوازات") {
+        actualBranchName = "مصلحة الهجرة والجوازات والجنسية - صنعاء";
+        actualBranchId = "018f7d9a-2000-7000-8000-000000000005";
+        actualJobTitle = "موظف فحص واعتماد الجوازات";
+      } else if (resolvedAgency === "الأحوال المدنية") {
+        actualBranchName = "مصلحة الأحوال المدنية - صنعاء";
+        actualBranchId = "018f7d9a-2000-7000-8000-000000000001";
+        actualJobTitle = "موظف كاونتر وتفعيل بيومتري حضوري";
+      } else if (resolvedAgency === "المرور") {
+        actualBranchName = "إدارة شرطة السير والمرور - صنعاء";
+        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
+        actualJobTitle = "موظف الرخص والمخالفات";
+      } else if (resolvedAgency === "المستشفيات") {
+        actualBranchName = "هيئة مستشفى الثورة العام النموذجي";
+        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
+        actualJobTitle = "مسؤول السجل الطبي والمواليد";
       }
     }
 
@@ -653,40 +751,97 @@ export default function LoginPage() {
             <span className="text-xs">💡 حسابات معتمدة في قاعدة البيانات (للتجربة السريعة):</span>
             <span className="text-[10px] text-gray-500 font-mono">كلمة المرور: Password123</span>
           </div>
-          <div className="space-y-2">
-            {DEMO_ACCOUNTS.map((acc) => (
-              <div
-                key={`${acc.nationalNumber}-${acc.agency}`}
-                className="flex items-center justify-between p-2 rounded-xl bg-gray-50/80 hover:bg-gray-100 transition-colors border border-gray-200/60"
-              >
-                <div className="min-w-0 pr-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${acc.badgeColor}`}>
-                      {acc.roleLabel}
-                    </span>
-                    <span className="font-semibold text-gray-800 text-[11px] truncate">
-                      {acc.name}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-gray-500 font-mono mt-0.5">
-                    {acc.nationalNumber} • {acc.agency}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIdentifier(acc.nationalNumber);
-                    setPassword("Password123");
-                    setRole(acc.role);
-                    setAgency(acc.agency);
-                    setErrorMessage("");
-                  }}
-                  className="text-[11px] font-bold text-[#0b4f6c] hover:text-[#00374e] bg-white hover:bg-[#0b4f6c]/10 border border-[#0b4f6c]/30 px-2.5 py-1 rounded-lg transition-all shrink-0 cursor-pointer shadow-2xs"
+
+          {/* Category Filter Pills */}
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <button
+              type="button"
+              onClick={() => setDemoFilter("all")}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                demoFilter === "all"
+                  ? "bg-[#0b4f6c] text-white shadow-2xs"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              الكل ({DEMO_ACCOUNTS.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDemoFilter("admin")}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                demoFilter === "admin"
+                  ? "bg-[#0b4f6c] text-white shadow-2xs"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              حسابات الإدارة ({DEMO_ACCOUNTS.filter((a) => a.category === "admin").length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDemoFilter("employee")}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                demoFilter === "employee"
+                  ? "bg-[#0b4f6c] text-white shadow-2xs"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              حسابات الموظفين ({DEMO_ACCOUNTS.filter((a) => a.category === "employee").length})
+            </button>
+          </div>
+
+          {/* Accounts List */}
+          <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+            {DEMO_ACCOUNTS.filter((acc) => {
+              if (demoFilter === "admin") return acc.category === "admin";
+              if (demoFilter === "employee") return acc.category === "employee";
+              return true;
+            }).map((acc) => {
+              const accountKey = `${acc.role}-${acc.nationalNumber}-${acc.agency}-${acc.roleLabel}`;
+              const isFilled = filledAccountKey === accountKey;
+              return (
+                <div
+                  key={accountKey}
+                  className={`flex items-center justify-between p-2 rounded-xl transition-all border ${
+                    isFilled
+                      ? "bg-teal-50/90 border-teal-300 ring-1 ring-teal-300"
+                      : "bg-gray-50/80 hover:bg-gray-100 border-gray-200/60"
+                  }`}
                 >
-                  تعبئة الحقول
-                </button>
-              </div>
-            ))}
+                  <div className="min-w-0 pr-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${acc.badgeColor}`}>
+                        {acc.roleLabel}
+                      </span>
+                      <span className="font-semibold text-gray-800 text-[11px] truncate">
+                        {acc.name}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 font-mono mt-0.5">
+                      {acc.nationalNumber} • {acc.agency}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIdentifier(acc.nationalNumber);
+                      setPassword("Password123");
+                      setRole(acc.role);
+                      setAgency(acc.agency);
+                      setErrorMessage("");
+                      setFilledAccountKey(accountKey);
+                      setTimeout(() => setFilledAccountKey(null), 2500);
+                    }}
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all shrink-0 cursor-pointer shadow-2xs ${
+                      isFilled
+                        ? "bg-teal-600 text-white border border-teal-600"
+                        : "text-[#0b4f6c] hover:text-[#00374e] bg-white hover:bg-[#0b4f6c]/10 border border-[#0b4f6c]/30"
+                    }`}
+                  >
+                    {isFilled ? "✓ تم التحديد" : "تعبئة الحقول"}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
