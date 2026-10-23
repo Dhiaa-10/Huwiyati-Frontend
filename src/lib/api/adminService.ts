@@ -18,6 +18,7 @@ import {
   AssignAdminDto,
   UpdateAdminDto,
 } from "@/types/admin";
+import { filesService } from "./filesService";
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Exported citizen lookup type
@@ -200,7 +201,7 @@ class HttpAdminService implements IAdminService {
       }
     });
 
-    const colors = ["#005539", "#0b4f6c", "#b08800", "#ba1a1a"];
+    const colors = ["#005539", "#0C4A4E", "#b08800", "#ba1a1a"];
     const agencyDistribution = Object.entries(orgCount).map(([name, count], i) => ({
       name,
       count,
@@ -252,7 +253,7 @@ class HttpAdminService implements IAdminService {
   async getOrganizationById(id: string): Promise<Organization> {
     const all = await this.getOrganizations();
     const org = all.items.find((o) => o.id === id);
-    if (!org) throw new Error("Ø§Ù„Ù‡ÙŠØ¦Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø©");
+    if (!org) throw new Error("الهيئة غير موجودة");
     return org;
   }
 
@@ -333,36 +334,72 @@ class HttpAdminService implements IAdminService {
     return true;
   }
 
-  // â”€â”€ Citizens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // PersonController currently only authorizes [Citizen] role.
-  // SuperAdmin gets HTTP 403 â€” the UI shows a clear permission message.
+  // -------------------------------------------------------------------------
+  // Citizens - SuperAdmin Central Registry
+  // -------------------------------------------------------------------------
   async getCitizens(): Promise<CitizenLookup[]> {
     const bloodGroupMap: Record<string | number, string> = {
-      1: "O+", OPositive: "O+",
-      2: "O-", ONegative: "O-",
-      3: "A+", APositive: "A+",
-      4: "A-", ANegative: "A-",
-      5: "B+", BPositive: "B+",
-      6: "B-", BNegative: "B-",
-      7: "AB+", ABPositive: "AB+",
-      8: "AB-", ABNegative: "AB-",
+      1: "O+", OPositive: "O+", "O+": "O+",
+      2: "O-", ONegative: "O-", "O-": "O-",
+      3: "A+", APositive: "A+", "A+": "A+",
+      4: "A-", ANegative: "A-", "A-": "A-",
+      5: "B+", BPositive: "B+", "B+": "B+",
+      6: "B-", BNegative: "B-", "B-": "B-",
+      7: "AB+", ABPositive: "AB+", "AB+": "AB+",
+      8: "AB-", ABNegative: "AB-", "AB-": "AB-",
     };
     const statusMap: Record<string | number, string> = {
-      1: "Ù†Ø´Ø·", Active: "Ù†Ø´Ø·",
-      2: "Ù…Ø¹Ù„Ù‚", Suspended: "Ù…Ø¹Ù„Ù‚",
-      3: "Ù…ØªÙˆÙÙ‰", Deceased: "Ù…ØªÙˆÙÙ‰",
+      1: "نشط", Active: "نشط", "نشط": "نشط",
+      2: "معلق", Suspended: "معلق", "معلق": "معلق",
+      3: "متوفى", Deceased: "متوفى", "متوفى": "متوفى",
     };
     const genderMap: Record<string | number, string> = {
-      1: "Ø°ÙƒØ±", Male: "Ø°ÙƒØ±",
-      2: "Ø£Ù†Ø«Ù‰", Female: "Ø£Ù†Ø«Ù‰",
+      0: "ذكر",
+      1: "ذكر", Male: "ذكر", "ذكر": "ذكر",
+      2: "أنثى", Female: "أنثى", "أنثى": "أنثى",
     };
 
     try {
       const res = await apiClient.get<any[]>("/api/v1/Person");
       const rawList = res.data ?? [];
 
+      // Collect auxiliary photos from service requests and ID cards for citizens missing direct PhotoUrl
+      const requestPhotos = new Map<string, string>();
+      try {
+        const [srRes, cardsRes] = await Promise.allSettled([
+          apiClient.get<any[]>("/api/v1/service-requests"),
+          apiClient.get<any[]>("/api/v1/national-id-cards"),
+        ]);
+        if (srRes.status === "fulfilled" && Array.isArray(srRes.value.data)) {
+          for (const req of srRes.value.data) {
+            if (req.requestDataJson) {
+              try {
+                const parsed = JSON.parse(req.requestDataJson);
+                const natNum = (req.nationalNumber || parsed.nationalNumber || "").trim();
+                const photo = parsed.photoUrl || (req as any).personPhoto;
+                if (natNum && photo && !requestPhotos.has(natNum)) {
+                  requestPhotos.set(natNum, photo);
+                }
+              } catch {}
+            }
+          }
+        }
+        if (cardsRes.status === "fulfilled" && Array.isArray(cardsRes.value.data)) {
+          for (const card of cardsRes.value.data) {
+            const natNum = (card.nationalNumber || "").trim();
+            if (natNum && card.photoUrl && !requestPhotos.has(natNum)) {
+              requestPhotos.set(natNum, card.photoUrl);
+            }
+          }
+        }
+      } catch {}
+
       return rawList.map((p: any) => {
         const fullName = `${p.firstName ?? ""} ${p.fatherName ?? ""} ${p.grandfatherName ?? ""} ${p.familyName ?? ""}`.trim();
+        const natNum = (p.nationalNumber || "").trim();
+        const rawPhoto = p.photoUrl || requestPhotos.get(natNum) || null;
+        const resolvedPhotoUrl = rawPhoto ? filesService.getFullUrl(rawPhoto) : null;
+
         return {
           id: p.id,
           nationalNumber: p.nationalNumber,
@@ -376,10 +413,10 @@ class HttpAdminService implements IAdminService {
           governorate: p.governorate || "غير محدد",
           district: p.district || "غير محدد",
           addressDetails: p.addressDetails || "",
-          gender: genderMap[p.gender] || "ذكر",
+          gender: genderMap[p.gender] || (p.gender === 2 || p.gender === "Female" ? "أنثى" : "ذكر"),
           bloodGroup: bloodGroupMap[p.bloodGroup] || (p.bloodGroup ? String(p.bloodGroup) : undefined),
           personStatus: statusMap[p.personStatus] || "نشط",
-          photoUrl: p.photoUrl ?? null,
+          photoUrl: resolvedPhotoUrl,
           nationality: p.nationality || "يمني",
         } as CitizenLookup;
       });
@@ -387,8 +424,8 @@ class HttpAdminService implements IAdminService {
       console.warn("[adminService] getCitizens restricted by backend:", err);
       return [];
     }
-
   }
+
   // Employees (for Admin portals - uses /api/v1/Employees, requires Admin role)
   async getEmployees(branchId?: string, organizationId?: string): Promise<Employee[]> {
     try {
@@ -422,7 +459,6 @@ class HttpAdminService implements IAdminService {
   async createEmployee(dto: CreateEmployeeDto): Promise<Employee> {
     const res = await apiClient.post<any>('/api/v1/Employees', {
       nationalNumber: dto.nationalNumber,
-      branchId: dto.branchId,
     });
     const e = res.data;
     return {

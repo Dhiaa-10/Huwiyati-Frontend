@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -55,12 +55,12 @@ export default function AuditLogsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#00374e]"></span>
-            <span className="text-xs font-bold text-[#00374e] uppercase tracking-wider">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#052F31]"></span>
+            <span className="text-xs font-bold text-[#052F31] uppercase tracking-wider">
               بوابة المشرف العام
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#00374e]">
+          <h1 className="text-2xl md:text-3xl font-extrabold text-[#052F31]">
             سجلات الأمان والتدقيق (Security Audit Trail)
           </h1>
           <p className="text-sm text-[#41484d] mt-1.5">
@@ -71,9 +71,9 @@ export default function AuditLogsPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={handleExportJSON}
-            className="bg-white hover:bg-slate-50 text-[#00374e] border border-slate-300 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all"
+            className="bg-white hover:bg-slate-50 text-[#052F31] border border-slate-300 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all"
           >
-            <Download className="w-4 h-4 text-[#0b4f6c]" />
+            <Download className="w-4 h-4 text-[#0C4A4E]" />
             <span>تصدير السجلات (JSON)</span>
           </button>
         </div>
@@ -91,7 +91,7 @@ export default function AuditLogsPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="ابحث بالعملية، اسم المستخدم، الرقم الوطني، أو IP..."
-                className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg pr-10 pl-4 py-2 text-sm text-[#191c1e] focus:outline-none focus:border-[#0b4f6c]"
+                className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg pr-10 pl-4 py-2 text-sm text-[#191c1e] focus:outline-none focus:border-[#0C4A4E]"
               />
             </div>
           </div>
@@ -101,7 +101,7 @@ export default function AuditLogsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-4 py-2 text-sm text-[#191c1e] focus:outline-none focus:border-[#0b4f6c]"
+              className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-4 py-2 text-sm text-[#191c1e] focus:outline-none focus:border-[#0C4A4E]"
             >
               <option value="all">جميع الحالات</option>
               <option value="Success">عمليات ناجحة (Success)</option>
@@ -115,7 +115,7 @@ export default function AuditLogsPage() {
             <select
               value={actionFilter}
               onChange={(e) => setActionFilter(e.target.value)}
-              className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-4 py-2 text-sm text-[#191c1e] focus:outline-none focus:border-[#0b4f6c]"
+              className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg px-4 py-2 text-sm text-[#191c1e] focus:outline-none focus:border-[#0C4A4E]"
             >
               <option value="all">جميع أنواع الإجراءات</option>
               <option value="create">إنشاء وإضافة (Create)</option>
@@ -132,7 +132,7 @@ export default function AuditLogsPage() {
       <div className="bg-white rounded-xl border border-[#e0e3e5] shadow-sm overflow-hidden">
         {loading ? (
           <div className="py-20 flex flex-col items-center justify-center gap-3">
-            <RefreshCw className="w-8 h-8 text-[#0b4f6c] animate-spin" />
+            <RefreshCw className="w-8 h-8 text-[#0C4A4E] animate-spin" />
             <div className="text-sm font-medium text-slate-500">جاري تحميل سجلات التدقيق...</div>
           </div>
         ) : logs.length === 0 ? (
@@ -145,25 +145,25 @@ export default function AuditLogsPage() {
             <table className="w-full text-right border-collapse">
               <thead className="bg-[#f0eadd]/60 border-b border-[#c0c7ce]/50">
                 <tr>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap">
+                  <th className="py-4 px-6 text-xs font-bold text-[#052F31] whitespace-nowrap">
                     الإجراء والعملية
                   </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap">
+                  <th className="py-4 px-6 text-xs font-bold text-[#052F31] whitespace-nowrap">
                     المستخدم الفاعل
                   </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap">
+                  <th className="py-4 px-6 text-xs font-bold text-[#052F31] whitespace-nowrap">
                     الجهة المستهدفة
                   </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap">
+                  <th className="py-4 px-6 text-xs font-bold text-[#052F31] whitespace-nowrap">
                     عنوان IP
                   </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap">
+                  <th className="py-4 px-6 text-xs font-bold text-[#052F31] whitespace-nowrap">
                     الحالة
                   </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap">
+                  <th className="py-4 px-6 text-xs font-bold text-[#052F31] whitespace-nowrap">
                     التاريخ والوقت
                   </th>
-                  <th className="py-4 px-6 text-xs font-bold text-[#00374e] whitespace-nowrap text-center">
+                  <th className="py-4 px-6 text-xs font-bold text-[#052F31] whitespace-nowrap text-center">
                     تفاصيل
                   </th>
                 </tr>
@@ -222,7 +222,7 @@ export default function AuditLogsPage() {
                     <td className="py-4 px-6 text-center">
                       <button
                         onClick={() => setSelectedLog(log)}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-[#0b4f6c] hover:bg-slate-100"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-[#0C4A4E] hover:bg-slate-100"
                         title="عرض تفاصيل السجل الكاملة"
                       >
                         <Eye className="w-4 h-4" />
@@ -242,8 +242,8 @@ export default function AuditLogsPage() {
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5 text-[#00374e]" />
-                <h3 className="text-base font-bold text-[#00374e]">تفاصيل عملية التدقيق</h3>
+                <ShieldAlert className="w-5 h-5 text-[#052F31]" />
+                <h3 className="text-base font-bold text-[#052F31]">تفاصيل عملية التدقيق</h3>
               </div>
               <button
                 onClick={() => setSelectedLog(null)}

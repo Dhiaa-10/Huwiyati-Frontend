@@ -25,6 +25,7 @@ import {
   BadgeCheck
 } from "lucide-react";
 import { adminService, CitizenLookup } from "@/lib/api/adminService";
+import { filesService } from "@/lib/api/filesService";
 
 export default function CitizensRegistryPage() {
   const [citizens, setCitizens] = useState<CitizenLookup[]>([]);
@@ -47,14 +48,7 @@ export default function CitizensRegistryPage() {
     setPermissionError(null);
     try {
       const data = await adminService.getCitizens();
-      if (data.length === 0) {
-        setPermissionError(
-          "صلاحية مقيّدة: ليس لديك صلاحية الوصول إلى سجل المواطنين المركزي حالياً.\n" +
-          "يرجى التواصل مع مسؤول النظام لإتاحة مسار /api/v1/Person لصلاحية السوبر أدمن (SuperAdmin)."
-        );
-      } else {
-        setCitizens(data);
-      }
+      setCitizens(data || []);
     } catch (err: any) {
 
       const msg: string = err?.message ?? "";
@@ -138,11 +132,11 @@ export default function CitizensRegistryPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-bold text-[#00374e] uppercase tracking-wider">
+            <span className="text-xs font-bold text-[#052F31] uppercase tracking-wider">
               السجل المدني المركزي الموحد
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#00374e]">
+          <h1 className="text-2xl md:text-3xl font-extrabold text-[#052F31]">
             السجل المركزي للمواطنين
           </h1>
           <p className="text-sm text-[#41484d] mt-1">
@@ -155,9 +149,9 @@ export default function CitizensRegistryPage() {
             onClick={loadData}
             disabled={loading}
             title="تحديث البيانات"
-            className="p-2.5 bg-white text-[#00374e] border border-slate-300 rounded-xl hover:bg-slate-50 transition-all shadow-xs cursor-pointer disabled:opacity-60"
+            className="p-2.5 bg-white text-[#052F31] border border-slate-300 rounded-xl hover:bg-slate-50 transition-all shadow-xs cursor-pointer disabled:opacity-60"
           >
-            <RefreshCw className={`w-4 h-4 text-[#0b4f6c] ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 text-[#0C4A4E] ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
@@ -165,7 +159,7 @@ export default function CitizensRegistryPage() {
       {/* Loading State */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <Loader2 className="w-10 h-10 text-[#0b4f6c] animate-spin" />
+          <Loader2 className="w-10 h-10 text-[#0C4A4E] animate-spin" />
           <p className="text-sm text-slate-500">جاري تحميل بيانات المواطنين...</p>
         </div>
       )}
@@ -201,7 +195,7 @@ export default function CitizensRegistryPage() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <div className="text-xs font-medium text-slate-500 mb-1">إجمالي المواطنين المسجلين</div>
-            <div className="text-2xl font-black text-[#00374e]">{citizens.length}</div>
+            <div className="text-2xl font-black text-[#052F31]">{citizens.length}</div>
             <div className="text-[11px] text-slate-400 mt-1">سجل مدني موثق في قاعدة البيانات</div>
           </div>
           <div className="p-3 bg-blue-50 text-blue-700 rounded-xl">
@@ -225,7 +219,7 @@ export default function CitizensRegistryPage() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <div className="text-xs font-medium text-slate-500 mb-1">المحافظات المغطاة</div>
-            <div className="text-2xl font-black text-[#00374e]">
+            <div className="text-2xl font-black text-[#052F31]">
               {governorates.length || 1}
             </div>
             <div className="text-[11px] text-slate-400 mt-1">ضمن النطاق الجغرافي المسجل</div>
@@ -238,7 +232,7 @@ export default function CitizensRegistryPage() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <div className="text-xs font-medium text-slate-500 mb-1">المطابقة الأمنية</div>
-            <div className="text-2xl font-black text-[#00374e]">100%</div>
+            <div className="text-2xl font-black text-[#052F31]">100%</div>
             <div className="text-[11px] text-slate-400 mt-1">أرقام وطنية فريدة ومحققة</div>
           </div>
           <div className="p-3 bg-amber-50 text-amber-700 rounded-xl">
@@ -256,7 +250,7 @@ export default function CitizensRegistryPage() {
             placeholder="بحث بالاسم الرباعي، الرقم الوطني، أو المحافظة..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pr-10 pl-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#0b4f6c] focus:border-transparent transition-all"
+            className="w-full pr-10 pl-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#0C4A4E] focus:border-transparent transition-all"
           />
         </div>
 
@@ -313,7 +307,7 @@ export default function CitizensRegistryPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-            <Loader2 className="w-8 h-8 animate-spin text-[#0b4f6c] mb-3" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#0C4A4E] mb-3" />
             <p className="text-xs">جاري جلب السجل الديموغرافي للمواطنين من السيرفر...</p>
           </div>
         ) : filteredCitizens.length === 0 ? (
@@ -325,7 +319,7 @@ export default function CitizensRegistryPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-right text-xs">
-              <thead className="bg-slate-50 text-[#00374e] border-b border-slate-200 font-bold">
+              <thead className="bg-slate-50 text-[#052F31] border-b border-slate-200 font-bold">
                 <tr>
                   <th className="py-3.5 px-4">المواطن (الاسم الكامل)</th>
                   <th className="py-3.5 px-4">الرقم الوطني</th>
@@ -344,11 +338,29 @@ export default function CitizensRegistryPage() {
                       {/* Name & Avatar */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#00374e]/10 text-[#00374e] font-bold flex items-center justify-center text-xs">
-                            {citizen.firstName ? citizen.firstName.charAt(0) : "م"}
+                          <div className="w-8 h-8 rounded-full bg-[#052F31]/10 text-[#052F31] font-bold overflow-hidden shrink-0 relative flex items-center justify-center text-xs">
+                            {citizen.photoUrl ? (
+                              <img
+                                src={filesService.getFullUrl(citizen.photoUrl)}
+                                alt={citizen.fullName}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = "none";
+                                  const fallback = (e.target as HTMLElement).nextElementSibling as HTMLElement;
+                                  if (fallback) fallback.style.display = "flex";
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              className={`w-full h-full flex items-center justify-center text-[#052F31] font-bold text-xs ${
+                                citizen.photoUrl ? "hidden" : "flex"
+                              }`}
+                            >
+                              {citizen.firstName ? citizen.firstName.charAt(0) : "م"}
+                            </div>
                           </div>
                           <div>
-                            <div className="font-bold text-[#00374e]">{citizen.fullName}</div>
+                            <div className="font-bold text-[#052F31]">{citizen.fullName}</div>
                             <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
                               <span>الجنسية:</span>
                               <span className="text-slate-600 font-semibold">{citizen.nationality}</span>
@@ -410,7 +422,10 @@ export default function CitizensRegistryPage() {
                             {citizen.gender}
                           </span>
                           {citizen.bloodGroup && citizen.bloodGroup !== "غير محدد" && (
-                            <span className="px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded text-[10px] font-mono font-bold">
+                            <span
+                              dir="ltr"
+                              className="inline-block px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded text-[10px] font-mono font-bold"
+                            >
                               {citizen.bloodGroup}
                             </span>
                           )}
@@ -439,7 +454,7 @@ export default function CitizensRegistryPage() {
                       <td className="py-3.5 px-4 text-center">
                         <button
                           onClick={() => setSelectedCitizen(citizen)}
-                          className="px-3 py-1.5 bg-[#00374e]/5 hover:bg-[#00374e]/10 text-[#00374e] font-semibold rounded-lg transition-all text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1.5 bg-[#052F31]/5 hover:bg-[#052F31]/10 text-[#052F31] font-semibold rounded-lg transition-all text-[11px] inline-flex items-center gap-1 cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span>عرض السجل</span>
@@ -459,7 +474,7 @@ export default function CitizensRegistryPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-150">
             {/* Modal Header */}
-            <div className="bg-[#00374e] text-white p-5 flex items-center justify-between">
+            <div className="bg-[#052F31] text-white p-5 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-white/10 rounded-xl">
                   <CreditCard className="w-5 h-5 text-amber-300" />
@@ -479,7 +494,7 @@ export default function CitizensRegistryPage() {
 
             {/* ID Card Visual */}
             <div className="p-6 space-y-6">
-              <div className="relative bg-gradient-to-br from-[#00374e] via-[#0b4f6c] to-[#012a3d] text-white p-6 rounded-2xl shadow-lg border border-cyan-800 overflow-hidden">
+              <div className="relative bg-gradient-to-br from-[#052F31] via-[#0C4A4E] to-[#012a3d] text-white p-6 rounded-2xl shadow-lg border border-cyan-800 overflow-hidden">
                 {/* Background watermark */}
                 <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-white/5 rounded-full blur-xl pointer-events-none"></div>
 
@@ -493,8 +508,26 @@ export default function CitizensRegistryPage() {
 
                 <div className="grid grid-cols-3 gap-4 items-center">
                   <div className="col-span-1 flex flex-col items-center">
-                    <div className="w-20 h-24 bg-slate-200/20 rounded-xl border border-white/20 flex items-center justify-center text-white text-3xl font-black">
-                      {selectedCitizen.firstName?.charAt(0) || "م"}
+                    <div className="w-20 h-24 bg-slate-200/20 rounded-xl border border-white/20 flex items-center justify-center text-white text-3xl font-black relative overflow-hidden shadow-inner">
+                      {selectedCitizen.photoUrl ? (
+                        <img
+                          src={filesService.getFullUrl(selectedCitizen.photoUrl)}
+                          alt={selectedCitizen.fullName}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                            const fallback = (e.target as HTMLElement).nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className={`w-full h-full flex items-center justify-center text-white text-3xl font-black ${
+                          selectedCitizen.photoUrl ? "hidden" : "flex"
+                        }`}
+                      >
+                        {selectedCitizen.firstName?.charAt(0) || "م"}
+                      </div>
                     </div>
                     <span className="text-[10px] text-cyan-200 mt-2">صورة المواطن</span>
                   </div>
@@ -521,7 +554,7 @@ export default function CitizensRegistryPage() {
                       </div>
                       <div>
                         <span className="text-cyan-200 block text-[9px]">فصيلة الدم:</span>
-                        <span className="font-bold text-rose-300">{selectedCitizen.bloodGroup}</span>
+                        <span dir="ltr" className="inline-block font-bold text-rose-300">{selectedCitizen.bloodGroup}</span>
                       </div>
                     </div>
                   </div>
