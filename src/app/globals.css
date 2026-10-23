@@ -66,6 +66,7 @@
 }
 
 :root {
+  color-scheme: light;
   /* Fonts */
   --font-ibm-plex: "IBM Plex Sans Arabic", "IBM Plex Sans", system-ui, sans-serif;
   --font-arabic: "IBM Plex Sans Arabic", system-ui, sans-serif;
@@ -236,12 +237,14 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   color: #163D42 !important;
 }
 
+.text-\[\#052F31\],
 .text-\[\#00374e\] {
-  color: #0C4A4E !important;
+  color: #052F31 !important;
 }
 
+.text-\[\#0C4A4E\],
 .text-\[\#0b4f6c\] {
-  color: #147A77 !important;
+  color: #0C4A4E !important;
 }
 
 .text-\[\#41484d\] {
@@ -252,10 +255,12 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   color: #6D898A !important;
 }
 
+.bg-\[\#052F31\],
 .bg-\[\#00374e\] {
   background-color: #052F31 !important;
 }
 
+.bg-\[\#0C4A4E\],
 .bg-\[\#0b4f6c\] {
   background-color: #0C4A4E !important;
 }
@@ -309,6 +314,8 @@ html.dark .text-gray-900 {
   color: #F1F6F4 !important;
 }
 
+html.dark .text-\[\#052F31\],
+html.dark .text-\[\#0C4A4E\],
 html.dark .text-\[\#00374e\],
 html.dark .text-\[\#0b4f6c\] {
   color: #BFE5DF !important;
@@ -370,3 +377,65 @@ html.dark .shadow-md,
 html.dark .shadow-xl {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45) !important;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Autofill Text & Background Styling (Chrome, Edge, Safari, Firefox)
+   Fixes invisible/white text and ensures clean contrast on autofill
+   ══════════════════════════════════════════════════════════════ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-text-fill-color: #163D42 !important;
+  caret-color: #163D42 !important;
+  -webkit-box-shadow: 0 0 0 1000px #F1F6F4 inset !important;
+  box-shadow: 0 0 0 1000px #F1F6F4 inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+  font-family: inherit !important;
+  font-size: inherit !important;
+}
+
+/* For inputs with explicit white background */
+input.bg-white:-webkit-autofill,
+input.bg-white:-webkit-autofill:hover, 
+input.bg-white:-webkit-autofill:focus, 
+input.bg-white:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+  box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+}
+
+/* Firefox / Modern Standards */
+input:autofill,
+textarea:autofill,
+select:autofill {
+  -webkit-text-fill-color: #163D42 !important;
+  caret-color: #163D42 !important;
+  filter: none !important;
+}
+
+/* Dark Mode Autofill */
+html.dark input:-webkit-autofill,
+html.dark input:-webkit-autofill:hover, 
+html.dark input:-webkit-autofill:focus, 
+html.dark input:-webkit-autofill:active,
+html.dark textarea:-webkit-autofill,
+html.dark select:-webkit-autofill {
+  -webkit-text-fill-color: #F1F6F4 !important;
+  caret-color: #F1F6F4 !important;
+  -webkit-box-shadow: 0 0 0 1000px #07383B inset !important;
+  box-shadow: 0 0 0 1000px #07383B inset !important;
+}
+
+html.dark input:autofill,
+html.dark textarea:autofill,
+html.dark select:autofill {
+  -webkit-text-fill-color: #F1F6F4 !important;
+  caret-color: #F1F6F4 !important;
+}
+
