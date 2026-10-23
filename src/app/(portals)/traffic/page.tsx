@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -105,7 +105,7 @@ export default function TrafficDashboardPage() {
       {/* Real Live KPI Stats Cards from Backend */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Card 1: Total Officers */}
-        <div className="bg-surface-container-lowest rounded-xl p-5 shadow-[0_4px_20px_rgba(11,79,108,0.05)] border border-outline-variant/30">
+        <div className="bg-surface-container-lowest rounded-xl p-5 shadow-[0_4px_20px_rgba(12,74,78,0.05)] border border-outline-variant/30">
           <div className="flex justify-between items-start mb-3">
             <span className="text-xs font-semibold text-secondary uppercase tracking-wider">
               إجمالي قوة وكادر الفرع
@@ -125,7 +125,7 @@ export default function TrafficDashboardPage() {
         </div>
 
         {/* Card 2: Active Field Officers */}
-        <div className="bg-surface-container-lowest rounded-xl p-5 shadow-[0_4px_20px_rgba(11,79,108,0.05)] border border-outline-variant/30">
+        <div className="bg-surface-container-lowest rounded-xl p-5 shadow-[0_4px_20px_rgba(12,74,78,0.05)] border border-outline-variant/30">
           <div className="flex justify-between items-start mb-3">
             <span className="text-xs font-semibold text-secondary uppercase tracking-wider">
               ضباط على رأس العمل (نشط)
@@ -145,7 +145,7 @@ export default function TrafficDashboardPage() {
         </div>
 
         {/* Card 3: Suspended / Leave */}
-        <div className="bg-surface-container-lowest rounded-xl p-5 shadow-[0_4px_20px_rgba(11,79,108,0.05)] border border-outline-variant/30">
+        <div className="bg-surface-container-lowest rounded-xl p-5 shadow-[0_4px_20px_rgba(12,74,78,0.05)] border border-outline-variant/30">
           <div className="flex justify-between items-start mb-3">
             <span className="text-xs font-semibold text-secondary uppercase tracking-wider">
               حسابات موقوفة أو مجازة
@@ -165,7 +165,7 @@ export default function TrafficDashboardPage() {
         </div>
 
         {/* Card 4: Readiness Rate */}
-        <div className="bg-surface-container-lowest rounded-xl p-5 shadow-[0_4px_20px_rgba(11,79,108,0.05)] border border-outline-variant/30">
+        <div className="bg-surface-container-lowest rounded-xl p-5 shadow-[0_4px_20px_rgba(12,74,78,0.05)] border border-outline-variant/30">
           <div className="flex justify-between items-start mb-3">
             <span className="text-xs font-semibold text-secondary uppercase tracking-wider">
               نسبة الجاهزية التشغيلية
@@ -190,7 +190,7 @@ export default function TrafficDashboardPage() {
       </div>
 
       {/* Real Officers Table (Live from /api/v1/Employees) */}
-      <div className="bg-surface-container-lowest rounded-xl shadow-[0_4px_20px_rgba(11,79,108,0.05)] border border-outline-variant/30 p-6 space-y-4">
+      <div className="bg-surface-container-lowest rounded-xl shadow-[0_4px_20px_rgba(12,74,78,0.05)] border border-outline-variant/30 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-primary flex items-center gap-2">

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
@@ -79,7 +79,7 @@ export default function VehiclesPage() {
       </div>
 
       {/* Lookup Card */}
-      <div className="bg-surface-container-lowest rounded-xl p-6 shadow-[0_4px_20px_rgba(11,79,108,0.05)] border border-outline-variant/30 space-y-4">
+      <div className="bg-surface-container-lowest rounded-xl p-6 shadow-[0_4px_20px_rgba(12,74,78,0.05)] border border-outline-variant/30 space-y-4">
         <h3 className="text-sm font-bold text-primary flex items-center gap-2">
           <Search className="w-4 h-4 text-primary" />
           الاستعلام عن مركبة برقم اللوحة

@@ -20,9 +20,11 @@ import {
 import { employeesService } from "@/lib/api/employeesService";
 import { Employee } from "@/types/admin";
 import { useAuth } from "@/context/AuthContext";
+import { useNotification } from "@/context/NotificationContext";
 
 export default function TrafficEmployeesPage() {
   const { user } = useAuth();
+  const { confirm, toast } = useNotification();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -34,6 +36,7 @@ export default function TrafficEmployeesPage() {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [fetchingDetails, setFetchingDetails] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Form states
   const [nationalNumber, setNationalNumber] = useState("");
@@ -70,8 +73,11 @@ export default function TrafficEmployeesPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setModalError(null);
     if (!nationalNumber.trim()) {
-      setFeedback({ type: "error", message: "يرجى إدخال الرقم الوطني للمواطن المراد تكليفه." });
+      const msg = "يرجى إدخال الرقم الوطني للمواطن المراد تكليفه.";
+      setModalError(msg);
+      toast.error(msg);
       return;
     }
     setSubmitting(true);
@@ -81,23 +87,42 @@ export default function TrafficEmployeesPage() {
         setEmployees((prev) => [res.employee!, ...prev]);
         setAddModalOpen(false);
         setNationalNumber("");
+        setModalError(null);
+        const successMsg = `تم تعيين الضابط (${res.employee.fullName}) برقم وظيفي: ${res.employee.employeeNumber} بنجاح.`;
+        toast.success(successMsg);
         setFeedback({
           type: "success",
-          message: `تم تعيين الضابط (${res.employee.fullName}) برقم وظيفي: ${res.employee.employeeNumber} بنجاح.`,
+          message: successMsg,
         });
       } else {
-        setFeedback({ type: "error", message: res.message });
+        const errMsg = res.message || "فشلت عملية تعيين الضابط.";
+        setModalError(errMsg);
+        toast.error(errMsg);
       }
-    } catch {
-      setFeedback({ type: "error", message: "حدث خطأ أثناء تعيين الضابط." });
+    } catch (err: any) {
+      const errMsg = err?.message || "حدث خطأ أثناء تعيين الضابط.";
+      setModalError(errMsg);
+      toast.error(errMsg);
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleToggleStatus = async (emp: Employee) => {
+    const isCurrentlyActive = emp.isActive;
+    const isConfirmed = await confirm({
+      title: isCurrentlyActive ? "تأكيد إيقاف صلاحيات الضابط" : "تأكيد تنشيط صلاحيات الضابط",
+      message: isCurrentlyActive
+        ? `هل أنت متأكد من تجميد صلاحيات ضابط المرور (${emp.fullName})؟ لن يتمكن من تسجيل المخالفات أو إصدار الرخص حتى إعادة تنشيطه.`
+        : `هل أنت متأكد من إعادة تنشيط وتفعيل حساب ضابط المرور (${emp.fullName})؟`,
+      type: isCurrentlyActive ? "warning" : "info",
+      confirmText: isCurrentlyActive ? "نعم، تجميد الصلاحيات" : "نعم، تنشيط الحساب",
+      cancelText: "إلغاء",
+    });
+
+    if (!isConfirmed) return;
+
     try {
-      const isCurrentlyActive = emp.isActive;
       const res = isCurrentlyActive
         ? await employeesService.deactivateEmployee(emp.id)
         : await employeesService.activateEmployee(emp.id);
@@ -115,15 +140,21 @@ export default function TrafficEmployeesPage() {
             prev ? { ...prev, isActive: !isCurrentlyActive, accountStatus: (!isCurrentlyActive ? "Active" : "Suspended") as "Active" | "Suspended" } : null
           );
         }
+        const sMsg = `تم ${!isCurrentlyActive ? "تنشيط" : "إيقاف"} حساب الضابط (${emp.fullName}) بنجاح.`;
+        toast.success(sMsg);
         setFeedback({
           type: "success",
-          message: `تم ${!isCurrentlyActive ? "تنشيط" : "إيقاف"} حساب الضابط (${emp.fullName}) بنجاح.`,
+          message: sMsg,
         });
       } else {
-        setFeedback({ type: "error", message: res.message });
+        const eMsg = res.message || "حدث خطأ أثناء تغيير الحالة.";
+        toast.error(eMsg);
+        setFeedback({ type: "error", message: eMsg });
       }
     } catch {
-      setFeedback({ type: "error", message: "حدث خطأ أثناء تغيير الحالة." });
+      const eMsg = "حدث خطأ أثناء تغيير الحالة.";
+      toast.error(eMsg);
+      setFeedback({ type: "error", message: eMsg });
     }
   };
 
@@ -186,7 +217,7 @@ export default function TrafficEmployeesPage() {
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-primary" : ""}`} />
           </button>
           <button
-            onClick={() => { setNationalNumber(""); setAddModalOpen(true); }}
+            onClick={() => { setNationalNumber(""); setModalError(null); setAddModalOpen(true); }}
             className="px-4 py-2.5 bg-primary hover:bg-primary-container text-white rounded-lg text-sm font-semibold shadow-sm transition-all flex items-center gap-2 active:scale-95"
           >
             <UserPlus className="w-4 h-4" />
@@ -216,13 +247,13 @@ export default function TrafficEmployeesPage() {
 
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/30 shadow-[0_4px_20px_rgba(11,79,108,0.05)]">
+        <div className="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/30 shadow-[0_4px_20px_rgba(12,74,78,0.05)]">
           <div className="text-xs font-semibold text-secondary mb-1">إجمالي الكادر والضباط بالفرع</div>
           <div className="text-3xl font-bold text-primary font-headline-lg">{employees.length}</div>
           <div className="text-xs text-secondary mt-1">مسجلين في الهيكل التنظيمي للمرور</div>
         </div>
 
-        <div className="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/30 shadow-[0_4px_20px_rgba(11,79,108,0.05)]">
+        <div className="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/30 shadow-[0_4px_20px_rgba(12,74,78,0.05)]">
           <div className="text-xs font-semibold text-secondary mb-1">ضباط بالخدمة الميدانية النشطة</div>
           <div className="text-3xl font-bold text-tertiary font-headline-lg">
             {employees.filter((e) => e.isActive).length}
@@ -230,7 +261,7 @@ export default function TrafficEmployeesPage() {
           <div className="text-xs text-tertiary mt-1">صلاحيات الرصد والفحص مفعلة</div>
         </div>
 
-        <div className="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/30 shadow-[0_4px_20px_rgba(11,79,108,0.05)]">
+        <div className="bg-surface-container-lowest rounded-xl p-5 border border-outline-variant/30 shadow-[0_4px_20px_rgba(12,74,78,0.05)]">
           <div className="text-xs font-semibold text-secondary mb-1">حسابات موقوفة أو في إجازة</div>
           <div className="text-3xl font-bold text-error font-headline-lg">
             {employees.filter((e) => !e.isActive).length}
@@ -240,7 +271,7 @@ export default function TrafficEmployeesPage() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-surface-container-lowest rounded-xl p-4 shadow-[0_4px_20px_rgba(11,79,108,0.05)] border border-outline-variant/30 flex flex-col sm:flex-row gap-4 justify-between items-center">
+      <div className="bg-surface-container-lowest rounded-xl p-4 shadow-[0_4px_20px_rgba(12,74,78,0.05)] border border-outline-variant/30 flex flex-col sm:flex-row gap-4 justify-between items-center">
         <div className="relative flex-1 w-full">
           <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-secondary" />
           <input
@@ -265,7 +296,7 @@ export default function TrafficEmployeesPage() {
       </div>
 
       {/* Officers Table */}
-      <div className="bg-surface-container-lowest rounded-xl shadow-[0_4px_20px_rgba(11,79,108,0.05)] border border-outline-variant/30 overflow-hidden">
+      <div className="bg-surface-container-lowest rounded-xl shadow-[0_4px_20px_rgba(12,74,78,0.05)] border border-outline-variant/30 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-right border-collapse text-xs md:text-sm">
             <thead>
@@ -407,11 +438,21 @@ export default function TrafficEmployeesPage() {
                   maxLength={11}
                   required
                   value={nationalNumber}
-                  onChange={(e) => setNationalNumber(e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) => {
+                    setNationalNumber(e.target.value.replace(/\D/g, ""));
+                    if (modalError) setModalError(null);
+                  }}
                   placeholder="مثال: 01001000001"
                   className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-xs font-mono outline-none focus:border-primary"
                 />
               </div>
+
+              {modalError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="font-medium">{modalError}</span>
+                </div>
+              )}
 
               <div className="pt-2 flex items-center justify-end gap-3">
                 <button
