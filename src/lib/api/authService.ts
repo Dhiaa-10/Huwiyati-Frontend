@@ -89,6 +89,8 @@ export interface RegisterResult {
 export interface LoginPayload {
   nationalNumber: string;
   password: string;
+  requestedRole: string;
+  branchId?: string;
   deviceIdentifier: string;
   deviceName?: string;
   operatingSystem?: string;

@@ -2,24 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  FileCheck2,
   Search,
   CheckCircle2,
-  XCircle,
-  Clock,
-  Printer,
-  ShieldCheck,
   AlertCircle,
-  FileText,
-  User,
-  Calendar,
-  CreditCard,
-  Building2,
   RefreshCw,
-  Eye,
-  Check,
   X,
-  Sparkles,
+  Printer,
 } from "lucide-react";
 import { passportsService } from "@/lib/api/passportsService";
 import { PassportRequest } from "@/types/passports";
@@ -30,7 +18,6 @@ export default function PassportRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [urgentOnly, setUrgentOnly] = useState(false);
   const [officerNotes, setOfficerNotes] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -41,7 +28,7 @@ export default function PassportRequestsPage() {
 
   useEffect(() => {
     loadRequests();
-  }, [statusFilter, urgentOnly]);
+  }, [statusFilter]);
 
   const loadRequests = async () => {
     setLoading(true);
@@ -49,11 +36,9 @@ export default function PassportRequestsPage() {
       const res = await passportsService.getPassportRequests({
         search,
         status: statusFilter === "all" ? undefined : statusFilter,
-        urgentOnly: urgentOnly ? true : undefined,
       });
       setRequests(res.items);
       if (res.items.length > 0) {
-        // Keep selected if exists, else select first
         const found = res.items.find((r) => r.id === selectedRequest?.id);
         setSelectedRequest(found || res.items[0]);
         setOfficerNotes(found?.officerNotes || res.items[0].officerNotes || "");
@@ -98,7 +83,7 @@ export default function PassportRequestsPage() {
       } else if (newStatus === "UnderReview") {
         msg = `تم فتح المعاملة والبدء في فحص وتدقيق الوثائق.`;
       } else {
-        msg = `تم تسجيل رفض الطلب وتوثيق السبب في السجل الأمني للمواطن.`;
+        msg = `تم تسجيل رفض الطلب وتوثيق السبب في ملف المواطن.`;
       }
 
       setFeedback({ type: newStatus === "Rejected" ? "error" : "success", message: msg });
@@ -117,15 +102,11 @@ export default function PassportRequestsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#0b4f6c] mb-1">
-            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-            صلاحيات ضابط الفحص والاعتماد (مستوى 3)
-          </div>
           <h1 className="text-2xl font-bold text-[#00374e]">
-            فحص ومعالجة طلبات الجوازات الواردة
+            معالجة طلبات الجوازات
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            تدقيق طلبات الإصدار والتجديد، مطابقة البصمات مع السجل المدني، وطباعة الجوازات الإلكترونية
+            مراجعة واعتماد طلبات إصدار وتجديد الجوازات الواردة
           </p>
         </div>
 
@@ -181,39 +162,27 @@ export default function PassportRequestsPage() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1 overflow-x-auto text-[11px]">
-                {[
-                  { label: "الكل", value: "all" },
-                  { label: "معلق", value: "Pending" },
-                  { label: "قيد المراجعة", value: "UnderReview" },
-                  { label: "تم الاعتماد", value: "Approved" },
-                  { label: "تمت الطباعة", value: "Printed" },
-                  { label: "مرفوض", value: "Rejected" },
-                ].map((tab) => (
-                  <button
-                    key={tab.value}
-                    onClick={() => setStatusFilter(tab.value)}
-                    className={`px-2.5 py-1 rounded-lg transition-colors font-medium whitespace-nowrap ${
-                      statusFilter === tab.value
-                        ? "bg-[#00374e] text-white"
-                        : "text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              <label className="flex items-center gap-1.5 text-xs text-rose-700 font-semibold cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={urgentOnly}
-                  onChange={(e) => setUrgentOnly(e.target.checked)}
-                  className="rounded border-rose-300 text-rose-600 focus:ring-rose-500"
-                />
-                <span>عاجل فقط</span>
-              </label>
+            <div className="flex items-center gap-1 overflow-x-auto text-[11px]">
+              {[
+                { label: "الكل", value: "all" },
+                { label: "معلق", value: "Pending" },
+                { label: "قيد المراجعة", value: "UnderReview" },
+                { label: "تم الاعتماد", value: "Approved" },
+                { label: "تمت الطباعة", value: "Printed" },
+                { label: "مرفوض", value: "Rejected" },
+              ].map((tab) => (
+                <button
+                  key={tab.value}
+                  onClick={() => setStatusFilter(tab.value)}
+                  className={`px-2.5 py-1 rounded-lg transition-colors font-medium whitespace-nowrap ${
+                    statusFilter === tab.value
+                      ? "bg-[#00374e] text-white"
+                      : "text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -242,54 +211,38 @@ export default function PassportRequestsPage() {
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0">
-                          <img
-                            src={req.photoUrl}
-                            alt={req.fullName}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-bold text-gray-900 leading-tight">
-                            {req.fullName}
-                          </h4>
-                          <span className="text-[10px] font-mono text-gray-500">
-                            {req.nationalNumber}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        {req.urgentPriority && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 animate-pulse">
-                            عاجل
-                          </span>
-                        )}
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                            req.status === "Printed"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : req.status === "Approved"
-                              ? "bg-blue-50 text-blue-700 border border-blue-200"
-                              : req.status === "UnderReview"
-                              ? "bg-amber-50 text-amber-700 border border-amber-200"
-                              : req.status === "Rejected"
-                              ? "bg-rose-50 text-rose-700 border border-rose-200"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {req.status === "Printed"
-                            ? "تمت الطباعة"
-                            : req.status === "Approved"
-                            ? "معتمد"
-                            : req.status === "UnderReview"
-                            ? "قيد التدقيق"
-                            : req.status === "Rejected"
-                            ? "مرفوض"
-                            : "جديد"}
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-900 leading-tight">
+                          {req.fullName}
+                        </h4>
+                        <span className="text-[10px] font-mono text-gray-500">
+                          {req.nationalNumber}
                         </span>
                       </div>
+
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${
+                          req.status === "Printed"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : req.status === "Approved"
+                            ? "bg-blue-50 text-blue-700 border border-blue-200"
+                            : req.status === "UnderReview"
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : req.status === "Rejected"
+                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {req.status === "Printed"
+                          ? "تمت الطباعة"
+                          : req.status === "Approved"
+                          ? "معتمد"
+                          : req.status === "UnderReview"
+                          ? "قيد التدقيق"
+                          : req.status === "Rejected"
+                          ? "مرفوض"
+                          : "جديد"}
+                      </span>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-gray-500 mt-2">
@@ -309,35 +262,19 @@ export default function PassportRequestsPage() {
             <>
               {/* Inspector Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-16 rounded-xl overflow-hidden border border-gray-200 bg-gray-100 shrink-0 shadow-sm">
-                    <img
-                      src={selectedRequest.photoUrl}
-                      alt={selectedRequest.fullName}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-[#00374e]">
-                        {selectedRequest.fullName}
-                      </h3>
-                      {selectedRequest.urgentPriority && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
-                          معاملة مستعجلة
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {selectedRequest.serviceName} • {selectedRequest.branchName}
-                    </p>
-                    <p className="text-[11px] font-mono text-[#0b4f6c] mt-0.5 font-semibold">
-                      {selectedRequest.requestNumber}
-                    </p>
-                  </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#00374e]">
+                    {selectedRequest.fullName}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {selectedRequest.serviceName} • {selectedRequest.branchName}
+                  </p>
+                  <p className="text-[11px] font-mono text-[#0b4f6c] mt-0.5 font-semibold">
+                    {selectedRequest.requestNumber}
+                  </p>
                 </div>
 
-                {/* Status Badging */}
+                {/* Status Badge */}
                 <div className="text-left">
                   <span
                     className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
@@ -352,7 +289,16 @@ export default function PassportRequestsPage() {
                         : "bg-gray-100 text-gray-800"
                     }`}
                   >
-                    الحالة: {selectedRequest.status}
+                    الحالة:{" "}
+                    {selectedRequest.status === "Printed"
+                      ? "تمت الطباعة"
+                      : selectedRequest.status === "Approved"
+                      ? "معتمد"
+                      : selectedRequest.status === "UnderReview"
+                      ? "قيد التدقيق"
+                      : selectedRequest.status === "Rejected"
+                      ? "مرفوض"
+                      : "جديد"}
                   </span>
                   <div className="text-[10px] text-gray-400 mt-1">
                     تاريخ التقديم: {selectedRequest.submissionDate}
@@ -360,27 +306,7 @@ export default function PassportRequestsPage() {
                 </div>
               </div>
 
-              {/* Civil Registry Biometric Verification Match */}
-              <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50/70 to-teal-50/70 border border-emerald-200/80 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-sm">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-emerald-950">
-                      تطابق سجل الأحوال المدنية والبصمة الرقمية
-                    </h4>
-                    <p className="text-[11px] text-emerald-700">
-                      الهوية الوطنية <strong>{selectedRequest.nationalNumber}</strong> مفعلة وموثقة بيومترياً بنسبة 99.4%
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-300">
-                  سجل سليم
-                </span>
-              </div>
-
-              {/* Details Bento Grid */}
+              {/* Details Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
                   <span className="text-gray-400 text-[11px]">الرقم الوطني للمواطن</span>
@@ -397,59 +323,34 @@ export default function PassportRequestsPage() {
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
-                  <span className="text-gray-400 text-[11px]">رسوم الخدمة المقررة</span>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-[#00374e] font-mono text-sm">
-                      {selectedRequest.fee.toLocaleString()} ريال يمني
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
-                      تم السداد إلكترونياً
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
                   <span className="text-gray-400 text-[11px]">الفرع المخصص للاستلام</span>
                   <p className="font-bold text-gray-800">{selectedRequest.branchName}</p>
                 </div>
-              </div>
 
-              {/* Attachments Section */}
-              <div>
-                <h4 className="text-xs font-bold text-[#00374e] mb-2.5 flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-[#0b4f6c]" />
-                  المرفقات والوثائق الرسمية المرفوعة
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {selectedRequest.attachments.map((att, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-gray-100/70 transition-colors flex items-center justify-between group"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileCheck2 className="w-4 h-4 text-[#0b4f6c] shrink-0" />
-                        <span className="text-xs text-gray-700 font-medium truncate">
-                          {att.name}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-gray-400 group-hover:text-[#0b4f6c] font-bold">
-                        معاينة
-                      </span>
-                    </div>
-                  ))}
+                <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
+                  <span className="text-gray-400 text-[11px]">نوع الخدمة</span>
+                  <p className="font-bold text-gray-800">{selectedRequest.serviceName}</p>
                 </div>
               </div>
+
+              {/* Rejection Reason (if rejected) */}
+              {selectedRequest.status === "Rejected" && selectedRequest.rejectionReason && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs">
+                  <span className="text-rose-700 font-bold">سبب الرفض: </span>
+                  <span className="text-rose-800">{selectedRequest.rejectionReason}</span>
+                </div>
+              )}
 
               {/* Officer Notes Input */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-700">
-                  ملاحظات ضابط الفحص والاعتماد (الرائد خالد يحيى العريقي):
+                  ملاحظات ضابط الفحص والاعتماد:
                 </label>
                 <textarea
                   rows={2}
                   value={officerNotes}
                   onChange={(e) => setOfficerNotes(e.target.value)}
-                  placeholder="أدخل أي ملاحظات فنية أو أمنية حول استيفاء الشروط..."
+                  placeholder="أدخل أي ملاحظات حول استيفاء الشروط..."
                   className="w-full p-3 rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-[#0b4f6c] bg-white resize-none"
                 />
               </div>
@@ -524,7 +425,7 @@ export default function PassportRequestsPage() {
             </div>
 
             <p className="text-xs text-gray-600">
-              سيتم إشعار المواطن رسمياً بسبب الرفض وتسجيل ذلك في ملف التدقيق الخاص بـ (
+              سيتم إشعار المواطن رسمياً بسبب الرفض وتسجيل ذلك في ملف الطلب الخاص بـ (
               {selectedRequest?.fullName}).
             </p>
 
@@ -534,7 +435,7 @@ export default function PassportRequestsPage() {
                 rows={3}
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="مثال: الصورة المرفقة لا تطابق المعايير البايومترية، أو عدم وضوح سند السداد..."
+                placeholder="مثال: الوثائق المرفقة غير مكتملة أو غير واضحة..."
                 className="w-full p-3 rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-rose-500 bg-white"
               />
             </div>

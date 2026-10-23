@@ -261,9 +261,9 @@ export default function IssuedPassportsPage() {
         <div className="flex items-center gap-1.5 w-full md:w-auto overflow-x-auto text-xs">
           {[
             { label: "كافة الجوازات", value: "all" },
-            { label: "سارية المفعول (Active)", value: "Active" },
-            { label: "منتهية الصلاحية (Expired)", value: "Expired" },
-            { label: "ملغاة أو تالفة (Canceled)", value: "Canceled" },
+            { label: "جواز سفر عادي (Regular)", value: "Regular" },
+            { label: "جواز سفر دبلوماسي (Diplomatic)", value: "Diplomatic" },
+            { label: "جواز سفر خاص / مهمة (Special)", value: "Special" },
           ].map((tab) => (
             <button
               key={tab.value}
@@ -331,16 +331,10 @@ export default function IssuedPassportsPage() {
                     className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                       pass.status === "Active"
                         ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        : pass.status === "Expired"
-                        ? "bg-amber-50 text-amber-700 border border-amber-200"
-                        : "bg-rose-50 text-rose-700 border border-rose-200"
+                        : "bg-amber-50 text-amber-700 border border-amber-200"
                     }`}
                   >
-                    {pass.status === "Active"
-                      ? "ساري"
-                      : pass.status === "Expired"
-                      ? "منتهي"
-                      : "ملغي"}
+                    {pass.status === "Active" ? "ساري" : "منتهي"}
                   </span>
                 </div>
 
@@ -534,7 +528,7 @@ export default function IssuedPassportsPage() {
               <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
                 <p className="font-semibold mb-1">تنبيه أمني وإجرائي:</p>
                 <p className="text-[11px] text-amber-800">
-                  سيتم تلقائياً تحويل حالة الجواز النشط القديم إلى منتهي/ملغي، وتوليد رقم وثيقة جديد وربط حركات المنافذ به.
+                  سيتم تلقائياً إنهاء صلاحية الجواز النشط القديم (تحويله إلى منتهي الصلاحية)، وتوليد رقم وثيقة جديد وربط حركات المنافذ به.
                 </p>
               </div>
 
@@ -607,7 +601,7 @@ export default function IssuedPassportsPage() {
                               : "bg-rose-50 text-rose-700 border border-rose-200"
                           }`}
                         >
-                          {rec.status === "Active" ? "ساري المفعول" : rec.status === "Expired" ? "منتهي الصلاحية" : "ملغي"}
+                          {rec.status === "Active" ? "ساري المفعول" : "منتهي الصلاحية"}
                         </span>
                       </div>
                       <div className="text-xs text-gray-600 space-y-0.5">

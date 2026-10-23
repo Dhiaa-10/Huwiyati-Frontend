@@ -54,6 +54,15 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
   {
     role: "SUPER_ADMIN",
     roleLabel: "سوبر أدمن",
+    nationalNumber: "01011131317",
+    name: "ضياء محمد عبدالمجيد السالمي",
+    agency: "وزارة الداخلية",
+    badgeColor: "bg-[#E6F1EE] text-[#052F31] border-[#BFE5DF]",
+    category: "admin",
+  },
+  {
+    role: "SUPER_ADMIN",
+    roleLabel: "سوبر أدمن",
     nationalNumber: "01011135650",
     name: "مصعب محمد أحمد ناشر النجري",
     agency: "وزارة الداخلية",
@@ -162,6 +171,34 @@ function getRedirectPath(role: RoleType, agency: AgencyType): string {
   if (agency === "المرور") return "/traffic/violations";
   if (agency === "المستشفيات") return "/hospitals/records";
   return "/civil-registry/activations";
+}
+
+/** Map frontend role → backend AppRole string */
+function getBackendRoleString(role: ActiveRoleType): string {
+  switch (role) {
+    case "SUPER_ADMIN":
+      return "SuperAdmin";
+    case "ADMIN":
+      return "Admin";
+    case "EMPLOYEE":
+      return "Employee";
+  }
+}
+
+/** Get Branch GUID for each agency based on database seeds */
+function getBranchIdForAgency(agency: AgencyType): string {
+  switch (agency) {
+    case "الأحوال المدنية":
+      return "018f7d9a-2000-7000-8000-000000000001";
+    case "المستشفيات":
+      return "018f7d9a-2000-7000-8000-000000000003";
+    case "الجوازات":
+      return "018f7d9a-2000-7000-8000-000000000005";
+    case "المرور":
+      return "018f7d9a-2000-7000-8000-000000000001";
+    default:
+      return "018f7d9a-2000-7000-8000-000000000001";
+  }
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -305,7 +342,7 @@ export default function LoginPage() {
         actualJobTitle = "مدير فرع الأحوال المدنية";
       } else if (resolvedAgency === "المرور") {
         actualBranchName = "إدارة شرطة السير والمرور - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
+        actualBranchId = "018f7d9a-2000-7000-8000-000000000001";
         actualJobTitle = "مدير إدارة المرور";
       } else if (resolvedAgency === "المستشفيات") {
         actualBranchName = "هيئة مستشفى الثورة العام النموذجي";
@@ -326,7 +363,7 @@ export default function LoginPage() {
         actualJobTitle = "موظف كاونتر وتفعيل بيومتري حضوري";
       } else if (resolvedAgency === "المرور") {
         actualBranchName = "إدارة شرطة السير والمرور - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
+        actualBranchId = "018f7d9a-2000-7000-8000-000000000001";
         actualJobTitle = "موظف الرخص والمخالفات";
       } else if (resolvedAgency === "المستشفيات") {
         actualBranchName = "هيئة مستشفى الثورة العام النموذجي";
@@ -374,10 +411,17 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const deviceId = getDeviceIdentifier(identifier.trim());
+      const backendRole = getBackendRoleString(role);
+      const branchId =
+        backendRole === "Admin" || backendRole === "Employee"
+          ? getBranchIdForAgency(agency)
+          : undefined;
 
       const res = await apiLogin({
         nationalNumber: identifier.trim(),
         password: password.trim(),
+        requestedRole: backendRole,
+        branchId: branchId,
         deviceIdentifier: deviceId,
         deviceName: "Huwiyati Web Portal",
         operatingSystem: typeof navigator !== "undefined" ? navigator.platform : "Web",
@@ -386,6 +430,8 @@ export default function LoginPage() {
       if (!res.isSuccess) {
         // Translate common backend error messages
         const msg = res.message ?? "فشل تسجيل الدخول. تحقق من بياناتك.";
+        const errorDetails = res.errors && res.errors.length > 0 ? `: ${res.errors.join(" - ")}` : "";
+
         if (msg.includes("Invalid National Number or Password")) {
           setErrorMessage("رقم الهوية أو كلمة المرور غير صحيحة.");
         } else if (msg.includes("suspended")) {
@@ -395,7 +441,7 @@ export default function LoginPage() {
             "حسابك معطّل. يرجى طلب رمز إعادة التفعيل عبر خيار نسيت كلمة المرور."
           );
         } else {
-          setErrorMessage(msg);
+          setErrorMessage(`${msg}${errorDetails}`);
         }
         return;
       }

@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+﻿import { apiClient } from "./client";
 import { PaginatedResponse } from "@/types/api";
 import {
   PassportRecord,
@@ -51,52 +51,37 @@ function mapBackendToPassportRequest(dto: ServiceRequestDto): PassportRequest {
     id: dto.id,
     requestNumber: dto.requestNumber,
     personId: dto.personId,
-    nationalNumber: dto.nationalNumber || "01010000000",
-    fullName: dto.personFullName || "مواطن يمني",
-    photoUrl:
-      parsed.photoUrl ||
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
+    nationalNumber: dto.nationalNumber || "",
+    fullName: dto.personFullName || "",
+    photoUrl: parsed.photoUrl || "",
     serviceType: sType,
-    serviceName: dto.serviceTypeName || "جواز سفر إلكتروني",
+    serviceName: dto.serviceTypeName || "",
     branchId: dto.branchId,
-    branchName: dto.branchName || "مصلحة الهجرة والجوازات",
+    branchName: dto.branchName || "",
     status,
     previousPassportNumber: parsed.previousPassportNumber || undefined,
     urgentPriority: parsed.urgentPriority ?? false,
-    fee: parsed.fee || 15000,
-    isPaid: true,
+    fee: parsed.fee ?? 0,
+    isPaid: parsed.isPaid ?? false,
     submissionDate: dto.submissionDate || dto.createdAt,
     completedDate: dto.completedDate || undefined,
     officerNotes: dto.statusHistory?.[0]?.note || undefined,
     rejectionReason: dto.rejectionReason || undefined,
-    attachments: [
-      {
-        name: "البطاقة الشخصية الذكية سارية المفعول",
-        fileUrl: "/docs/national_id.pdf",
-        type: "pdf",
-      },
-      {
-        name: "سند تسديد الرسوم الحكومية",
-        fileUrl: "/docs/passport_fee.pdf",
-        type: "pdf",
-      },
-    ],
+    attachments: [],
   };
 }
 
 function mapBackendPassportToRecord(dto: BackendPassportDto): PassportRecord {
   const pType: PassportType =
-    dto.passportType === "Diplomatic" || (dto.passportType as unknown) === 1
+    dto.passportType === "Diplomatic" || (dto.passportType as unknown) === 2
       ? "Diplomatic"
-      : dto.passportType === "Special" || (dto.passportType as unknown) === 2
+      : dto.passportType === "Special" || (dto.passportType as unknown) === 3
       ? "Special"
       : "Regular";
 
   const pStatus: PassportStatus =
-    dto.status === "Expired" || (dto.status as unknown) === 1
+    dto.status === "Expired" || (dto.status as unknown) === 2
       ? "Expired"
-      : dto.status === "Canceled" || (dto.status as unknown) === 2
-      ? "Canceled"
       : "Active";
 
   const typeLabels: Record<PassportType, string> = {
@@ -187,7 +172,7 @@ class LivePassportsService implements IPassportsService {
     }
 
     if (status && status !== "all") {
-      items = items.filter((p) => p.status === status);
+      items = items.filter((p) => p.passportType === status || p.status === status);
     }
 
     return items;
@@ -576,4 +561,5 @@ class LivePassportsService implements IPassportsService {
 }
 
 export const passportsService: IPassportsService = new LivePassportsService();
+
 

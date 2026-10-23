@@ -1,7 +1,7 @@
 import { PaginationParams } from "./api";
 
 export type PassportType = "Regular" | "Diplomatic" | "Special";
-export type PassportStatus = "Active" | "Expired" | "Canceled" | "Damaged";
+export type PassportStatus = "Active" | "Expired" | "Canceled";
 export type TravelMovementType = "Entry" | "Exit";
 export type BorderPortType = "Airport" | "LandPort" | "SeaPort";
 export type WatchlistStatus = "Clear" | "Banned" | "UnderInvestigation";
