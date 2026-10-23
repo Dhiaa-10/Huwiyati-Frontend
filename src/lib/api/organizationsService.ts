@@ -6,8 +6,7 @@
  */
 
 import { getToken } from "./authService";
-
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5237";
+import { getApiBaseUrl } from "./client";
 
 // ─── Shared fetch helper ───────────────────────────────────────────────────────
 
@@ -25,7 +24,7 @@ async function apiFetch<T>(
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  let url = `${BASE}${path}`;
+  let url = `${getApiBaseUrl()}${path}`;
   if (queryParams) {
     const qs = Object.entries(queryParams)
       .filter(([, v]) => v !== undefined && v !== "")

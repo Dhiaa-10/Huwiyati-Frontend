@@ -34,13 +34,19 @@ import {
   AssignAdminDto,
   UpdateAdminDto,
 } from "@/types/admin";
+import { useNotification } from "@/context/NotificationContext";
 
 export default function OrganizationAdminsPage() {
+  const { toast, confirm } = useNotification();
   const [admins, setAdmins] = useState<OrganizationAdmin[]>([]);
   const [branches, setBranches] = useState<OrganizationBranch[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [citizens, setCitizens] = useState<CitizenLookup[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // In-modal error states
+  const [assignError, setAssignError] = useState<string | null>(null);
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -130,21 +136,34 @@ export default function OrganizationAdminsPage() {
     return citizens.find((c) => c.nationalNumber === trimmed) || null;
   }, [assignForm.nationalNumber, citizens]);
 
+  // Existing admin lookup for assign form (detect if citizen was previously an admin or is relieved)
+  const matchedAdmin = useMemo(() => {
+    const trimmed = assignForm.nationalNumber.trim();
+    if (trimmed.length < 5) return null;
+    return admins.find((a) => a.nationalNumber === trimmed) || null;
+  }, [assignForm.nationalNumber, admins]);
+
   // Handle Assign Admin
   const handleAssignAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assignForm.nationalNumber || !assignForm.branchId) return;
 
     setSubmitting(true);
+    setAssignError(null);
     try {
       await adminService.assignAdmin({
         nationalNumber: assignForm.nationalNumber.trim(),
         branchId: assignForm.branchId,
       });
 
+      const successMsg = matchedAdmin && !matchedAdmin.isActive
+        ? `تمت إعادة تعيين وتكليف المدير ${matchedAdmin.fullName} بنجاح للفرع المختار.`
+        : `تم تكليف المدير بنجاح ومنحه صلاحيات الإدارة للفرع.`;
+
+      toast.success(successMsg);
       setNotification({
         type: "success",
-        message: `تم تكليف المدير بنجاح ومنحه صلاحيات الإدارة للفرع.`,
+        message: successMsg,
       });
       setIsAssignModalOpen(false);
       setAssignForm({
@@ -153,37 +172,54 @@ export default function OrganizationAdminsPage() {
       });
       await loadData();
     } catch (err: any) {
+      const msg = err?.message || "فشلت عملية تكليف المدير في الخادم.";
+      setAssignError(msg);
+      toast.error(msg);
       setNotification({
         type: "error",
-        message: err?.message || "فشلت عملية تكليف المدير في الخادم.",
+        message: msg,
       });
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Handle Transfer Branch
+  // Handle Transfer Branch (or transfer + restore if relieved)
   const handleTransferAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAdmin || !transferBranchId) return;
 
     setSubmitting(true);
+    setTransferError(null);
     try {
       await adminService.updateAdmin(selectedAdmin.employeeId, {
         branchId: transferBranchId,
       });
 
+      // If the admin was relieved, also reactivate their admin role in the new branch
+      if (!selectedAdmin.isActive) {
+        await adminService.restoreAdmin(selectedAdmin.employeeId);
+      }
+
+      const successMsg = !selectedAdmin.isActive
+        ? `تمت إعادة تعيين وتكليف المدير ${selectedAdmin.fullName} في الفرع الجديد بنجاح.`
+        : `تم نقل المدير ${selectedAdmin.fullName} إلى الفرع الجديد بنجاح.`;
+
+      toast.success(successMsg);
       setNotification({
         type: "success",
-        message: `تم نقل المدير ${selectedAdmin.fullName} إلى الفرع الجديد بنجاح.`,
+        message: successMsg,
       });
       setIsTransferModalOpen(false);
       setSelectedAdmin(null);
       await loadData();
     } catch (err: any) {
+      const msg = err?.message || "فشلت عملية نقل المدير.";
+      setTransferError(msg);
+      toast.error(msg);
       setNotification({
         type: "error",
-        message: err?.message || "فشلت عملية نقل المدير.",
+        message: msg,
       });
     } finally {
       setSubmitting(false);
@@ -199,7 +235,7 @@ export default function OrganizationAdminsPage() {
       await adminService.removeAdmin(selectedAdmin.employeeId);
       setNotification({
         type: "success",
-        message: `تم إعفاء ${selectedAdmin.fullName} من إدارة الفرع بنجاح (يبقى كموظف اعتيادي).`,
+        message: `تم إعفاء ${selectedAdmin.fullName} من إدارة الفرع بنجاح. يمكنك إعادة تعيينه أو تكليفه لاحقاً في أي وقت.`,
       });
       setIsRelieveConfirmOpen(false);
       setSelectedAdmin(null);
@@ -221,7 +257,7 @@ export default function OrganizationAdminsPage() {
       await adminService.restoreAdmin(admin.employeeId);
       setNotification({
         type: "success",
-        message: `تمت استعادة صلاحيات الإدارة للمدير ${admin.fullName} بنجاح.`,
+        message: `تمت استعادة صلاحيات الإدارة وإعادة تكليف المدير ${admin.fullName} لفرع (${admin.branchName}) بنجاح.`,
       });
       await loadData();
     } catch (err: any) {
@@ -265,11 +301,11 @@ export default function OrganizationAdminsPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-bold text-[#00374e] uppercase tracking-wider">
+            <span className="text-xs font-bold text-[#052F31] uppercase tracking-wider">
               الإشراف والرقابة السيادية
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#00374e]">
+          <h1 className="text-2xl md:text-3xl font-extrabold text-[#052F31]">
             تكليف وإدارة مدراء الفروع
           </h1>
           <p className="text-sm text-[#41484d] mt-1">
@@ -282,13 +318,13 @@ export default function OrganizationAdminsPage() {
             onClick={loadData}
             disabled={loading}
             title="تحديث البيانات"
-            className="p-2.5 bg-white text-[#00374e] border border-slate-300 rounded-xl hover:bg-slate-50 transition-all shadow-xs cursor-pointer disabled:opacity-60"
+            className="p-2.5 bg-white text-[#052F31] border border-slate-300 rounded-xl hover:bg-slate-50 transition-all shadow-xs cursor-pointer disabled:opacity-60"
           >
-            <RefreshCw className={`w-4 h-4 text-[#0b4f6c] ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 text-[#0C4A4E] ${loading ? "animate-spin" : ""}`} />
           </button>
           <button
             onClick={() => setIsAssignModalOpen(true)}
-            className="px-4 py-2.5 bg-[#0b4f6c] hover:bg-[#00374e] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+            className="px-4 py-2.5 bg-[#0C4A4E] hover:bg-[#052F31] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>تكليف مدير فرع جديد</span>
@@ -327,7 +363,7 @@ export default function OrganizationAdminsPage() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <div className="text-xs font-medium text-slate-500 mb-1">إجمالي المدراء المكلفين</div>
-            <div className="text-2xl font-black text-[#00374e]">{admins.length}</div>
+            <div className="text-2xl font-black text-[#052F31]">{admins.length}</div>
             <div className="text-[11px] text-slate-400 mt-1">مسجلين رسمياً في النظام</div>
           </div>
           <div className="p-3 bg-blue-50 text-blue-700 rounded-xl">
@@ -351,7 +387,7 @@ export default function OrganizationAdminsPage() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <div className="text-xs font-medium text-slate-500 mb-1">الفروع الحكومية النشطة</div>
-            <div className="text-2xl font-black text-[#00374e]">
+            <div className="text-2xl font-black text-[#052F31]">
               {branches.filter((b) => b.isActive).length}
             </div>
             <div className="text-[11px] text-slate-400 mt-1">عبر كافة الهيئات السيادية</div>
@@ -364,7 +400,7 @@ export default function OrganizationAdminsPage() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <div className="text-xs font-medium text-slate-500 mb-1">المواطنين في السجل المركزي</div>
-            <div className="text-2xl font-black text-[#00374e]">{citizens.length}</div>
+            <div className="text-2xl font-black text-[#052F31]">{citizens.length}</div>
             <div className="text-[11px] text-slate-400 mt-1">متاحين للترقية والتكليف</div>
           </div>
           <div className="p-3 bg-amber-50 text-amber-700 rounded-xl">
@@ -379,10 +415,10 @@ export default function OrganizationAdminsPage() {
           <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="بحث بالاسم، الرقم الوطني، الرقم الوظيفي، أو الفرع..."
+            placeholder="بحث بالاسم، الرقم الوطني، أو الفرع..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pr-10 pl-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#0b4f6c] focus:border-transparent transition-all"
+            className="w-full pr-10 pl-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#0C4A4E] focus:border-transparent transition-all"
           />
         </div>
 
@@ -424,7 +460,7 @@ export default function OrganizationAdminsPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-            <Loader2 className="w-8 h-8 animate-spin text-[#0b4f6c] mb-3" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#0C4A4E] mb-3" />
             <p className="text-xs">جاري جلب سجلات مدراء الفروع من الخادم المركزي...</p>
           </div>
         ) : filteredAdmins.length === 0 ? (
@@ -440,29 +476,28 @@ export default function OrganizationAdminsPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-right text-xs">
-              <thead className="bg-slate-50 text-[#00374e] border-b border-slate-200 font-bold">
+              <thead className="bg-slate-50 text-[#052F31] border-b border-slate-200 font-bold">
                 <tr>
-                  <th className="py-3.5 px-4">المدير المكلف</th>
-                  <th className="py-3.5 px-4">الرقم الوطني</th>
-                  <th className="py-3.5 px-4">الجهة والفرع</th>
-                  <th className="py-3.5 px-4">الرقم الوظيفي</th>
-                  <th className="py-3.5 px-4">بيانات الاتصال</th>
-                  <th className="py-3.5 px-4">الحالة</th>
-                  <th className="py-3.5 px-4 text-center">الإجراءات والعمليات</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">المدير المكلف</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">الرقم الوطني</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">الجهة والفرع</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">بيانات الاتصال</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">الحالة</th>
+                  <th className="py-3.5 px-4 text-center whitespace-nowrap">الإجراءات والعمليات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredAdmins.map((admin) => (
                   <tr key={admin.employeeId} className="hover:bg-slate-50/70 transition-colors">
                     {/* Admin Name & Avatar */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#00374e]/10 text-[#00374e] font-bold flex items-center justify-center text-xs">
+                        <div className="w-8 h-8 rounded-full bg-[#052F31]/10 text-[#052F31] font-bold flex items-center justify-center text-xs shrink-0">
                           {admin.fullName ? admin.fullName.charAt(0) : "م"}
                         </div>
                         <div>
-                          <div className="font-bold text-[#00374e]">{admin.fullName || "مدير فرع"}</div>
-                          <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                          <div className="font-bold text-[#052F31] whitespace-nowrap">{admin.fullName || "مدير فرع"}</div>
+                          <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 whitespace-nowrap">
                             <span>تاريخ التعيين:</span>
                             <span dir="ltr">
                               {new Date(admin.createdAt).toLocaleDateString("ar-YE")}
@@ -473,32 +508,25 @@ export default function OrganizationAdminsPage() {
                     </td>
 
                     {/* National Number */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <span className="font-mono bg-slate-100 px-2 py-1 rounded text-slate-700 text-[11px] font-semibold">
                         {admin.nationalNumber}
                       </span>
                     </td>
 
                     {/* Org & Branch */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex flex-col">
                         <span className="font-semibold text-slate-800 flex items-center gap-1">
-                          <Building2 className="w-3 h-3 text-[#0b4f6c]" />
-                          {admin.organizationName}
+                          <Building2 className="w-3 h-3 text-[#0C4A4E] shrink-0" />
+                          <span>{admin.organizationName}</span>
                         </span>
                         <span className="text-[11px] text-slate-500">{admin.branchName}</span>
                       </div>
                     </td>
 
-                    {/* Employee Number */}
-                    <td className="py-3.5 px-4">
-                      <span className="font-mono text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 text-[11px]">
-                        {admin.employeeNumber}
-                      </span>
-                    </td>
-
                     {/* Contact */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex flex-col gap-0.5 text-[11px] text-slate-500">
                         {admin.phoneNumber && (
                           <span className="flex items-center gap-1">
@@ -516,7 +544,7 @@ export default function OrganizationAdminsPage() {
                     </td>
 
                     {/* Status */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       {admin.isActive ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <CheckCircle2 className="w-3 h-3" />
@@ -531,7 +559,7 @@ export default function OrganizationAdminsPage() {
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-center">
+                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-2">
                         {admin.isActive ? (
                           <>
@@ -544,7 +572,7 @@ export default function OrganizationAdminsPage() {
                               className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
                               title="نقل المدير لفرع آخر"
                             >
-                              <Edit3 className="w-3 h-3 text-[#0b4f6c]" />
+                              <Edit3 className="w-3 h-3 text-[#0C4A4E]" />
                               <span>نقل فرع</span>
                             </button>
                             <button
@@ -560,15 +588,29 @@ export default function OrganizationAdminsPage() {
                             </button>
                           </>
                         ) : (
-                          <button
-                            onClick={() => handleRestoreAdmin(admin)}
-                            disabled={submitting}
-                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                            title="إعادة التكليف كمدير"
-                          >
-                            <UserCheck className="w-3 h-3 text-emerald-600" />
-                            <span>إعادة تكليف</span>
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => handleRestoreAdmin(admin)}
+                              disabled={submitting}
+                              className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                              title="إعادة التكليف كمدير لنفس الفرع"
+                            >
+                              <UserCheck className="w-3 h-3 text-emerald-600" />
+                              <span>إعادة تكليف</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedAdmin(admin);
+                                setTransferBranchId(admin.branchId);
+                                setIsTransferModalOpen(true);
+                              }}
+                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                              title="إعادة تعيين ونقل لفرع آخر"
+                            >
+                              <Edit3 className="w-3 h-3 text-[#0C4A4E]" />
+                              <span>تعيين بفرع آخر</span>
+                            </button>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -586,11 +628,11 @@ export default function OrganizationAdminsPage() {
           <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-150">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-[#00374e]/10 text-[#00374e] rounded-lg">
+                <div className="p-2 bg-[#052F31]/10 text-[#052F31] rounded-lg">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[#00374e]">تكليف مدير فرع جديد</h3>
+                  <h3 className="text-base font-bold text-[#052F31]">تكليف مدير فرع جديد</h3>
                   <p className="text-xs text-slate-500">إسناد إدارة أحد الفروع لمواطن مسجل في السجل المدني</p>
                 </div>
               </div>
@@ -611,7 +653,7 @@ export default function OrganizationAdminsPage() {
                 <select
                   value={selectedOrgForAssign}
                   onChange={(e) => setSelectedOrgForAssign(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#0b4f6c] focus:outline-hidden"
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#0C4A4E] focus:outline-hidden"
                 >
                   {organizations.map((org) => (
                     <option key={org.id} value={org.id}>
@@ -636,7 +678,7 @@ export default function OrganizationAdminsPage() {
                     onChange={(e) =>
                       setAssignForm((prev) => ({ ...prev, branchId: e.target.value }))
                     }
-                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#0b4f6c] focus:outline-hidden"
+                    className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#0C4A4E] focus:outline-hidden"
                   >
                     {assignableBranches.map((branch) => (
                       <option key={branch.id} value={branch.id}>
@@ -661,7 +703,7 @@ export default function OrganizationAdminsPage() {
                     onChange={(e) =>
                       setAssignForm((prev) => ({ ...prev, nationalNumber: e.target.value }))
                     }
-                    className="w-full text-xs p-2.5 pr-8 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#0b4f6c] focus:outline-hidden font-mono"
+                    className="w-full text-xs p-2.5 pr-8 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#0C4A4E] focus:outline-hidden font-mono"
                   />
                   <CreditCard className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
                 </div>
@@ -669,8 +711,8 @@ export default function OrganizationAdminsPage() {
                   يجب أن يكون المواطن مسجلاً في السجل المدني ويمتلك حساب مستخدم نشط.
                 </span>
 
-                {/* Live Lookup Match Banner */}
-                {matchedCitizen && (
+                {/* Live Lookup Match Banner: Citizen */}
+                {matchedCitizen && !matchedAdmin && (
                   <div className="mt-2.5 p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -688,6 +730,61 @@ export default function OrganizationAdminsPage() {
                     </span>
                   </div>
                 )}
+
+                {/* Match Banner: Prior or Relieved Admin */}
+                {matchedAdmin && (
+                  <div
+                    className={`mt-2.5 p-3 rounded-xl border flex items-center justify-between ${
+                      matchedAdmin.isActive
+                        ? "bg-amber-50 border-amber-200 text-amber-900"
+                        : "bg-blue-50 border-blue-200 text-blue-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <UserCheck
+                        className={`w-4 h-4 ${
+                          matchedAdmin.isActive ? "text-amber-600" : "text-blue-600"
+                        }`}
+                      />
+                      <div>
+                        <div className="text-xs font-bold">
+                          {matchedAdmin.fullName} (
+                          {matchedAdmin.isActive ? "مدير مكلف حالياً" : "مدير معفى من الإدارة"}
+                          )
+                        </div>
+                        <div className="text-[10px] opacity-80">
+                          الفرع المسجل له: {matchedAdmin.branchName} —{" "}
+                          {matchedAdmin.organizationName}
+                          {!matchedAdmin.isActive &&
+                            " • سيتم إعادة تعيينه وترقيته للفرع الجديد فوراً."}
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                        matchedAdmin.isActive
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-blue-100 text-blue-800"
+                      }`}
+                    >
+                      {matchedAdmin.isActive ? "نشط" : "إعادة تعيين"}
+                    </span>
+                  </div>
+                )}
+                {/* In-Modal Error Alert Banner */}
+                {assignError && (
+                  <div className="mt-3 p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-800 animate-in fade-in">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <span className="flex-1 leading-relaxed font-semibold">{assignError}</span>
+                    <button
+                      type="button"
+                      onClick={() => setAssignError(null)}
+                      className="text-rose-400 hover:text-rose-700 cursor-pointer p-0.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
@@ -701,7 +798,7 @@ export default function OrganizationAdminsPage() {
                 <button
                   type="submit"
                   disabled={submitting || !assignForm.branchId || !assignForm.nationalNumber}
-                  className="px-5 py-2 bg-[#0b4f6c] hover:bg-[#00374e] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                  className="px-5 py-2 bg-[#0C4A4E] hover:bg-[#052F31] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-60"
                 >
                   {submitting ? (
                     <>
@@ -724,11 +821,11 @@ export default function OrganizationAdminsPage() {
           <div className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-150">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-[#00374e]/10 text-[#00374e] rounded-lg">
+                <div className="p-2 bg-[#052F31]/10 text-[#052F31] rounded-lg">
                   <Edit3 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[#00374e]">نقل المدير إلى فرع آخر</h3>
+                  <h3 className="text-base font-bold text-[#052F31]">نقل المدير إلى فرع آخر</h3>
                   <p className="text-xs text-slate-500">{selectedAdmin.fullName}</p>
                 </div>
               </div>
@@ -743,7 +840,7 @@ export default function OrganizationAdminsPage() {
             <form onSubmit={handleTransferAdmin} className="p-5 space-y-4">
               <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
                 <div className="text-slate-500">الفرع الحالي:</div>
-                <div className="font-bold text-[#00374e]">{selectedAdmin.branchName} ({selectedAdmin.organizationName})</div>
+                <div className="font-bold text-[#052F31]">{selectedAdmin.branchName} ({selectedAdmin.organizationName})</div>
               </div>
 
               <div>
@@ -753,7 +850,7 @@ export default function OrganizationAdminsPage() {
                 <select
                   value={transferBranchId}
                   onChange={(e) => setTransferBranchId(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#0b4f6c] focus:outline-hidden"
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#0C4A4E] focus:outline-hidden"
                 >
                   {branches
                     .filter((b) => b.isActive)
@@ -764,6 +861,21 @@ export default function OrganizationAdminsPage() {
                     ))}
                 </select>
               </div>
+
+              {/* In-Modal Error Alert Banner */}
+              {transferError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-800 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span className="flex-1 leading-relaxed font-semibold">{transferError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setTransferError(null)}
+                    className="text-rose-400 hover:text-rose-700 cursor-pointer p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                 <button
@@ -776,7 +888,7 @@ export default function OrganizationAdminsPage() {
                 <button
                   type="submit"
                   disabled={submitting || !transferBranchId}
-                  className="px-5 py-2 bg-[#0b4f6c] hover:bg-[#00374e] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                  className="px-5 py-2 bg-[#0C4A4E] hover:bg-[#052F31] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-60"
                 >
                   {submitting ? (
                     <>

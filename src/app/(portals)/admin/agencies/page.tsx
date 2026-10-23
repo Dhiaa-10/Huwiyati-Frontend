@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useMemo, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Building2,
@@ -20,14 +21,18 @@ import {
   Loader2,
   AlertCircle,
   Building,
+  User,
+  UserCheck,
 } from "lucide-react";
-import { adminService } from "@/lib/api/adminService";
+import { adminService, CitizenLookup } from "@/lib/api/adminService";
 import {
   Organization,
   OrganizationBranch,
+  OrganizationAdmin,
   CreateBranchDto,
   UpdateBranchDto,
 } from "@/types/admin";
+import { useNotification } from "@/context/NotificationContext";
 
 function AgenciesAndBranchesContent() {
   const searchParams = useSearchParams();
@@ -35,10 +40,14 @@ function AgenciesAndBranchesContent() {
 
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [branches, setBranches] = useState<OrganizationBranch[]>([]);
+  const [admins, setAdmins] = useState<OrganizationAdmin[]>([]);
+  const [citizens, setCitizens] = useState<CitizenLookup[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrgFilter, setSelectedOrgFilter] = useState<string>(initialOrgId);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const { toast, confirm } = useNotification();
 
   // Notifications
   const [notification, setNotification] = useState<{
@@ -51,8 +60,11 @@ function AgenciesAndBranchesContent() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<OrganizationBranch | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   // Form State for Add
+  const [directorNationalNumber, setDirectorNationalNumber] = useState("");
   const [branchForm, setBranchForm] = useState<CreateBranchDto>({
     organizationId: "",
     branchName: "",
@@ -73,12 +85,22 @@ function AgenciesAndBranchesContent() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [orgsRes, branchesRes] = await Promise.all([
+      const [orgsRes, branchesRes, adminsRes, citizensRes] = await Promise.all([
         adminService.getOrganizations(),
         adminService.getBranches(),
+        adminService.getAdmins().catch((err) => {
+          console.warn("Error loading admins:", err);
+          return [] as OrganizationAdmin[];
+        }),
+        adminService.getCitizens().catch((err) => {
+          console.warn("Error loading citizens:", err);
+          return [] as CitizenLookup[];
+        }),
       ]);
       setOrganizations(orgsRes.items);
       setBranches(branchesRes);
+      setAdmins(adminsRes);
+      setCitizens(citizensRes);
 
       if (orgsRes.items.length > 0 && !branchForm.organizationId) {
         setBranchForm((prev) => ({ ...prev, organizationId: orgsRes.items[0].id }));
@@ -98,18 +120,63 @@ function AgenciesAndBranchesContent() {
     loadData();
   }, []);
 
+  // Live lookup for citizen when typing director national ID
+  const matchedCitizen = useMemo(() => {
+    const trimmed = directorNationalNumber.trim();
+    if (trimmed.length < 5) return null;
+    return citizens.find((c) => c.nationalNumber === trimmed) || null;
+  }, [directorNationalNumber, citizens]);
+
+  // Map each branch ID to its administrator (prioritizing active ones)
+  const branchAdminsMap = useMemo(() => {
+    const map = new Map<string, OrganizationAdmin>();
+    admins.forEach((a) => {
+      if (!a.branchId) return;
+      const existing = map.get(a.branchId);
+      if (!existing || (!existing.isActive && a.isActive)) {
+        map.set(a.branchId, a);
+      }
+    });
+    return map;
+  }, [admins]);
+
   const handleCreateBranch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!branchForm.branchName || !branchForm.organizationId) return;
 
     setSubmitting(true);
+    setAddError(null);
     try {
-      await adminService.createBranch(branchForm);
+      // 1. Create the branch in the backend
+      const createdBranch = await adminService.createBranch(branchForm);
+
+      let adminAssignedMessage = "";
+      const trimmedDirector = directorNationalNumber.trim();
+
+      // 2. If director National ID is provided, assign them immediately
+      if (trimmedDirector && createdBranch?.id) {
+        try {
+          await adminService.assignAdmin({
+            nationalNumber: trimmedDirector,
+            branchId: createdBranch.id,
+          });
+          const directorName = matchedCitizen ? matchedCitizen.fullName : trimmedDirector;
+          adminAssignedMessage = ` وتكليف المدير (${directorName}) للفرع بنجاح.`;
+        } catch (adminErr: any) {
+          console.warn("Could not assign director:", adminErr);
+          adminAssignedMessage = ` (ملاحظة: تم إنشاء الفرع بنجاح، ولكن تعذر تكليف المدير: ${adminErr?.message || "تحقق من حساب المستخدم ورقم الهوية"}).`;
+        }
+      }
+
+      const successMsg = `تم إنشاء الفرع "${branchForm.branchName}"${adminAssignedMessage || " بنجاح في قاعدة البيانات."}`;
+      toast.success(successMsg);
       setNotification({
         type: "success",
-        message: `تم إنشاء الفرع "${branchForm.branchName}" بنجاح في قاعدة البيانات.`,
+        message: successMsg,
       });
       setIsAddModalOpen(false);
+      setDirectorNationalNumber("");
+      setAddError(null);
       setBranchForm({
         organizationId: organizations[0]?.id || "",
         branchName: "",
@@ -121,9 +188,12 @@ function AgenciesAndBranchesContent() {
       });
       await loadData();
     } catch (err: any) {
+      const errMsg = err?.message || "فشلت عملية إنشاء الفرع في الخادم.";
+      setAddError(errMsg);
+      toast.error(errMsg);
       setNotification({
         type: "error",
-        message: err?.message || "فشلت عملية إنشاء الفرع في الخادم.",
+        message: errMsg,
       });
     } finally {
       setSubmitting(false);
@@ -132,6 +202,7 @@ function AgenciesAndBranchesContent() {
 
   const handleOpenEdit = (b: OrganizationBranch) => {
     setSelectedBranch(b);
+    setEditError(null);
     setEditForm({
       organizationId: b.organizationId,
       branchName: b.branchName,
@@ -148,18 +219,25 @@ function AgenciesAndBranchesContent() {
     if (!selectedBranch) return;
 
     setSubmitting(true);
+    setEditError(null);
     try {
       await adminService.updateBranch(selectedBranch.id, editForm);
+      const successMsg = `تم تحديث بيانات الفرع "${editForm.branchName}" بنجاح.`;
+      toast.success(successMsg);
       setNotification({
         type: "success",
-        message: `تم تحديث بيانات الفرع "${editForm.branchName}" بنجاح.`,
+        message: successMsg,
       });
       setIsEditModalOpen(false);
+      setEditError(null);
       await loadData();
     } catch (err: any) {
+      const errMsg = err?.message || "فشلت عملية تحديث بيانات الفرع.";
+      setEditError(errMsg);
+      toast.error(errMsg);
       setNotification({
         type: "error",
-        message: err?.message || "فشلت عملية تحديث بيانات الفرع.",
+        message: errMsg,
       });
     } finally {
       setSubmitting(false);
@@ -167,35 +245,61 @@ function AgenciesAndBranchesContent() {
   };
 
   const handleDeleteBranch = async (branch: OrganizationBranch) => {
-    if (!confirm(`هل أنت متأكد من تعطيل/تجميد الفرع "${branch.branchName}"؟`)) return;
+    const isConfirmed = await confirm({
+      title: "تأكيد تعطيل / تجميد الفرع",
+      message: `هل أنت متأكد من تعطيل وتجميد الفرع "${branch.branchName}"؟ سيتم إيقاف صلاحيات التشغيل وإصدار المعاملات التابعة له مؤقتاً.`,
+      type: "danger",
+      confirmText: "نعم، تعطيل الفرع",
+      cancelText: "تراجع وإلغاء",
+    });
+
+    if (!isConfirmed) return;
 
     try {
       await adminService.deleteBranch(branch.id);
+      const successMsg = `تم تعطيل الفرع "${branch.branchName}" بنجاح.`;
+      toast.success(successMsg);
       setNotification({
         type: "success",
-        message: `تم تعطيل الفرع "${branch.branchName}" بنجاح.`,
+        message: successMsg,
       });
       await loadData();
     } catch (err: any) {
+      const errMsg = err?.message || "فشل تعطيل الفرع.";
+      toast.error(errMsg);
       setNotification({
         type: "error",
-        message: err?.message || "فشل تعطيل الفرع.",
+        message: errMsg,
       });
     }
   };
 
   const handleRestoreBranch = async (branch: OrganizationBranch) => {
+    const isConfirmed = await confirm({
+      title: "تأكيد إعادة تفعيل الفرع",
+      message: `هل ترغب في إعادة تنشيط وتشغيل الفرع "${branch.branchName}" واستئناف استقبال المعاملات؟`,
+      type: "info",
+      confirmText: "نعم، إعادة التفعيل",
+      cancelText: "إلغاء",
+    });
+
+    if (!isConfirmed) return;
+
     try {
       await adminService.restoreBranch(branch.id);
+      const successMsg = `تمت إعادة تفعيل الفرع "${branch.branchName}" بنجاح.`;
+      toast.success(successMsg);
       setNotification({
         type: "success",
-        message: `تمت إعادة تفعيل الفرع "${branch.branchName}" بنجاح.`,
+        message: successMsg,
       });
       await loadData();
     } catch (err: any) {
+      const errMsg = err?.message || "فشلت إعادة تفعيل الفرع.";
+      toast.error(errMsg);
       setNotification({
         type: "error",
-        message: err?.message || "فشلت إعادة تفعيل الفرع.",
+        message: errMsg,
       });
     }
   };
@@ -205,12 +309,15 @@ function AgenciesAndBranchesContent() {
     return branches.filter((b) => {
       const matchesOrg =
         selectedOrgFilter === "all" || b.organizationId === selectedOrgFilter;
+      const manager = branchAdminsMap.get(b.id);
       const matchesSearch =
         searchTerm === "" ||
         b.branchName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         b.governorate.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (b.district && b.district.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (b.phoneNumber && b.phoneNumber.includes(searchTerm));
+        (b.phoneNumber && b.phoneNumber.includes(searchTerm)) ||
+        (manager && manager.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (manager && manager.phoneNumber && manager.phoneNumber.includes(searchTerm));
       const matchesStatus =
         statusFilter === "all" ||
         (statusFilter === "active" && b.isActive) ||
@@ -218,7 +325,7 @@ function AgenciesAndBranchesContent() {
 
       return matchesOrg && matchesSearch && matchesStatus;
     });
-  }, [branches, selectedOrgFilter, searchTerm, statusFilter]);
+  }, [branches, selectedOrgFilter, searchTerm, statusFilter, branchAdminsMap]);
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
@@ -227,11 +334,11 @@ function AgenciesAndBranchesContent() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-bold text-[#00374e] uppercase tracking-wider">
+            <span className="text-xs font-bold text-[#052F31] uppercase tracking-wider">
               الهيكل التنظيمي السيادي
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#00374e]">
+          <h1 className="text-2xl md:text-3xl font-extrabold text-[#052F31]">
             إدارة الهيئات والفروع الحكومية
           </h1>
           <p className="text-sm text-[#41484d] mt-1">
@@ -244,13 +351,13 @@ function AgenciesAndBranchesContent() {
             onClick={loadData}
             disabled={loading}
             title="تحديث البيانات"
-            className="p-2.5 bg-white text-[#00374e] border border-slate-300 rounded-xl hover:bg-slate-50 transition-all shadow-xs cursor-pointer disabled:opacity-60"
+            className="p-2.5 bg-white text-[#052F31] border border-slate-300 rounded-xl hover:bg-slate-50 transition-all shadow-xs cursor-pointer disabled:opacity-60"
           >
-            <RefreshCw className={`w-4 h-4 text-[#0b4f6c] ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 text-[#0C4A4E] ${loading ? "animate-spin" : ""}`} />
           </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="px-4 py-2.5 bg-[#0b4f6c] hover:bg-[#00374e] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+            className="px-4 py-2.5 bg-[#0C4A4E] hover:bg-[#052F31] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>إضافة فرع جديد</span>
@@ -290,7 +397,7 @@ function AgenciesAndBranchesContent() {
           onClick={() => setSelectedOrgFilter("all")}
           className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
             selectedOrgFilter === "all"
-              ? "bg-[#0b4f6c] text-white border-[#0b4f6c] shadow-xs"
+              ? "bg-[#0C4A4E] text-white border-[#0C4A4E] shadow-xs"
               : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
           }`}
         >
@@ -309,7 +416,7 @@ function AgenciesAndBranchesContent() {
               onClick={() => setSelectedOrgFilter(org.id)}
               className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
                 isSelected
-                  ? "bg-[#0b4f6c] text-white border-[#0b4f6c] shadow-xs"
+                  ? "bg-[#0C4A4E] text-white border-[#0C4A4E] shadow-xs"
                   : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
               }`}
             >
@@ -328,10 +435,10 @@ function AgenciesAndBranchesContent() {
           <Search className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="البحث باسم الفرع، المحافظة، المديرية..."
+            placeholder="البحث باسم الفرع، مدير الفرع، المحافظة، المديرية..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2 ps-9 pe-4 text-xs text-[#191c1e] focus:border-[#0b4f6c] focus:outline-hidden"
+            className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2 ps-9 pe-4 text-xs text-[#191c1e] focus:border-[#0C4A4E] focus:outline-hidden"
           />
         </div>
 
@@ -353,8 +460,8 @@ function AgenciesAndBranchesContent() {
       <div className="bg-white rounded-2xl shadow-xs border border-[#c0c7ce]/30 overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-2">
-            <Building className="w-4 h-4 text-[#00374e]" />
-            <h2 className="text-sm font-bold text-[#00374e]">
+            <Building className="w-4 h-4 text-[#052F31]" />
+            <h2 className="text-sm font-bold text-[#052F31]">
               قائمة الفروع والمراكز المعتمدة ({filteredBranches.length})
             </h2>
           </div>
@@ -371,7 +478,7 @@ function AgenciesAndBranchesContent() {
                 <th className="py-3.5 px-4">القطاع الحكومي</th>
                 <th className="py-3.5 px-4">المحافظة والمديرية</th>
                 <th className="py-3.5 px-4">تفاصيل العنوان</th>
-                <th className="py-3.5 px-4">رقم الهاتف</th>
+                <th className="py-3.5 px-4">مدير الفرع</th>
                 <th className="py-3.5 px-4">الحالة</th>
                 <th className="py-3.5 px-4 text-center">الإجراءات</th>
               </tr>
@@ -380,7 +487,7 @@ function AgenciesAndBranchesContent() {
               {loading ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-[#0b4f6c]" />
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-[#0C4A4E]" />
                     <span>جاري تحميل بيانات الفروع من قاعدة البيانات...</span>
                   </td>
                 </tr>
@@ -393,7 +500,7 @@ function AgenciesAndBranchesContent() {
               ) : (
                 filteredBranches.map((b) => (
                   <tr key={b.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3.5 px-4 font-bold text-[#00374e]">
+                    <td className="py-3.5 px-4 font-bold text-[#052F31]">
                       {b.branchName}
                     </td>
                     <td className="py-3.5 px-4 font-semibold text-slate-700">
@@ -408,8 +515,41 @@ function AgenciesAndBranchesContent() {
                     <td className="py-3.5 px-4 text-slate-500 max-w-xs truncate">
                       {b.addressDetails || "—"}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 font-mono">
-                      {b.phoneNumber || "—"}
+                    <td className="py-3.5 px-4">
+                      {branchAdminsMap.has(b.id) ? (
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-[#052F31]/10 text-[#052F31] font-bold flex items-center justify-center text-xs shrink-0 border border-[#052F31]/10">
+                            {branchAdminsMap.get(b.id)!.fullName ? branchAdminsMap.get(b.id)!.fullName.trim().charAt(0) : "م"}
+                          </div>
+                          <div className="min-w-0">
+                            <Link
+                              href="/admin/admins"
+                              className="font-bold text-[#052F31] hover:text-[#0C4A4E] hover:underline block truncate text-xs"
+                              title={`عرض سجلات المدراء: ${branchAdminsMap.get(b.id)!.fullName}`}
+                            >
+                              {branchAdminsMap.get(b.id)!.fullName}
+                            </Link>
+                            {branchAdminsMap.get(b.id)!.phoneNumber ? (
+                              <span className="text-[10px] text-slate-400 font-mono block tracking-tight" dir="ltr">
+                                {branchAdminsMap.get(b.id)!.phoneNumber}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 block truncate">
+                                {branchAdminsMap.get(b.id)!.nationalNumber ? `رقم وطني: ${branchAdminsMap.get(b.id)!.nationalNumber}` : "مدير مكلف"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <Link
+                          href="/admin/admins"
+                          title="الانتقال لتكليف مدير لهذا الفرع"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] text-slate-400 hover:text-[#052F31] bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors"
+                        >
+                          <User className="w-3 h-3 text-slate-400" />
+                          <span>غير مكلّف</span>
+                        </Link>
+                      )}
                     </td>
                     <td className="py-3.5 px-4">
                       <span
@@ -427,7 +567,7 @@ function AgenciesAndBranchesContent() {
                         <button
                           onClick={() => handleOpenEdit(b)}
                           title="تعديل بيانات الفرع"
-                          className="p-1.5 text-slate-600 hover:text-[#0b4f6c] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 text-slate-600 hover:text-[#0C4A4E] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
@@ -464,11 +604,11 @@ function AgenciesAndBranchesContent() {
           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-[#f8fafc]">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#0b4f6c]/10 text-[#0b4f6c] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-[#0C4A4E]/10 text-[#0C4A4E] flex items-center justify-center">
                   <Building2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-[#00374e] text-sm">إضافة فرع حكومي جديد</h3>
+                  <h3 className="font-bold text-[#052F31] text-sm">إضافة فرع حكومي جديد</h3>
                   <p className="text-[11px] text-slate-500">
                     تسجيل فرع جديد وربطه بإحدى الهيئات الأربع في قاعدة البيانات
                   </p>
@@ -489,7 +629,7 @@ function AgenciesAndBranchesContent() {
                   required
                   value={branchForm.organizationId}
                   onChange={(e) => setBranchForm({ ...branchForm, organizationId: e.target.value })}
-                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0C4A4E] focus:outline-hidden"
                 >
                   {organizations.map((org) => (
                     <option key={org.id} value={org.id}>
@@ -507,7 +647,7 @@ function AgenciesAndBranchesContent() {
                   placeholder="مثال: فرع الصافية النموذجي"
                   value={branchForm.branchName}
                   onChange={(e) => setBranchForm({ ...branchForm, branchName: e.target.value })}
-                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0C4A4E] focus:outline-hidden"
                 />
               </div>
 
@@ -520,7 +660,7 @@ function AgenciesAndBranchesContent() {
                     placeholder="أمانة العاصمة"
                     value={branchForm.governorate}
                     onChange={(e) => setBranchForm({ ...branchForm, governorate: e.target.value })}
-                    className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
+                    className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0C4A4E] focus:outline-hidden"
                   />
                 </div>
                 <div>
@@ -531,7 +671,7 @@ function AgenciesAndBranchesContent() {
                     placeholder="السبعين"
                     value={branchForm.district}
                     onChange={(e) => setBranchForm({ ...branchForm, district: e.target.value })}
-                    className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
+                    className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0C4A4E] focus:outline-hidden"
                   />
                 </div>
               </div>
@@ -543,7 +683,7 @@ function AgenciesAndBranchesContent() {
                   placeholder="شارع تعز، جوار جولة 45"
                   value={branchForm.addressDetails || ""}
                   onChange={(e) => setBranchForm({ ...branchForm, addressDetails: e.target.value })}
-                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0C4A4E] focus:outline-hidden"
                 />
               </div>
 
@@ -554,9 +694,70 @@ function AgenciesAndBranchesContent() {
                   placeholder="01234567"
                   value={branchForm.phoneNumber || ""}
                   onChange={(e) => setBranchForm({ ...branchForm, phoneNumber: e.target.value })}
-                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 font-mono focus:border-[#0b4f6c] focus:outline-hidden"
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 font-mono focus:border-[#0C4A4E] focus:outline-hidden"
                 />
               </div>
+
+              {/* Assign Branch Director (Optional) */}
+              <div className="pt-3 border-t border-slate-200/70 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-700">
+                    تعيين مدير للفرع (اختياري)
+                  </label>
+                  <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-medium">
+                    اختياري
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  يمكنك تكليف مدير للفرع مباشرة بإدخال الرقم الوطني للمواطن، أو تخطي هذه الخطوة وتعيينه لاحقاً من قائمة الإداريين.
+                </p>
+                <div className="relative">
+                  <input
+                    type="text"
+                    maxLength={11}
+                    placeholder="أدخل الرقم الوطني للمواطن المراد تعيينه كمدير (11 رقماً)"
+                    value={directorNationalNumber}
+                    onChange={(e) => setDirectorNationalNumber(e.target.value.replace(/\D/g, ""))}
+                    className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 pl-10 text-xs text-slate-800 font-mono focus:border-[#0C4A4E] focus:outline-hidden"
+                  />
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    <User className="w-4 h-4" />
+                  </div>
+                </div>
+
+                {directorNationalNumber.trim().length >= 4 && (
+                  <div>
+                    {matchedCitizen ? (
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-800">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="font-bold">{matchedCitizen.fullName}</span>
+                            <span className="text-[10px] text-emerald-600 block">
+                              حساب مواطن مؤكد • الرقم الوطني: {matchedCitizen.nationalNumber}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 bg-emerald-100 font-bold rounded-md">
+                          جاهز للتكليف كمدير
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-[11px] text-amber-800">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>لم يتم العثور على مواطن مطابق بهذا الرقم الوطني في السجل المدني.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+                {addError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 animate-in fade-in">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span className="font-medium">{addError}</span>
+                  </div>
+                )}
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button
@@ -569,7 +770,7 @@ function AgenciesAndBranchesContent() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2.5 bg-[#0b4f6c] hover:bg-[#00374e] text-white rounded-xl font-bold flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                  className="px-5 py-2.5 bg-[#0C4A4E] hover:bg-[#052F31] text-white rounded-xl font-bold flex items-center gap-2 cursor-pointer disabled:opacity-60"
                 >
                   {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>حفظ وإضافة الفرع</span>
@@ -590,7 +791,7 @@ function AgenciesAndBranchesContent() {
                   <Edit2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-[#00374e] text-sm">تعديل بيانات الفرع</h3>
+                  <h3 className="font-bold text-[#052F31] text-sm">تعديل بيانات الفرع</h3>
                   <p className="text-[11px] text-slate-500">{selectedBranch.branchName}</p>
                 </div>
               </div>
@@ -610,7 +811,7 @@ function AgenciesAndBranchesContent() {
                   required
                   value={editForm.branchName}
                   onChange={(e) => setEditForm({ ...editForm, branchName: e.target.value })}
-                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0C4A4E] focus:outline-hidden"
                 />
               </div>
 
@@ -620,7 +821,7 @@ function AgenciesAndBranchesContent() {
                   type="text"
                   value={editForm.governorate || ""}
                   onChange={(e) => setEditForm({ ...editForm, governorate: e.target.value })}
-                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0b4f6c] focus:outline-hidden"
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:border-[#0C4A4E] focus:outline-hidden"
                 />
               </div>
 
@@ -630,9 +831,16 @@ function AgenciesAndBranchesContent() {
                   type="text"
                   value={editForm.phoneNumber || ""}
                   onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })}
-                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 font-mono focus:border-[#0b4f6c] focus:outline-hidden"
+                  className="w-full bg-[#f2f4f6] border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 font-mono focus:border-[#0C4A4E] focus:outline-hidden"
                 />
               </div>
+
+              {editError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="font-medium">{editError}</span>
+                </div>
+              )}
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button
@@ -645,7 +853,7 @@ function AgenciesAndBranchesContent() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2.5 bg-[#0b4f6c] hover:bg-[#00374e] text-white rounded-xl font-bold flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                  className="px-5 py-2.5 bg-[#0C4A4E] hover:bg-[#052F31] text-white rounded-xl font-bold flex items-center gap-2 cursor-pointer disabled:opacity-60"
                 >
                   {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>حفظ التعديلات</span>
