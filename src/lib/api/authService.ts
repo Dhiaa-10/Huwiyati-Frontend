@@ -10,40 +10,23 @@ const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5237";
 
 // ─── Shared utilities ──────────────────────────────────────────────────────────
 
-/** Reads the JWT stored by saveToken() */
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("hwyati_auth_token");
-}
+export {
+  AUTH_TOKEN_KEY,
+  REFRESH_TOKEN_KEY,
+  AUTH_SESSION_KEY,
+  DEVICE_ID_KEY,
+  getToken,
+  saveToken,
+  getRefreshToken,
+  saveRefreshToken,
+  saveAuthTokens,
+  clearAuthStorage,
+  getDeviceIdentifier,
+} from "./tokenStorage";
 
-/** Persists the JWT after a successful login */
-export function saveToken(token: string): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem("hwyati_auth_token", token);
-  }
-}
-
-/** Removes all auth data from localStorage (logout) */
-export function clearAuthStorage(): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem("hwyati_auth_token");
-    window.localStorage.removeItem("hwyati_auth_session");
-  }
-}
-
-/** Returns a stable device identifier for this browser (stored once, reused) */
-export function getDeviceIdentifier(nationalNumber?: string): string {
-  if (typeof window === "undefined") return "server-side";
-  if (nationalNumber && nationalNumber.trim()) {
-    return `test-trusted-device-${nationalNumber.trim()}`;
-  }
-  let id = window.localStorage.getItem("hwyati_device_id");
-  if (!id) {
-    id = "test-trusted-device-01011131317";
-    window.localStorage.setItem("hwyati_device_id", id);
-  }
-  return id;
-}
+import { getToken, getRefreshToken, saveAuthTokens, clearAuthStorage } from "./tokenStorage";
+import { apiClient, getApiBaseUrl } from "./client";
+import { translateBackendError } from "@/lib/utils/errorTranslator";
 
 /** Low-level fetch helper. Returns the raw backend ApiResponse<T>. */
 async function apiFetch<T>(
@@ -59,7 +42,7 @@ async function apiFetch<T>(
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -67,6 +50,14 @@ async function apiFetch<T>(
 
   // The backend always returns JSON with { isSuccess, statusCode, message, data?, errors? }
   const json = await res.json();
+  if (json.isSuccess === false || !res.ok) {
+    if (json.errors && Array.isArray(json.errors) && json.errors.length > 0) {
+      const translatedErrors = json.errors.map((e: string) => translateBackendError(e)).filter(Boolean);
+      json.message = `فشل التحقق من صحة البيانات؛ يرجى استيفاء الحقول المطلوبة: (${translatedErrors.join(" • ")})`;
+    } else if (json.message) {
+      json.message = translateBackendError(json.message);
+    }
+  }
   return json;
 }
 
@@ -89,6 +80,8 @@ export interface RegisterResult {
 export interface LoginPayload {
   nationalNumber: string;
   password: string;
+  requestedRole: string;
+  branchId?: string;
   deviceIdentifier: string;
   deviceName?: string;
   operatingSystem?: string;
@@ -98,12 +91,46 @@ export interface LoginResult {
   userId: string;
   accessToken: string;
   expiration: string;
+  refreshToken?: string;
+  refreshTokenExpiration?: string;
   nationalNumber: string;
   fullName: string;
   accountStatus: string;
   requiresDeviceVerification: boolean;
   /** Populated from JWT claims after the backend validates the token */
   roles?: string[];
+}
+
+export interface GenerateTokenModel {
+  token: string;
+  expiration: string;
+  refreshToken: string;
+  refreshTokenExpiration: string;
+}
+
+export interface CitizenAccountStatusDto {
+  personId: string;
+  personFullName: string;
+  nationalNumber: string;
+  hasRegisteredAccount: boolean;
+  userId?: string | null;
+  email?: string | null;
+  phoneNumber?: string | null;
+  status?: "PendingActivation" | "Active" | "Suspended" | "Deactivated" | string;
+  createdAt?: string | null;
+  activatedAt?: string | null;
+}
+
+export interface RegisteredUserAccountDto {
+  userId: string;
+  personId: string;
+  nationalNumber: string;
+  fullName: string;
+  email?: string | null;
+  phoneNumber?: string | null;
+  status: "PendingActivation" | "Active" | "Suspended" | "Deactivated" | string;
+  createdAt: string;
+  activatedAt?: string | null;
 }
 
 export interface VerifyOtpPayload {
@@ -202,6 +229,43 @@ export async function apiReactivateAccount(payload: ReactivatePayload) {
 }
 
 /**
+ * POST /api/v1/Account/refresh-token
+ * Rotates the refresh token and returns a fresh JWT access token.
+ */
+export async function apiRefreshToken(): Promise<string | null> {
+  return apiClient.refreshToken();
+}
+
+/**
+ * GET /api/v1/Account/citizen-status/{nationalNumber}
+ * Retrieves citizen online account registration and activation status (Employee, Admin).
+ */
+export async function apiGetCitizenAccountStatus(nationalNumber: string) {
+  return apiClient.get<CitizenAccountStatusDto>(
+    `/api/v1/Account/citizen-status/${encodeURIComponent(nationalNumber.trim())}`
+  );
+}
+
+/**
+ * POST /api/v1/Account/activate-citizen
+ * Staff-initiated manual activation of a registered citizen account.
+ */
+export async function apiActivateCitizenAccount(nationalNumber: string) {
+  return apiClient.post<CitizenAccountStatusDto>(
+    "/api/v1/Account/activate-citizen",
+    { nationalNumber: nationalNumber.trim() }
+  );
+}
+
+/**
+ * GET /api/v1/Account/all-users
+ * Retrieves all platform user accounts for SuperAdmin administration.
+ */
+export async function apiGetAllUserAccounts() {
+  return apiClient.get<RegisteredUserAccountDto[]>("/api/v1/Account/all-users");
+}
+
+/**
  * Decode the roles claim from a JWT without a library.
  * Returns an empty array if the token is missing or malformed.
  */
@@ -219,3 +283,22 @@ export function decodeRolesFromToken(token: string): string[] {
     return [];
   }
 }
+
+/**
+ * Decode the BranchId claim from a JWT without a library.
+ * Returns null if the token is missing, malformed, or has no branch ID.
+ */
+export function decodeBranchIdFromToken(token: string): string | null {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return (
+      payload["BranchId"] ||
+      payload["branchId"] ||
+      payload["branch_id"] ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
