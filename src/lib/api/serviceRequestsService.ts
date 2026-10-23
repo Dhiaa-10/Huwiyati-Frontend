@@ -128,9 +128,13 @@ class ServiceRequestsService {
   public async cancelRequestOnBehalf(
     command: CancelServiceRequestCommand
   ): Promise<ServiceRequestDto> {
+    const payload = {
+      serviceRequestId: command.serviceRequestId,
+      reason: command.reason,
+    };
     const res = await apiClient.post<ServiceRequestDto>(
       "/api/v1/employee/service-requests/cancel",
-      command
+      payload
     );
 
     if (!res.isSuccess || !res.data) {

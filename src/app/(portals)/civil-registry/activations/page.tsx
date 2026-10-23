@@ -5,11 +5,9 @@ import { useSearchParams } from "next/navigation";
 import {
   Search,
   UserCheck,
-  Fingerprint,
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  History,
   ShieldAlert,
   Clock,
   MapPin,
@@ -18,22 +16,33 @@ import {
   Camera,
   RefreshCw,
   X,
+  Smartphone,
+  Mail,
+  ShieldCheck,
 } from "lucide-react";
 import { civilRegistryService } from "@/lib/api/civilRegistryService";
+import { filesService } from "@/lib/api/filesService";
 import { CitizenCivilRecord } from "@/types/civilRegistry";
+import {
+  apiGetCitizenAccountStatus,
+  apiActivateCitizenAccount,
+  CitizenAccountStatusDto,
+} from "@/lib/api/authService";
+import { useNotification } from "@/context/NotificationContext";
 
 function ActivationsContent() {
   const searchParams = useSearchParams();
   const initialNid = searchParams.get("nid") || "";
+  const { toast } = useNotification();
 
   const [nationalIdSearch, setNationalIdSearch] = useState(initialNid);
   const [searching, setSearching] = useState(false);
   const [citizen, setCitizen] = useState<CitizenCivilRecord | null>(null);
+  const [accountInfo, setAccountInfo] = useState<CitizenAccountStatusDto | null>(null);
   const [notFound, setNotFound] = useState(false);
 
-  // Biometric scanning state
-  const [scanning, setScanning] = useState(false);
-  const [scanMatched, setScanMatched] = useState(false);
+  // Activation state
+  const [activating, setActivating] = useState(false);
 
   // Notification / Modals
   const [notification, setNotification] = useState<{
@@ -41,59 +50,82 @@ function ActivationsContent() {
     message: string;
   } | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState("عدم تطابق البصمة الحيوية مع السجل الوطني");
-
-  // Recent log history
-  const [historyList, setHistoryList] = useState<
-    { title: string; nid: string; time: string; status: "success" | "rejected" }[]
-  >([
-    {
-      title: "تفعيل حساب مواطن",
-      nid: "02010012345",
-      time: "منذ 20 دقيقة",
-      status: "success",
-    },
-    {
-      title: "تفعيل حساب مواطن",
-      nid: "04010067890",
-      time: "منذ 45 دقيقة",
-      status: "success",
-    },
-    {
-      title: "رفض طلب تفعيل",
-      nid: "01010099002",
-      time: "منذ ساعتين",
-      status: "rejected",
-    },
-  ]);
+  const [rejectionReason, setRejectionReason] = useState("عدم تطابق البيانات أو الوثائق الرسمية");
+  const [rejectError, setRejectError] = useState<string | null>(null);
 
   const showNotification = (
     type: "success" | "error" | "info",
     message: string
   ) => {
-    setNotification({ type, message });
-    setTimeout(() => setNotification(null), 5000);
+    if (type === "success") {
+      toast.success(message);
+      setRejectError(null);
+    } else if (type === "error") {
+      toast.error(message);
+      setRejectError(message);
+    } else {
+      toast.info(message);
+    }
   };
 
   const handleSearch = async (nidToSearch?: string) => {
     const q = (nidToSearch || nationalIdSearch).trim();
     if (!q) {
-      alert("يرجى إدخال الرقم الوطني للمواطن (11 خانة).");
+      showNotification("error", "يرجى إدخال الرقم الوطني للمواطن (11 خانة).");
       return;
     }
 
     setSearching(true);
     setNotFound(false);
     setCitizen(null);
-    setScanMatched(false);
+    setAccountInfo(null);
 
     try {
-      const found = await civilRegistryService.searchCitizenByNationalId(q);
+      const [found, accountRes] = await Promise.all([
+        civilRegistryService.searchCitizenByNationalId(q).catch(() => null),
+        apiGetCitizenAccountStatus(q).catch(() => null),
+      ]);
+
+      if (accountRes && accountRes.isSuccess && accountRes.data) {
+        setAccountInfo(accountRes.data);
+      }
+
       if (found) {
-        setCitizen(found);
-        if (found.accountStatus === "Active") {
-          setScanMatched(true);
+        if (accountRes && accountRes.isSuccess && accountRes.data) {
+          found.accountStatus = (accountRes.data.status as any) || "PendingActivation";
+        } else {
+          found.accountStatus = "PendingActivation";
         }
+        setCitizen(found);
+      } else if (accountRes && accountRes.isSuccess && accountRes.data) {
+        const acc = accountRes.data;
+        const fallbackCitizen: CitizenCivilRecord = {
+          id: acc.personId || acc.userId || "temp-id",
+          nationalNumber: acc.nationalNumber,
+          firstName: acc.personFullName?.split(" ")[0] || "",
+          fatherName: acc.personFullName?.split(" ")[1] || "",
+          grandfatherName: acc.personFullName?.split(" ")[2] || "",
+          familyName: acc.personFullName?.split(" ")[3] || "",
+          fullName: acc.personFullName || "مواطن مسجل",
+          motherName: "غير مسجل",
+          dateOfBirth: "—",
+          placeOfBirth: "—",
+          gender: "Male",
+          nationality: "يمني",
+          maritalStatus: "Single",
+          bloodType: "—",
+          governorate: "—",
+          district: "—",
+          addressDetails: "",
+          photoUrl: "",
+          personStatus: "Active",
+          accountStatus: (acc.status as any) || "PendingActivation",
+          phoneNumber: acc.phoneNumber || "",
+          email: acc.email || "",
+          biometricRegistered: true,
+          createdAt: acc.createdAt || new Date().toISOString(),
+        };
+        setCitizen(fallbackCitizen);
       } else {
         setNotFound(true);
       }
@@ -111,20 +143,11 @@ function ActivationsContent() {
     }
   }, [initialNid]);
 
-  // Simulate scanning
-  const handleStartBiometricScan = () => {
-    setScanning(true);
-    setTimeout(() => {
-      setScanning(false);
-      setScanMatched(true);
-      showNotification("success", "تمت مطابقة البصمة بنسبة 99.2% مع بيانات السجل المركزي.");
-    }, 1800);
-  };
-
   // Confirm Activation
   const handleActivateCitizen = async () => {
     if (!citizen) return;
 
+    setActivating(true);
     try {
       const res = await civilRegistryService.activateAccount({
         nationalNumber: citizen.nationalNumber,
@@ -134,20 +157,18 @@ function ActivationsContent() {
       });
 
       setCitizen(res.citizen);
+      if (accountInfo) {
+        setAccountInfo({
+          ...accountInfo,
+          status: "Active",
+          activatedAt: new Date().toISOString(),
+        });
+      }
       showNotification("success", res.message);
-
-      // Prepend to history
-      setHistoryList((prev) => [
-        {
-          title: `تفعيل حساب: ${res.citizen.fullName}`,
-          nid: res.citizen.nationalNumber,
-          time: "الآن",
-          status: "success",
-        },
-        ...prev,
-      ]);
     } catch (err: any) {
       showNotification("error", err.message || "فشلت عملية التفعيل.");
+    } finally {
+      setActivating(false);
     }
   };
 
@@ -161,57 +182,32 @@ function ActivationsContent() {
         rejectionReason
       );
       setRejectModalOpen(false);
+      setRejectError(null);
       showNotification("info", "تم توثيق رفض التفعيل في سجل الأمان المركزي.");
-
-      setHistoryList((prev) => [
-        {
-          title: `رفض تفعيل: ${citizen.fullName}`,
-          nid: citizen.nationalNumber,
-          time: "الآن",
-          status: "rejected",
-        },
-        ...prev,
-      ]);
-    } catch (err) {
-      showNotification("error", "فشلت عملية الرفض.");
+    } catch (err: any) {
+      const errMsg = err?.message || "فشلت عملية الرفض.";
+      setRejectError(errMsg);
+      showNotification("error", errMsg);
     }
   };
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
-      {/* Toast Notification */}
-      {notification && (
-        <div
-          className={`fixed top-5 left-1/2 -translate-x-1/2 z-[999] px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-white text-sm font-semibold transition-all ${
-            notification.type === "success"
-              ? "bg-[#005539] border border-emerald-400"
-              : notification.type === "error"
-              ? "bg-rose-700 border border-rose-400"
-              : "bg-[#0b4f6c] border border-sky-400"
-          }`}
-        >
-          {notification.type === "success" ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-300" />
-          ) : (
-            <AlertTriangle className="w-5 h-5 text-amber-300" />
-          )}
-          <span>{notification.message}</span>
-        </div>
-      )}
+
 
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#00374e]"></span>
-          <span className="text-xs font-bold text-[#00374e] uppercase tracking-wider">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#052F31]"></span>
+          <span className="text-xs font-bold text-[#052F31] uppercase tracking-wider">
             بوابة التحقق الحضوري الميداني
           </span>
         </div>
-        <h1 className="text-2xl md:text-3xl font-extrabold text-[#00374e]">
-          تفعيل حسابات المواطنين (In-Person Biometric Activation)
+        <h1 className="text-2xl md:text-3xl font-extrabold text-[#052F31]">
+          تفعيل حسابات المواطنين (In-Person Account Activation)
         </h1>
         <p className="text-sm text-[#41484d] mt-1">
-          مطابقة بصمة المواطن الحاضر في الفرع بالرقم الوطني لتفعيل دخوله إلى تطبيق هويتي الرقمي.
+          التحقق من بيانات المواطن الحاضر في الفرع بالرقم الوطني لتفعيل دخوله إلى تطبيق هويتي الرقمي.
         </p>
       </div>
 
@@ -219,7 +215,7 @@ function ActivationsContent() {
       <div className="bg-white rounded-2xl border border-[#e0e3e5] p-6 shadow-xs relative overflow-hidden">
         <div className="flex flex-col md:flex-row gap-4 items-end">
           <div className="flex-1 w-full relative">
-            <label className="block text-xs font-bold text-[#00374e] mb-1.5">
+            <label className="block text-xs font-bold text-[#052F31] mb-1.5">
               رقم الهوية الوطنية للمواطن (11 رقماً)
             </label>
             <div className="relative">
@@ -229,8 +225,8 @@ function ActivationsContent() {
                 value={nationalIdSearch}
                 onChange={(e) => setNationalIdSearch(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                placeholder="أدخل الرقم الوطني، مثال: 01010045678 أو 01010078901..."
-                className="w-full bg-[#f7f9fb] border border-[#c0c7ce] rounded-xl px-4 py-3.5 text-base font-mono font-bold text-[#191c1e] placeholder:text-slate-400 focus:outline-none focus:border-[#0b4f6c] focus:ring-1 focus:ring-[#0b4f6c] transition-all"
+                placeholder="أدخل الرقم الوطني للمواطن (11 رقماً)..."
+                className="w-full bg-[#f7f9fb] border border-[#c0c7ce] rounded-xl px-4 py-3.5 text-base font-mono font-bold text-[#191c1e] placeholder:text-slate-400 focus:outline-none focus:border-[#0C4A4E] focus:ring-1 focus:ring-[#0C4A4E] transition-all"
               />
               <span className="absolute left-4 top-3.5 text-xs text-slate-400 font-mono">
                 {nationalIdSearch.length}/11
@@ -241,7 +237,7 @@ function ActivationsContent() {
           <button
             onClick={() => handleSearch()}
             disabled={searching}
-            className="w-full md:w-auto bg-[#00374e] hover:bg-[#0b4f6c] text-white px-8 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50"
+            className="w-full md:w-auto bg-[#052F31] hover:bg-[#0C4A4E] text-white px-8 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50"
           >
             {searching ? (
               <RefreshCw className="w-5 h-5 animate-spin" />
@@ -251,44 +247,10 @@ function ActivationsContent() {
             <span>بحث عن السجل المدني</span>
           </button>
         </div>
-
-        {/* Quick hint buttons */}
-        <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-100 text-xs">
-          <span className="text-slate-500 font-medium">سجلات تجريبية سريعة:</span>
-          <button
-            onClick={() => {
-              setNationalIdSearch("01010045678");
-              handleSearch("01010045678");
-            }}
-            className="font-mono bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded text-slate-700 transition-colors"
-          >
-            01010045678 (عبدالله الدوسري - معلق)
-          </button>
-          <button
-            onClick={() => {
-              setNationalIdSearch("01010078901");
-              handleSearch("01010078901");
-            }}
-            className="font-mono bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded text-slate-700 transition-colors"
-          >
-            01010078901 (أروى الأنسي - معلق)
-          </button>
-          <button
-            onClick={() => {
-              setNationalIdSearch("02010012345");
-              handleSearch("02010012345");
-            }}
-            className="font-mono bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded text-slate-700 transition-colors"
-          >
-            02010012345 (طارق بافضل - مفعل)
-          </button>
-        </div>
       </div>
 
-      {/* Main Grid: Citizen Profile & History */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Citizen Details Area (8 Cols) */}
-        <div className="lg:col-span-8 space-y-6">
+      {/* Main Content Area */}
+      <div className="space-y-6">
           {notFound ? (
             <div className="bg-white rounded-2xl border border-dashed border-rose-200 p-12 text-center">
               <XCircle className="w-12 h-12 text-rose-400 mx-auto mb-3" />
@@ -320,23 +282,40 @@ function ActivationsContent() {
 
                 <div className="flex flex-col sm:flex-row gap-6">
                   {/* Photo */}
-                  <div className="w-32 h-40 rounded-xl overflow-hidden border-2 border-slate-200 shadow-sm shrink-0 bg-slate-100">
-                    <img
-                      src={citizen.photoUrl}
-                      alt={citizen.fullName}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-32 h-40 rounded-xl overflow-hidden border-2 border-slate-200 shadow-sm shrink-0 bg-slate-100 relative flex items-center justify-center">
+                    {citizen.photoUrl ? (
+                      <img
+                        src={filesService.getFullUrl(citizen.photoUrl)}
+                        alt={citizen.fullName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          const fallback = e.currentTarget.parentElement?.querySelector(".fallback-photo-placeholder");
+                          if (fallback) fallback.classList.remove("hidden");
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className={`fallback-photo-placeholder w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400 p-2 text-center ${
+                        citizen.photoUrl ? "hidden" : ""
+                      }`}
+                    >
+                      <UserCheck className="w-10 h-10 text-slate-300 mb-1" />
+                      <span className="text-[11px] font-medium text-slate-400 leading-tight">
+                        لا توجد صورة مسجلة
+                      </span>
+                    </div>
                   </div>
 
                   {/* Info Table */}
                   <div className="flex-1 space-y-4">
                     <div>
-                      <h3 className="text-lg font-bold text-[#00374e]">
+                      <h3 className="text-lg font-bold text-[#052F31]">
                         {citizen.fullName}
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
                         الرقم الوطني الموحد:{" "}
-                        <strong className="font-mono text-[#0b4f6c]">
+                        <strong className="font-mono text-[#0C4A4E]">
                           {citizen.nationalNumber}
                         </strong>
                       </p>
@@ -382,56 +361,69 @@ function ActivationsContent() {
                 </div>
               </div>
 
-              {/* Biometric Verification Box */}
-              <div className="bg-white rounded-2xl border border-[#e0e3e5] p-6 shadow-xs space-y-4">
-                <div className="flex items-center justify-between">
+              {/* Account Status Card from Identity */}
+              <div className="bg-white rounded-2xl border border-[#e0e3e5] p-5 shadow-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
                   <div className="flex items-center gap-2">
-                    <Fingerprint className="w-6 h-6 text-[#00374e]" />
-                    <h3 className="text-base font-bold text-[#00374e]">
-                      المطابقة البايومترية الحية (Biometric Match)
-                    </h3>
+                    <Smartphone className="w-5 h-5 text-[#052F31]" />
+                    <h4 className="text-sm font-bold text-[#052F31]">
+                      حالة الحساب الرقمي في تطبيق هويتي
+                    </h4>
                   </div>
-
-                  {scanMatched ? (
-                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>تمت المطابقة بنجاح (99.2%)</span>
-                    </span>
-                  ) : scanning ? (
-                    <span className="text-xs font-bold text-[#0b4f6c] bg-sky-50 px-3 py-1 rounded-full border border-sky-200 flex items-center gap-1.5 animate-pulse">
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>جاري القراءة من الماسح الضوئي...</span>
-                    </span>
+                  {accountInfo?.hasRegisteredAccount ? (
+                    accountInfo.status === "Active" ? (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>مفعل ونشط</span>
+                      </span>
+                    ) : accountInfo.status === "PendingActivation" ? (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold animate-pulse">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>بانتظار التفعيل الحضوري</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold">
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>{accountInfo.status}</span>
+                      </span>
+                    )
                   ) : (
-                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-                      بانتظار وضع الإصبع على الجهاز
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-xs font-bold">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                      <span>غير مسجل عبر التطبيق</span>
                     </span>
                   )}
                 </div>
 
-                {/* Visual Progress Bar */}
-                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-700 ${
-                      scanMatched
-                        ? "w-full bg-[#005539]"
-                        : scanning
-                        ? "w-2/3 bg-[#0b4f6c] animate-pulse"
-                        : "w-0"
-                    }`}
-                  />
-                </div>
-
-                {/* Scan Trigger Button if not matched */}
-                {!scanMatched && (
-                  <button
-                    onClick={handleStartBiometricScan}
-                    disabled={scanning}
-                    className="w-full py-3 bg-[#f2f4f6] hover:bg-[#e0e3e5] text-[#00374e] border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                  >
-                    <Fingerprint className="w-4 h-4 text-[#0b4f6c]" />
-                    <span>تشغيل الماسح البايومتري وقراءة البصمة الحية</span>
-                  </button>
+                {accountInfo?.hasRegisteredAccount ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    <div>
+                      <span className="text-slate-500 block">البريد الإلكتروني المسجل:</span>
+                      <strong className="text-slate-800 font-mono">
+                        {accountInfo.email || "غير مسجل"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">رقم هاتف التطبيق:</span>
+                      <strong className="text-slate-800 font-mono">
+                        {accountInfo.phoneNumber || "غير مسجل"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">تاريخ التسجيل / التفعيل:</span>
+                      <strong className="text-slate-800 font-mono">
+                        {accountInfo.activatedAt
+                          ? `مفعل: ${new Date(accountInfo.activatedAt).toLocaleDateString("ar-YE")}`
+                          : accountInfo.createdAt
+                          ? `مسجل: ${new Date(accountInfo.createdAt).toLocaleDateString("ar-YE")}`
+                          : "—"}
+                      </strong>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-amber-700 bg-amber-50/60 p-3 rounded-xl border border-amber-200">
+                    لم يقم المواطن بإنشاء حساب إلكتروني عبر تطبيق هويتي حتى الآن. يمكن تفعيل حسابه بعد أن يكمل التسجيل الأولي من التطبيق، أو يتم تفعيله مسبقاً وسيرتبط حسابه تلقائياً عند التسجيل.
+                  </p>
                 )}
               </div>
 
@@ -441,16 +433,21 @@ function ActivationsContent() {
                   <>
                     <button
                       onClick={handleActivateCitizen}
-                      disabled={!scanMatched}
-                      className="flex-1 bg-[#005539] hover:bg-[#003c27] text-white py-4 px-6 rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                      disabled={activating}
+                      className="flex-1 bg-[#005539] hover:bg-[#003c27] text-white py-4 px-6 rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
                     >
-                      <UserCheck className="w-5 h-5" />
+                      {activating ? (
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <UserCheck className="w-5 h-5" />
+                      )}
                       <span>تفعيل الحساب الرقمي للمواطن (موافق)</span>
                     </button>
 
                     <button
                       onClick={() => setRejectModalOpen(true)}
-                      className="sm:w-44 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 py-4 px-6 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"
+                      disabled={activating}
+                      className="sm:w-44 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 py-4 px-6 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                       <XCircle className="w-5 h-5" />
                       <span>رفض التفعيل</span>
@@ -468,61 +465,15 @@ function ActivationsContent() {
             </>
           ) : (
             <div className="bg-white rounded-2xl border border-[#e0e3e5] p-12 text-center">
-              <Fingerprint className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+              <UserCheck className="w-16 h-16 text-slate-300 mx-auto mb-4" />
               <h3 className="text-base font-bold text-slate-700">
                 أدخل الرقم الوطني للمواطن لبدء عملية التفعيل
               </h3>
               <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                يقوم النظام بالتحقق التلقائي من قاعدة بيانات السجل المدني المركزي ومطابقة
-                بيانات الهوية مع البصمة الحية في الفرع.
+                يقوم النظام بالتحقق التلقائي من السجل المدني وبيانات الحساب الرقمي للمواطن لتفعيل حسابه.
               </p>
             </div>
           )}
-        </div>
-
-        {/* History / Audit Sidebar (4 Cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white rounded-2xl border border-[#e0e3e5] p-6 shadow-xs">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
-              <History className="w-5 h-5 text-[#00374e]" />
-              <h3 className="text-sm font-bold text-[#00374e]">
-                حركات التفعيل الأخيرة بالفرع
-              </h3>
-            </div>
-
-            <div className="space-y-3">
-              {historyList.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="p-3 bg-[#f7f9fb] border border-slate-200 rounded-xl flex items-start gap-3 text-xs"
-                >
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                      item.status === "success"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-rose-100 text-rose-700"
-                    }`}
-                  >
-                    {item.status === "success" ? (
-                      <CheckCircle2 className="w-4 h-4" />
-                    ) : (
-                      <XCircle className="w-4 h-4" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-bold text-slate-800">{item.title}</div>
-                    <div className="font-mono text-[11px] text-slate-500 mt-0.5">
-                      الرقم الوطني: {item.nid}
-                    </div>
-                    <span className="text-[10px] text-slate-400 mt-1 block">
-                      {item.time}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Reject Modal */}
@@ -549,10 +500,10 @@ function ActivationsContent() {
             <select
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
-              className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg p-2.5 text-xs text-slate-800 mb-4 focus:outline-none focus:border-[#0b4f6c]"
+              className="w-full bg-[#f7f9fb] border border-slate-300 rounded-lg p-2.5 text-xs text-slate-800 mb-4 focus:outline-none focus:border-[#0C4A4E]"
             >
-              <option value="عدم تطابق البصمة الحيوية مع السجل الوطني">
-                عدم تطابق البصمة الحيوية مع السجل الوطني
+              <option value="عدم تطابق البيانات أو الوثائق الرسمية">
+                عدم تطابق البيانات أو الوثائق الرسمية
               </option>
               <option value="اشتباه في انتحال شخصية أو تزوير بيانات">
                 اشتباه في انتحال شخصية أو تزوير بيانات
@@ -564,6 +515,13 @@ function ActivationsContent() {
                 عدم حضور صاحب الهوية شخصياً
               </option>
             </select>
+
+            {rejectError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 mb-3 animate-in fade-in">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span className="font-medium">{rejectError}</span>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button

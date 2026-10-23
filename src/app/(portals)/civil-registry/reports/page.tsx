@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -105,11 +105,11 @@ export default function CivilRegistryReportsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#0b4f6c] mb-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#0C4A4E] mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             تقارير ومؤشرات السجل المدني - {user?.branchName || "الفرع المركزي"}
           </div>
-          <h1 className="text-2xl font-bold text-[#00374e]">
+          <h1 className="text-2xl font-bold text-[#052F31]">
             التقرير الإحصائي الفعلي للوثائق والمعاملات
           </h1>
           <p className="text-xs text-gray-500 mt-1">
@@ -124,11 +124,11 @@ export default function CivilRegistryReportsPage() {
             className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
             title="تحديث البيانات"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0b4f6c]" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0C4A4E]" : ""}`} />
           </button>
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00374e] hover:bg-[#0b4f6c] text-white text-xs font-bold shadow-sm transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#052F31] hover:bg-[#0C4A4E] text-white text-xs font-bold shadow-sm transition-all"
           >
             <Download className="w-4 h-4" />
             <span>تصدير التقرير الفعلي</span>
@@ -148,7 +148,7 @@ export default function CivilRegistryReportsPage() {
         <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs text-gray-500 font-semibold">إجمالي الوثائق المسجلة</span>
-            <div className="text-2xl font-black text-[#00374e] mt-1 font-mono">
+            <div className="text-2xl font-black text-[#052F31] mt-1 font-mono">
               {loading ? "..." : totalDocuments}
             </div>
           </div>
@@ -184,7 +184,7 @@ export default function CivilRegistryReportsPage() {
         <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs text-gray-500 font-semibold">كادر وموظفو الفرع</span>
-            <div className="text-2xl font-black text-[#00374e] mt-1 font-mono">
+            <div className="text-2xl font-black text-[#052F31] mt-1 font-mono">
               {loading ? "..." : employees.length}
             </div>
           </div>
@@ -196,8 +196,8 @@ export default function CivilRegistryReportsPage() {
 
       {/* Service Breakdown - 100% Backend Aligned */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-4">
-        <h3 className="text-sm font-bold text-[#00374e] flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-[#0b4f6c]" />
+        <h3 className="text-sm font-bold text-[#052F31] flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-[#0C4A4E]" />
           توزيع الوثائق الثبوتية الصادرة حسب النوع (بيانات حية)
         </h3>
         <div className="space-y-3">
@@ -220,8 +220,8 @@ export default function CivilRegistryReportsPage() {
 
       {/* Branch Active Staff (Live from /api/v1/Employees) */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-4">
-        <h3 className="text-sm font-bold text-[#00374e] flex items-center gap-2">
-          <Users className="w-4 h-4 text-[#0b4f6c]" />
+        <h3 className="text-sm font-bold text-[#052F31] flex items-center gap-2">
+          <Users className="w-4 h-4 text-[#0C4A4E]" />
           كادر الفرع المسؤول عن معالجة المعاملات
         </h3>
         <div className="overflow-x-auto">
@@ -244,9 +244,9 @@ export default function CivilRegistryReportsPage() {
                 </tr>
               ) : (
                 employees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-blue-50/20">
+                  <tr key={emp.id} className="hover:bg-[#F1F6F4]">
                     <td className="py-3 px-4 font-bold text-gray-900">{emp.fullName}</td>
-                    <td className="py-3 px-4 font-mono font-bold text-[#00374e]">{emp.employeeNumber}</td>
+                    <td className="py-3 px-4 font-mono font-bold text-[#052F31]">{emp.employeeNumber}</td>
                     <td className="py-3 px-4 font-mono text-gray-600">{emp.nationalNumber}</td>
                     <td className="py-3 px-4 text-gray-700">{emp.roleLabel}</td>
                     <td className="py-3 px-4 text-center">

@@ -19,6 +19,7 @@ import {
   Eye,
   AlertCircle,
   User,
+  Clock,
 } from "lucide-react";
 import { civilRegistryService } from "@/lib/api/civilRegistryService";
 import {
@@ -28,9 +29,11 @@ import {
   IssueDeathCertificateCommand,
 } from "@/types/civilRegistry";
 import { useAuth } from "@/context/AuthContext";
+import { useNotification } from "@/context/NotificationContext";
 
 function VitalEventsContent() {
   const { user } = useAuth();
+  const { toast } = useNotification();
   const [activeTab, setActiveTab] = useState<"birth" | "death">("birth");
 
   // Data states
@@ -39,6 +42,7 @@ function VitalEventsContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Modals
   const [birthModalOpen, setBirthModalOpen] = useState(false);
@@ -46,20 +50,25 @@ function VitalEventsContent() {
   const [selectedBirth, setSelectedBirth] = useState<BirthCertificateDto | null>(null);
   const [selectedDeath, setSelectedDeath] = useState<DeathCertificateDto | null>(null);
 
-  // Notifications
-  const [notification, setNotification] = useState<{
-    type: "success" | "error" | "info";
-    message: string;
-  } | null>(null);
-
   const showNotification = (type: "success" | "error" | "info", message: string) => {
-    setNotification({ type, message });
-    setTimeout(() => setNotification(null), 4000);
+    if (type === "success") {
+      toast.success(message);
+      setModalError(null);
+    } else if (type === "error") {
+      toast.error(message);
+      setModalError(message);
+    } else {
+      toast.info(message);
+    }
   };
 
   // Branch fallbacks from seeds if not set in user profile
-  const branchCivilRegistryDefault = user?.branchId || "018f7d9a-2000-7000-8000-000000000002";
-  const branchHospitalDefault = "018f7d9a-2000-7000-8000-000000000005"; // مستشفى الثورة العام
+  const isNonCivilBranch =
+    user?.branchId === "018f7d9a-2000-7000-8000-000000000003" ||
+    user?.branchId === "018f7d9a-2000-7000-8000-000000000004" ||
+    user?.branchId === "018f7d9a-2000-7000-8000-000000000005";
+  const branchCivilRegistryDefault = (!isNonCivilBranch && user?.branchId) ? user.branchId : "018f7d9a-2000-7000-8000-000000000001";
+  const branchHospitalDefault = "018f7d9a-2000-7000-8000-000000000003"; // مستشفى الثورة العام النموذجي
 
   // New Birth Form
   const [birthForm, setBirthForm] = useState({
@@ -74,6 +83,30 @@ function VitalEventsContent() {
     district: "السبعين",
     addressDetails: "شارع حدة",
   });
+  const [fatherFamily, setFatherFamily] = useState<{ id: string; familyNumber: string } | null>(null);
+  const [isLookingUpFather, setIsLookingUpFather] = useState(false);
+
+  const handleLookupFatherCivil = async (nid: string) => {
+    setBirthForm((prev) => ({ ...prev, fatherNationalNumber: nid }));
+    if (nid.length === 11) {
+      setIsLookingUpFather(true);
+      try {
+        const families = await civilRegistryService.getFamilies();
+        const fam = families.find((f) => f.headOfFamilyNationalNumber?.trim() === nid.trim());
+        if (fam) {
+          setFatherFamily({ id: fam.id, familyNumber: fam.familyNumber });
+        } else {
+          setFatherFamily(null);
+        }
+      } catch (e) {
+        console.error("Error looking up family:", e);
+      } finally {
+        setIsLookingUpFather(false);
+      }
+    } else {
+      setFatherFamily(null);
+    }
+  };
 
   // New Death Form
   const [deathForm, setDeathForm] = useState({
@@ -104,8 +137,38 @@ function VitalEventsContent() {
     fetchData();
   }, []);
 
-  // Filtered Births
-  const filteredBirths = birthCertificates.filter((b) => {
+  // Filter births by branch if user is not SUPER_ADMIN or Civil Registry
+  const branchBirths = React.useMemo(() => {
+    if (!user || user.role === "SUPER_ADMIN" || !user.branchId || user.agency === "الأحوال المدنية") {
+      return birthCertificates;
+    }
+    const userBranchId = user.branchId.toLowerCase();
+    const userBranchName = user.branchName?.trim().toLowerCase();
+    return birthCertificates.filter(
+      (b) =>
+        (b.hospitalBranchId && b.hospitalBranchId.toLowerCase() === userBranchId) ||
+        (userBranchName && b.hospitalName && b.hospitalName.trim().toLowerCase() === userBranchName)
+    );
+  }, [birthCertificates, user]);
+
+  // Filter deaths by branch if user is not SUPER_ADMIN or Civil Registry
+  const branchDeaths = React.useMemo(() => {
+    if (!user || user.role === "SUPER_ADMIN" || !user.branchId || user.agency === "الأحوال المدنية") {
+      return deathCertificates;
+    }
+    const userBranchId = user.branchId.toLowerCase();
+    const userBranchName = user.branchName?.trim().toLowerCase();
+    return deathCertificates.filter(
+      (d) =>
+        (d.issuingBranchId && d.issuingBranchId.toLowerCase() === userBranchId) ||
+        (userBranchName && d.issuingBranchName && d.issuingBranchName.trim().toLowerCase() === userBranchName) ||
+        (d.hospitalBranchId && d.hospitalBranchId.toLowerCase() === userBranchId) ||
+        (userBranchName && d.hospitalName && d.hospitalName.trim().toLowerCase() === userBranchName)
+    );
+  }, [deathCertificates, user]);
+
+  // Filtered Births within user's branch
+  const filteredBirths = branchBirths.filter((b) => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -117,8 +180,8 @@ function VitalEventsContent() {
     );
   });
 
-  // Filtered Deaths
-  const filteredDeaths = deathCertificates.filter((d) => {
+  // Filtered Deaths within user's branch
+  const filteredDeaths = branchDeaths.filter((d) => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -132,24 +195,45 @@ function VitalEventsContent() {
   const handleBirthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!birthForm.firstName || !birthForm.fatherNationalNumber || !birthForm.motherNationalNumber) {
-      alert("يرجى ملء اسم المولود والرقم الوطني للأب والرقم الوطني للأم.");
+      showNotification("error", "يرجى ملء اسم المولود والرقم الوطني للأب والرقم الوطني للأم.");
       return;
     }
 
     setSubmitting(true);
     try {
+      let targetFamilyId = fatherFamily?.id;
+      if (!targetFamilyId) {
+        const families = await civilRegistryService.getFamilies().catch(() => []);
+        const match = families.find(
+          (f) => f.headOfFamilyNationalNumber?.trim() === birthForm.fatherNationalNumber.trim()
+        );
+        if (match) {
+          targetFamilyId = match.id;
+        }
+      }
+
+      if (!targetFamilyId) {
+        showNotification(
+          "error",
+          "لم يتم العثور على قيد عائلي نشط لرب الأسرة (الأب). يشترط السجل المدني وجود بطاقة عائلية سارية لإضافة المولود إليها."
+        );
+        setSubmitting(false);
+        return;
+      }
+
       const cmd: IssueBirthCertificateCommand = {
         fatherNationalNumber: birthForm.fatherNationalNumber.trim(),
         motherNationalNumber: birthForm.motherNationalNumber.trim(),
         firstName: birthForm.firstName.trim(),
         dateOfBirth: birthForm.dateOfBirth,
-        placeOfBirth: birthForm.placeOfBirth,
+        placeOfBirth: birthForm.placeOfBirth || "صنعاء",
         gender: Number(birthForm.gender),
         bloodGroup: Number(birthForm.bloodGroup),
-        governorate: birthForm.governorate,
-        district: birthForm.district,
-        addressDetails: birthForm.addressDetails,
+        governorate: birthForm.governorate || "أمانة العاصمة",
+        district: birthForm.district || "السبعين",
+        addressDetails: birthForm.addressDetails || "شارع حدة",
         hospitalBranchId: branchHospitalDefault,
+        familyId: targetFamilyId,
         issuingBranchId: branchCivilRegistryDefault,
       };
 
@@ -168,6 +252,7 @@ function VitalEventsContent() {
         district: "السبعين",
         addressDetails: "شارع حدة",
       });
+      setFatherFamily(null);
       showNotification("success", `تم إصدار شهادة الميلاد وتوليد الرقم الوطني [${created.childNationalNumber}] بنجاح.`);
       setSelectedBirth(created);
     } catch (err: unknown) {
@@ -182,7 +267,7 @@ function VitalEventsContent() {
   const handleDeathSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deathForm.nationalNumber) {
-      alert("يرجى إدخال الرقم الوطني للمتوفى.");
+      showNotification("error", "يرجى إدخال الرقم الوطني للمتوفى.");
       return;
     }
 
@@ -218,35 +303,33 @@ function VitalEventsContent() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
-      {/* Toast Notification */}
-      {notification && (
-        <div
-          className={`fixed top-5 left-1/2 -translate-x-1/2 z-[999] px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-white text-sm font-semibold transition-all ${
-            notification.type === "success"
-              ? "bg-[#005539] border border-emerald-400"
-              : "bg-rose-700 border border-rose-400"
-          }`}
-        >
-          <CheckCircle2 className="w-5 h-5 text-emerald-300" />
-          <span>{notification.message}</span>
-        </div>
-      )}
+
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-bold text-[#00374e] uppercase tracking-wider">
+            <span className="text-xs font-bold text-[#052F31] uppercase tracking-wider">
               مصلحة الأحوال المدنية والسجل المدني • {user?.branchName || "الفرع المركزي"}
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#00374e]">
+          <h1 className="text-2xl md:text-3xl font-extrabold text-[#052F31]">
             توثيق الوقائع الحيوية (Vital Events)
           </h1>
           <p className="text-sm text-[#41484d] mt-1">
             إصدار وقيد شهادات الميلاد الرسمية والوفيات عبر الربط المباشر مع الباكند وقاعدة البيانات المركزية.
           </p>
+          {user?.role !== "SUPER_ADMIN" && user?.branchName && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold mt-2">
+              <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>
+                {user.agency === "الأحوال المدنية"
+                  ? `الفرع المعتمد للتوثيق والاعتماد: ${user.branchName}`
+                  : `نطاق العرض محدد بوقائع فرع: ${user.branchName}`}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -256,14 +339,14 @@ function VitalEventsContent() {
             className="p-2.5 bg-white border border-[#e0e3e5] rounded-xl hover:bg-slate-50 text-slate-700 transition-all flex items-center gap-2 text-xs font-bold cursor-pointer"
             title="تحديث البيانات الحية"
           >
-            <RefreshCw className={`w-4 h-4 text-[#0b4f6c] ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 text-[#0C4A4E] ${loading ? "animate-spin" : ""}`} />
             <span>تحديث</span>
           </button>
 
           {activeTab === "birth" ? (
             <button
               onClick={() => setBirthModalOpen(true)}
-              className="px-5 py-2.5 bg-[#0b4f6c] hover:bg-[#00374e] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+              className="px-5 py-2.5 bg-[#0C4A4E] hover:bg-[#052F31] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>إصدار شهادة ميلاد رسمية</span>
@@ -286,12 +369,12 @@ function VitalEventsContent() {
           onClick={() => setActiveTab("birth")}
           className={`pb-3 text-sm font-bold flex items-center gap-2 transition-all cursor-pointer border-b-2 ${
             activeTab === "birth"
-              ? "border-[#00374e] text-[#00374e]"
-              : "border-transparent text-[#71787e] hover:text-[#00374e]"
+              ? "border-[#052F31] text-[#052F31]"
+              : "border-transparent text-[#71787e] hover:text-[#052F31]"
           }`}
         >
           <Baby className="w-4 h-4" />
-          <span>شهادات الميلاد المسجلة ({birthCertificates.length})</span>
+          <span>شهادات الميلاد المسجلة ({branchBirths.length})</span>
         </button>
 
         <button
@@ -303,7 +386,7 @@ function VitalEventsContent() {
           }`}
         >
           <HeartCrack className="w-4 h-4" />
-          <span>شهادات الوفاة المسجلة ({deathCertificates.length})</span>
+          <span>شهادات الوفاة المسجلة ({branchDeaths.length})</span>
         </button>
       </div>
 
@@ -319,7 +402,7 @@ function VitalEventsContent() {
               ? "بحث برقم الشهادة، الرقم الوطني للطفل، اسم الطفل، أو الرقم الوطني للأب..."
               : "بحث برقم شهادة الوفاة، الرقم الوطني للمتوفى، أو الاسم..."
           }
-          className="w-full pr-11 pl-4 py-3 bg-white border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0b4f6c] shadow-xs"
+          className="w-full pr-11 pl-4 py-3 bg-white border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0C4A4E] shadow-xs"
         />
       </div>
 
@@ -328,7 +411,7 @@ function VitalEventsContent() {
         <div className="bg-white border border-[#e0e3e5] rounded-2xl shadow-xs overflow-hidden">
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-500">
-              <Loader2 className="w-8 h-8 animate-spin text-[#0b4f6c]" />
+              <Loader2 className="w-8 h-8 animate-spin text-[#0C4A4E]" />
               <p className="text-xs">جاري استرجاع شهادات الميلاد الحية من الباكند...</p>
             </div>
           ) : filteredBirths.length === 0 ? (
@@ -354,7 +437,7 @@ function VitalEventsContent() {
                 <tbody className="divide-y divide-[#eceef0]">
                   {filteredBirths.map((b) => (
                     <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-[#00374e]">
+                      <td className="py-3 px-4 font-mono font-bold text-[#052F31]">
                         {b.certificateNumber}
                       </td>
                       <td className="py-3 px-4 font-semibold text-[#191c1e]">
@@ -382,7 +465,7 @@ function VitalEventsContent() {
                       <td className="py-3 px-4 text-center">
                         <button
                           onClick={() => setSelectedBirth(b)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-[#c5e7ff] text-[#00374e] rounded-lg font-bold text-xs flex items-center gap-1.5 mx-auto transition-all cursor-pointer"
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-[#E6F1EE] text-[#052F31] rounded-lg font-bold text-xs flex items-center gap-1.5 mx-auto transition-all cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span>عرض الشهادة</span>
@@ -474,8 +557,8 @@ function VitalEventsContent() {
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-[#e0e3e5] max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-4 border-b border-[#eceef0]">
               <div className="flex items-center gap-2">
-                <Baby className="w-5 h-5 text-[#0b4f6c]" />
-                <h3 className="font-extrabold text-[#00374e] text-base">
+                <Baby className="w-5 h-5 text-[#0C4A4E]" />
+                <h3 className="font-extrabold text-[#052F31] text-base">
                   إصدار شهادة ميلاد رسمية جديدة
                 </h3>
               </div>
@@ -503,7 +586,7 @@ function VitalEventsContent() {
                     value={birthForm.firstName}
                     onChange={(e) => setBirthForm({ ...birthForm, firstName: e.target.value })}
                     placeholder="مثال: محمد، سارة..."
-                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0b4f6c]"
+                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0C4A4E]"
                   />
                 </div>
 
@@ -514,7 +597,7 @@ function VitalEventsContent() {
                   <select
                     value={birthForm.gender}
                     onChange={(e) => setBirthForm({ ...birthForm, gender: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0b4f6c]"
+                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0C4A4E]"
                   >
                     <option value={0}>ذكر (Male)</option>
                     <option value={1}>أنثى (Female)</option>
@@ -530,10 +613,28 @@ function VitalEventsContent() {
                     required
                     maxLength={11}
                     value={birthForm.fatherNationalNumber}
-                    onChange={(e) => setBirthForm({ ...birthForm, fatherNationalNumber: e.target.value })}
+                    onChange={(e) => handleLookupFatherCivil(e.target.value)}
                     placeholder="01001000001"
-                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs font-mono focus:outline-none focus:border-[#0b4f6c]"
+                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs font-mono focus:outline-none focus:border-[#0C4A4E]"
                   />
+                  {isLookingUpFather && (
+                    <div className="mt-1 text-[11px] text-slate-500 flex items-center gap-1 font-medium">
+                      <Clock className="w-3 h-3 animate-spin" />
+                      <span>جارٍ التحقق من قيد العائلة...</span>
+                    </div>
+                  )}
+                  {fatherFamily && !isLookingUpFather && (
+                    <div className="mt-1 text-[11px] text-emerald-700 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>قيد العائلة مرتبط: بطاقة العائلة رقم ({fatherFamily.familyNumber})</span>
+                    </div>
+                  )}
+                  {!fatherFamily && !isLookingUpFather && birthForm.fatherNationalNumber.length === 11 && (
+                    <div className="mt-1 text-[11px] text-amber-700 font-medium flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 text-amber-600" />
+                      <span>تنبيه: لا يوجد قيد عائلي نشط مسجل لهذا الأب</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -547,7 +648,7 @@ function VitalEventsContent() {
                     value={birthForm.motherNationalNumber}
                     onChange={(e) => setBirthForm({ ...birthForm, motherNationalNumber: e.target.value })}
                     placeholder="01001000002"
-                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs font-mono focus:outline-none focus:border-[#0b4f6c]"
+                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs font-mono focus:outline-none focus:border-[#0C4A4E]"
                   />
                 </div>
 
@@ -560,7 +661,7 @@ function VitalEventsContent() {
                     required
                     value={birthForm.dateOfBirth}
                     onChange={(e) => setBirthForm({ ...birthForm, dateOfBirth: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0b4f6c]"
+                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0C4A4E]"
                   />
                 </div>
 
@@ -571,7 +672,7 @@ function VitalEventsContent() {
                   <select
                     value={birthForm.bloodGroup}
                     onChange={(e) => setBirthForm({ ...birthForm, bloodGroup: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0b4f6c]"
+                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0C4A4E]"
                   >
                     <option value={0}>A+</option>
                     <option value={1}>A-</option>
@@ -592,7 +693,7 @@ function VitalEventsContent() {
                     type="text"
                     value={birthForm.governorate}
                     onChange={(e) => setBirthForm({ ...birthForm, governorate: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0b4f6c]"
+                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0C4A4E]"
                   />
                 </div>
 
@@ -604,10 +705,31 @@ function VitalEventsContent() {
                     type="text"
                     value={birthForm.district}
                     onChange={(e) => setBirthForm({ ...birthForm, district: e.target.value })}
-                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0b4f6c]"
+                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0C4A4E]"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    تفاصيل السكن ومحل الإقامة *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={birthForm.addressDetails}
+                    onChange={(e) => setBirthForm({ ...birthForm, addressDetails: e.target.value })}
+                    placeholder="مثال: حي حدة - شارع بيروت"
+                    className="w-full px-3 py-2 border border-[#e0e3e5] rounded-xl text-xs focus:outline-none focus:border-[#0C4A4E]"
                   />
                 </div>
               </div>
+
+              {modalError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="font-medium">{modalError}</span>
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-4 border-t border-[#eceef0]">
                 <button
@@ -620,7 +742,7 @@ function VitalEventsContent() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 bg-[#0b4f6c] hover:bg-[#00374e] text-white rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                  className="px-5 py-2 bg-[#0C4A4E] hover:bg-[#052F31] text-white rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer disabled:opacity-60"
                 >
                   {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>حفظ وإصدار الوثيقة</span>
@@ -707,6 +829,13 @@ function VitalEventsContent() {
                 />
               </div>
 
+              {modalError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="font-medium">{modalError}</span>
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 pt-4 border-t border-[#eceef0]">
                 <button
                   type="button"
@@ -734,7 +863,7 @@ function VitalEventsContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-              <h3 className="font-extrabold text-[#00374e] text-base flex items-center gap-2">
+              <h3 className="font-extrabold text-[#052F31] text-base flex items-center gap-2">
                 <FileText className="w-5 h-5 text-emerald-600" />
                 <span>شهادة ميلاد رسمية صالحة قانونياً</span>
               </h3>
@@ -747,10 +876,10 @@ function VitalEventsContent() {
             </div>
 
             {/* Certificate Canvas */}
-            <div className="p-6 my-4 border-2 border-dashed border-[#0b4f6c]/30 rounded-2xl bg-amber-50/20 space-y-5">
+            <div className="p-6 my-4 border-2 border-dashed border-[#0C4A4E]/30 rounded-2xl bg-amber-50/20 space-y-5">
               <div className="text-center space-y-1">
                 <p className="text-xs font-bold text-slate-600">الجمهورية اليمنية • وزارة الداخلية</p>
-                <p className="text-xs font-extrabold text-[#00374e]">مصلحة الأحوال المدنية والسجل المدني</p>
+                <p className="text-xs font-extrabold text-[#052F31]">مصلحة الأحوال المدنية والسجل المدني</p>
                 <h2 className="text-xl font-black text-slate-900 pt-1">شـهـادة مـيـلاد</h2>
                 <p className="font-mono text-xs font-bold text-slate-500">رقم القيد: {selectedBirth.certificateNumber}</p>
               </div>
@@ -758,7 +887,7 @@ function VitalEventsContent() {
               <div className="grid grid-cols-2 gap-4 text-xs pt-2">
                 <div className="bg-white p-3 rounded-xl border border-slate-200">
                   <span className="text-slate-400 block text-[10px]">اسم المولود بالكامل:</span>
-                  <span className="font-bold text-sm text-[#00374e]">{selectedBirth.childFullName}</span>
+                  <span className="font-bold text-sm text-[#052F31]">{selectedBirth.childFullName}</span>
                 </div>
                 <div className="bg-white p-3 rounded-xl border border-slate-200">
                   <span className="text-slate-400 block text-[10px]">الرقم الوطني الدائم:</span>
@@ -791,7 +920,7 @@ function VitalEventsContent() {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => window.print()}
-                className="px-5 py-2.5 bg-[#00374e] hover:bg-[#0b4f6c] text-white rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer shadow-sm"
+                className="px-5 py-2.5 bg-[#052F31] hover:bg-[#0C4A4E] text-white rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer shadow-sm"
               >
                 <Printer className="w-4 h-4" />
                 <span>طباعة الشهادة</span>
@@ -828,7 +957,7 @@ function VitalEventsContent() {
             <div className="p-6 my-4 border-2 border-dashed border-rose-300 rounded-2xl bg-rose-50/20 space-y-5">
               <div className="text-center space-y-1">
                 <p className="text-xs font-bold text-slate-600">الجمهورية اليمنية • وزارة الداخلية</p>
-                <p className="text-xs font-extrabold text-[#00374e]">مصلحة الأحوال المدنية والسجل المدني</p>
+                <p className="text-xs font-extrabold text-[#052F31]">مصلحة الأحوال المدنية والسجل المدني</p>
                 <h2 className="text-xl font-black text-rose-900 pt-1">شـهـادة وفـاة</h2>
                 <p className="font-mono text-xs font-bold text-slate-500">رقم القيد: {selectedDeath.certificateNumber}</p>
               </div>

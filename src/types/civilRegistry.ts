@@ -1,7 +1,10 @@
 import { PaginationParams } from "./api";
 
 export type Gender = "Male" | "Female";
+export type GenderType = Gender;
 export type MaritalStatus = "Single" | "Married" | "Divorced" | "Widowed";
+export type MaritalStatusType = MaritalStatus;
+export type FamilyMemberStatus = "Active" | "Divorced" | "Deceased" | "Separated";
 export type PersonStatus = "Active" | "Deceased";
 export type AccountStatus = "Active" | "PendingActivation" | "Suspended";
 
@@ -55,13 +58,14 @@ export interface CivilServiceRequest {
   serviceCode: string;
   branchId: string;
   branchName: string;
-  status: "Pending" | "UnderReview" | "Approved" | "Rejected" | "Issued" | "Completed";
+  status: "Pending" | "UnderReview" | "Approved" | "Rejected" | "Issued" | "Completed" | "Cancelled";
   submissionDate: string;
   completedDate?: string;
-  fee: number;
-  isPaid: boolean;
+  fee?: number;
+  isPaid?: boolean;
   rejectionReason?: string;
   officerNotes?: string;
+  requestData?: Record<string, any>;
   attachments: {
     name: string;
     fileUrl: string;
@@ -151,6 +155,9 @@ export interface RegisterBirthCertificateDto {
   hospitalOrganizationId?: string;
   governorate: string;
   district: string;
+  addressDetails?: string;
+  familyId?: string;
+  bloodGroup?: number;
 }
 
 export interface RegisterDeathCertificateDto {
@@ -265,6 +272,7 @@ export interface NationalIdCardDto {
   personId: string;
   nationalNumber: string;
   fullName: string;
+  photoUrl?: string;
   issuingBranchId: string;
   branchName: string;
   issueDate: string;
@@ -272,6 +280,15 @@ export interface NationalIdCardDto {
   qrCodePayload?: string;
   status: "Active" | "Expired" | "Suspended" | "Lost" | string;
   createdAt: string;
+  dateOfBirth?: string;
+  placeOfBirth?: string;
+  gender?: string;
+  nationality?: string;
+  maritalStatus?: string;
+  bloodGroup?: string;
+  governorate?: string;
+  district?: string;
+  addressDetails?: string;
 }
 
 export interface IssueNationalIdCardCommand {
@@ -282,21 +299,21 @@ export interface IssueNationalIdCardCommand {
   familyName?: string;
   dateOfBirth?: string;
   placeOfBirth?: string;
-  gender?: number; // 0 = Male, 1 = Female
+  gender?: GenderType;
   nationality?: string;
-  maritalStatus?: number; // 0 = Single, 1 = Married, 2 = Divorced, 3 = Widowed
+  maritalStatus?: MaritalStatusType;
   governorate?: string;
   district?: string;
   addressDetails?: string;
   photoUrl?: string;
-  bloodGroup?: number;
+  bloodGroup?: string | number;
   issuingBranchId: string;
   issueDate?: string;
 }
 
 export interface RenewNationalIdCardCommand {
   nationalNumber: string;
-  maritalStatus?: number;
+  maritalStatus?: MaritalStatusType;
   governorate?: string;
   district?: string;
   addressDetails?: string;
@@ -306,12 +323,18 @@ export interface RenewNationalIdCardCommand {
 
 export interface UpdatePersonDataCommand {
   nationalNumber: string;
-  maritalStatus?: number;
-  governorate?: string;
-  district?: string;
-  addressDetails?: string;
+  firstName: string;
+  fatherName: string;
+  grandfatherName: string;
+  familyName: string;
+  dateOfBirth: string;
+  placeOfBirth: string;
+  maritalStatus: MaritalStatusType;
+  governorate: string;
+  district: string;
+  addressDetails: string;
   photoUrl?: string;
-  occupation?: string;
+  bloodGroup: string;
 }
 
 // 4. Family & Marriage Models
@@ -383,8 +406,7 @@ export interface AddWifeCommand {
 }
 
 export interface UpdateFamilyMemberStatusCommand {
-  familyId: string;
-  personId: string;
-  status: number; // 0 = Active, 1 = Divorced, 2 = Deceased, 3 = Left
-  reason?: string;
+  familyMemberId: string; // Guid
+  newStatus: FamilyMemberStatus;
+  leftAt?: string; // ISO DateTime string (اختياري)
 }

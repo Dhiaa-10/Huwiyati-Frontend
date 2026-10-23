@@ -30,7 +30,9 @@ import {
   RegisterDeathCertificateDto,
 } from "@/types/civilRegistry";
 import { serviceRequestsService } from "./serviceRequestsService";
-import { ServiceRequestDto, RequestStatus } from "@/types/serviceRequests";
+import { ServiceRequestDto, RequestStatus, CreateServiceRequestCommand } from "@/types/serviceRequests";
+import { apiActivateCitizenAccount, apiGetCitizenAccountStatus } from "./authService";
+import { filesService } from "./filesService";
 
 function mapBackendToCivilRequest(dto: ServiceRequestDto): CivilServiceRequest {
   const status: CivilServiceRequest["status"] =
@@ -44,6 +46,8 @@ function mapBackendToCivilRequest(dto: ServiceRequestDto): CivilServiceRequest {
       ? "Rejected"
       : dto.status === "Issued"
       ? "Issued"
+      : dto.status === "Cancelled"
+      ? "Cancelled"
       : "Pending";
 
   let parsed: any = {};
@@ -59,9 +63,11 @@ function mapBackendToCivilRequest(dto: ServiceRequestDto): CivilServiceRequest {
     personId: dto.personId,
     personFullName: dto.personFullName || "مواطن يمني",
     personNationalNumber: dto.nationalNumber || "01010000000",
-    personPhoto:
-      parsed.photoUrl ||
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
+    personPhoto: parsed.photoUrl
+      ? filesService.getFullUrl(parsed.photoUrl)
+      : (dto as any).personPhoto
+      ? filesService.getFullUrl((dto as any).personPhoto)
+      : "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
     serviceTypeId: dto.serviceTypeId,
     serviceName: dto.serviceTypeName || "خدمة السجل المدني",
     serviceCode: dto.serviceTypeCode || "CIV_SVC",
@@ -70,22 +76,26 @@ function mapBackendToCivilRequest(dto: ServiceRequestDto): CivilServiceRequest {
     status,
     submissionDate: dto.submissionDate || dto.createdAt,
     completedDate: dto.completedDate || undefined,
-    fee: parsed.fee || 4500,
-    isPaid: true,
+    fee: parsed.fee ? Number(parsed.fee) : undefined,
+    isPaid: parsed.isPaid ?? undefined,
     rejectionReason: dto.rejectionReason || undefined,
     officerNotes: dto.statusHistory?.[0]?.note || undefined,
-    attachments: [
-      {
-        name: "وثيقة إثبات الهوية / عقد الزواج",
-        fileUrl: "/docs/identity_proof.pdf",
-        type: "pdf",
-      },
-      {
-        name: "سند تسديد الرسوم الإلكتروني",
-        fileUrl: "/docs/receipt.pdf",
-        type: "pdf",
-      },
-    ],
+    requestData: parsed,
+    attachments: parsed.documentUrl
+      ? [
+          {
+            name: "وثيقة إثبات الهوية / المرفقات الرسمية",
+            fileUrl: filesService.getFullUrl(parsed.documentUrl),
+            type: "pdf",
+          },
+        ]
+      : [
+          {
+            name: "وثيقة إثبات الهوية / عقد الزواج",
+            fileUrl: "/docs/identity_proof.pdf",
+            type: "pdf",
+          },
+        ],
   };
 }
 
@@ -115,6 +125,19 @@ class CivilRegistryService {
   }
 
   public async issueBirthCertificate(command: IssueBirthCertificateCommand): Promise<BirthCertificateDto> {
+    if (!command.familyId && command.fatherNationalNumber) {
+      try {
+        const families = await this.getFamilies();
+        const fatherFamily = families.find(
+          (f) => f.headOfFamilyNationalNumber?.trim() === command.fatherNationalNumber.trim()
+        );
+        if (fatherFamily) {
+          command.familyId = fatherFamily.id;
+        }
+      } catch (err) {
+        console.warn("[CivilRegistryService] Failed to auto-lookup father family:", err);
+      }
+    }
     const res = await apiClient.post<BirthCertificateDto>("/api/v1/birth-certificates", command);
     return res.data!;
   }
@@ -175,8 +198,9 @@ class CivilRegistryService {
     return res.data!;
   }
 
-  public async updatePersonData(command: UpdatePersonDataCommand): Promise<void> {
-    await apiClient.put("/api/v1/national-id-cards/person-data", command);
+  public async updatePersonData(command: UpdatePersonDataCommand): Promise<NationalIdCardDto> {
+    const res = await apiClient.put<NationalIdCardDto>("/api/v1/national-id-cards/person-data", command);
+    return res.data!;
   }
 
   // ==========================================
@@ -261,27 +285,28 @@ class CivilRegistryService {
       const history = await this.getNationalIdCardHistory(nationalNumber);
       if (history.length > 0) {
         const card = history[0];
+        const names = card.fullName ? card.fullName.trim().split(/\s+/) : [];
         return {
           id: card.personId,
           nationalNumber: card.nationalNumber,
-          firstName: card.fullName.split(" ")[0] || "",
-          fatherName: card.fullName.split(" ")[1] || "",
-          grandfatherName: card.fullName.split(" ")[2] || "",
-          familyName: card.fullName.split(" ")[3] || "",
+          firstName: names[0] || "",
+          fatherName: names[1] || "",
+          grandfatherName: names[2] || "",
+          familyName: names.length > 3 ? names.slice(3).join(" ") : names[names.length - 1] || "",
           fullName: card.fullName,
-          motherName: "غير مسجل",
-          dateOfBirth: "",
-          placeOfBirth: "",
-          gender: "Male",
-          nationality: "يمني",
-          maritalStatus: "Single",
-          bloodType: "O+",
-          governorate: "",
-          district: "",
-          addressDetails: "",
-          photoUrl: "",
+          motherName: "مسجل بالسجل المركزي",
+          dateOfBirth: card.dateOfBirth || "—",
+          placeOfBirth: card.placeOfBirth || "—",
+          gender: (card.gender as any) || "Male",
+          nationality: card.nationality || "يمني",
+          maritalStatus: (card.maritalStatus as any) || "Single",
+          bloodType: card.bloodGroup || "O+",
+          governorate: card.governorate || "—",
+          district: card.district || "—",
+          addressDetails: card.addressDetails || "",
+          photoUrl: card.photoUrl ? filesService.getFullUrl(card.photoUrl) : "",
           personStatus: "Active",
-          accountStatus: "Active",
+          accountStatus: "PendingActivation",
           phoneNumber: "",
           email: "",
           biometricRegistered: true,
@@ -310,17 +335,17 @@ class CivilRegistryService {
       grandfatherName: c.fullName.split(" ")[2] || "",
       familyName: c.fullName.split(" ")[3] || "",
       fullName: c.fullName,
-      motherName: "غير مسجل",
-      dateOfBirth: "",
-      placeOfBirth: "",
-      gender: "Male",
-      nationality: "يمني",
-      maritalStatus: "Single",
-      bloodType: "O+",
-      governorate: "",
-      district: "",
-      addressDetails: "",
-      photoUrl: "",
+      motherName: "مسجل بالسجل المركزي",
+      dateOfBirth: c.dateOfBirth || "—",
+      placeOfBirth: c.placeOfBirth || "—",
+      gender: (c.gender as any) || "Male",
+      nationality: c.nationality || "يمني",
+      maritalStatus: (c.maritalStatus as any) || "Single",
+      bloodType: c.bloodGroup || "O+",
+      governorate: c.governorate || "—",
+      district: c.district || "—",
+      addressDetails: c.addressDetails || "",
+      photoUrl: c.photoUrl ? filesService.getFullUrl(c.photoUrl) : "",
       personStatus: "Active",
       accountStatus: "Active",
       phoneNumber: "",
@@ -343,12 +368,20 @@ class CivilRegistryService {
   }
 
   public async activateAccount(dto: ActivateAccountDto): Promise<{ success: boolean; message: string; citizen: CitizenCivilRecord }> {
+    const apiRes = await apiActivateCitizenAccount(dto.nationalNumber);
     const c = await this.searchCitizenByNationalId(dto.nationalNumber);
+    if (c) {
+      c.accountStatus = "Active";
+    }
     return {
-      success: true,
-      message: "تم التحقق وتحديث السجل بنجاح.",
+      success: apiRes.isSuccess,
+      message: apiRes.message || "تم التحقق وتفعيل الحساب الرقمي للمواطن بنجاح.",
       citizen: c || ({} as CitizenCivilRecord),
     };
+  }
+
+  public async getCitizenAccountStatus(nationalNumber: string) {
+    return apiGetCitizenAccountStatus(nationalNumber);
   }
 
   public async rejectActivation(nationalNumber: string, reason: string): Promise<{ success: boolean; message: string }> {
@@ -461,6 +494,47 @@ class CivilRegistryService {
     };
   }
 
+  public async cancelRequest(requestId: string, reason?: string): Promise<CivilServiceRequest> {
+    const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId);
+
+    if (isGuid) {
+      try {
+        const updated = await serviceRequestsService.cancelRequestOnBehalf({
+          serviceRequestId: requestId,
+          reason,
+        });
+
+        return mapBackendToCivilRequest(updated);
+      } catch (err) {
+        console.error("[CivilRegistryService] cancelRequest error:", err);
+        throw err;
+      }
+    }
+
+    return {
+      id: requestId,
+      requestNumber: "REQ-001",
+      personId: "",
+      personFullName: "",
+      personNationalNumber: "",
+      personPhoto: "",
+      serviceTypeId: "",
+      serviceName: "خدمة مدنية",
+      serviceCode: "CIV-01",
+      branchId: "",
+      branchName: "",
+      status: "Cancelled",
+      submissionDate: new Date().toISOString(),
+      attachments: [],
+      rejectionReason: reason || "تم إلغاء الطلب من قبل الموظف",
+    };
+  }
+
+  public async createRequest(command: CreateServiceRequestCommand): Promise<CivilServiceRequest> {
+    const res = await serviceRequestsService.createRequestOnBehalf(command);
+    return mapBackendToCivilRequest(res);
+  }
+
   public async getVitalEvents(params?: VitalEventFilterParams): Promise<PaginatedResponse<VitalEvent>> {
     const [births, deaths] = await Promise.all([
       this.getBirthCertificates().catch(() => []),
@@ -516,23 +590,51 @@ class CivilRegistryService {
 
   public async registerBirth(
     dto: RegisterBirthCertificateDto,
-    hospitalBranchId: string = "018f7d9a-2000-7000-8000-000000000005",
-    issuingBranchId: string = "018f7d9a-2000-7000-8000-000000000002"
+    hospitalBranchId: string = "018f7d9a-2000-7000-8000-000000000003",
+    issuingBranchId: string = "018f7d9a-2000-7000-8000-000000000001"
   ): Promise<VitalEvent> {
+    // 1. Resolve Family ID (Civil Registry requires familyId)
+    let resolvedFamilyId = dto.familyId;
+    if (!resolvedFamilyId && dto.fatherNationalNumber) {
+      try {
+        const families = await this.getFamilies();
+        const fatherFamily = families.find(
+          (f) => f.headOfFamilyNationalNumber?.trim() === dto.fatherNationalNumber.trim()
+        );
+        if (fatherFamily) {
+          resolvedFamilyId = fatherFamily.id;
+        }
+      } catch (err) {
+        console.warn("[CivilRegistryService] Failed to auto-lookup father family:", err);
+      }
+    }
+
+    if (!resolvedFamilyId) {
+      throw new Error(
+        "لم يتم العثور على قيد عائلي نشط لرب الأسرة (الأب). يشترط السجل المدني وجود بطاقة عائلية سارية لإضافة المولود إليها."
+      );
+    }
+
+    const governorate = dto.governorate?.trim() || "أمانة العاصمة";
+    const district = dto.district?.trim() || "السبعين";
+    const addressDetails = dto.addressDetails?.trim() || "صنعاء - الجمهورية اليمنية";
+
     const res = await this.issueBirthCertificate({
-      fatherNationalNumber: dto.fatherNationalNumber,
-      motherNationalNumber: dto.motherNationalNumber,
-      firstName: dto.childFirstName,
+      fatherNationalNumber: dto.fatherNationalNumber.trim(),
+      motherNationalNumber: dto.motherNationalNumber.trim(),
+      firstName: dto.childFirstName.trim(),
       dateOfBirth: dto.dateOfBirth,
-      placeOfBirth: dto.placeOfBirth,
+      placeOfBirth: dto.placeOfBirth || "مستشفى",
       gender: dto.childGender === "Female" ? 1 : 0,
-      bloodGroup: 6,
-      governorate: dto.governorate,
-      district: dto.district,
-      addressDetails: "",
+      bloodGroup: dto.bloodGroup ?? 6,
+      governorate,
+      district,
+      addressDetails,
       hospitalBranchId,
+      familyId: resolvedFamilyId,
       issuingBranchId,
     });
+
     return {
       id: res.id,
       eventType: "Birth",
@@ -542,8 +644,8 @@ class CivilRegistryService {
       subjectName: res.childFullName,
       subjectNationalNumber: res.childNationalNumber,
       placeOfEvent: res.placeOfBirth,
-      governorate: dto.governorate,
-      district: dto.district,
+      governorate,
+      district,
       status: "Verified",
       approvedByOfficer: "معتمد",
     };
@@ -551,8 +653,8 @@ class CivilRegistryService {
 
   public async registerDeath(
     dto: RegisterDeathCertificateDto,
-    hospitalBranchId: string = "018f7d9a-2000-7000-8000-000000000005",
-    issuingBranchId: string = "018f7d9a-2000-7000-8000-000000000002"
+    hospitalBranchId: string = "018f7d9a-2000-7000-8000-000000000003",
+    issuingBranchId: string = "018f7d9a-2000-7000-8000-000000000001"
   ): Promise<VitalEvent> {
     const res = await this.issueDeathCertificate({
       nationalNumber: dto.deceasedNationalNumber,
