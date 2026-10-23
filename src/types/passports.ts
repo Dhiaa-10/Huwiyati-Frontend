@@ -67,7 +67,7 @@ export interface PassportRequest {
   serviceName: string;
   branchId: string;
   branchName: string;
-  status: "Pending" | "UnderReview" | "Approved" | "Rejected" | "Printed";
+  status: "Pending" | "UnderReview" | "Approved" | "Rejected" | "Printed" | "Cancelled";
   previousPassportNumber?: string;
   urgentPriority: boolean; // المستعجل
   fee: number;

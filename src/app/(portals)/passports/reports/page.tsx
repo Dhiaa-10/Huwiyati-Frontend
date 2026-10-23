@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -103,11 +103,11 @@ export default function PassportsReportsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#0b4f6c] mb-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#0C4A4E] mb-1">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             تقارير ومؤشرات الفرع الحية - Live Telemetry
           </div>
-          <h1 className="text-2xl font-bold text-[#00374e]">
+          <h1 className="text-2xl font-bold text-[#052F31]">
             تقارير إصدار الجوازات والرقابة بالمنافذ
           </h1>
           <p className="text-xs text-gray-500 mt-1">
@@ -122,12 +122,12 @@ export default function PassportsReportsPage() {
             className="p-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
             title="تحديث التقارير"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0b4f6c]" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0C4A4E]" : ""}`} />
           </button>
 
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#00374e] hover:bg-[#0b4f6c] text-white text-xs font-bold shadow-sm transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#052F31] hover:bg-[#0C4A4E] text-white text-xs font-bold shadow-sm transition-all"
           >
             <Download className="w-4 h-4" />
             <span>تصدير التقرير (PDF/Excel)</span>
@@ -146,7 +146,7 @@ export default function PassportsReportsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
           <span className="text-xs font-semibold text-gray-500">الجوازات المعتمدة بالنظام</span>
-          <div className="text-2xl font-black text-[#00374e] mt-1 tabular-nums">
+          <div className="text-2xl font-black text-[#052F31] mt-1 tabular-nums">
             {passports.length}
           </div>
           <div className="mt-2 text-[11px] text-emerald-700 font-bold flex items-center gap-1">
@@ -176,7 +176,7 @@ export default function PassportsReportsPage() {
 
         <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
           <span className="text-xs font-semibold text-gray-500">المنافذ المسجلة</span>
-          <div className="text-2xl font-black text-[#00374e] mt-1 tabular-nums">
+          <div className="text-2xl font-black text-[#052F31] mt-1 tabular-nums">
             {Math.max(portMovementsData.length, 1)}
           </div>
           <div className="mt-2 text-[11px] text-gray-500">منافذ برية وجوية نشطة</div>
@@ -188,8 +188,8 @@ export default function PassportsReportsPage() {
         {/* Passports Breakdown (6 cols) */}
         <div className="lg:col-span-6 bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-4">
           <div className="border-b border-gray-100 pb-3">
-            <h3 className="text-sm font-bold text-[#00374e] flex items-center gap-2">
-              <FileCheck2 className="w-4 h-4 text-[#0b4f6c]" />
+            <h3 className="text-sm font-bold text-[#052F31] flex items-center gap-2">
+              <FileCheck2 className="w-4 h-4 text-[#0C4A4E]" />
               تصنيف الجوازات المعتمدة حسب الفئة
             </h3>
             <p className="text-xs text-gray-500">نسبة الإصدارات العادية والدبلوماسية والخاصة</p>
@@ -218,8 +218,8 @@ export default function PassportsReportsPage() {
         {/* Ports Movements Breakdown (6 cols) */}
         <div className="lg:col-span-6 bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-4">
           <div className="border-b border-gray-100 pb-3">
-            <h3 className="text-sm font-bold text-[#00374e] flex items-center gap-2">
-              <Plane className="w-4 h-4 text-[#0b4f6c]" />
+            <h3 className="text-sm font-bold text-[#052F31] flex items-center gap-2">
+              <Plane className="w-4 h-4 text-[#0C4A4E]" />
               حركة القدوم والمغادرة بالمنافذ
             </h3>
             <p className="text-xs text-gray-500">حجم حركات الدخول والخروج الحقيقية</p>
@@ -235,7 +235,7 @@ export default function PassportsReportsPage() {
                   className="p-3 rounded-xl border border-gray-100 bg-gray-50/60 hover:bg-gray-100/70 transition-all flex items-center justify-between text-xs"
                 >
                   <div>
-                    <h4 className="font-bold text-[#00374e]">{p.port}</h4>
+                    <h4 className="font-bold text-[#052F31]">{p.port}</h4>
                     <div className="text-[11px] text-gray-500 flex items-center gap-2 mt-0.5">
                       <span className="text-emerald-700">قدوم: {p.entry}</span>
                       <span>•</span>

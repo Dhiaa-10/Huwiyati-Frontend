@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -172,11 +172,11 @@ export default function TravelRecordsAndPortsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#0b4f6c] mb-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#0C4A4E] mb-1">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
             نظام الرقابة بالمنافذ الحدودية والجوازات - صلاحيات ضابط المنفذ (مستوى 3)
           </div>
-          <h1 className="text-2xl font-bold text-[#00374e]">
+          <h1 className="text-2xl font-bold text-[#052F31]">
             سجلات السفر والمنافذ البرية والجوية
           </h1>
           <p className="text-xs text-gray-500 mt-1">
@@ -191,7 +191,7 @@ export default function TravelRecordsAndPortsPage() {
             className="p-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
             title="تحديث البيانات"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0b4f6c]" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0C4A4E]" : ""}`} />
           </button>
         </div>
       </div>
@@ -228,8 +228,8 @@ export default function TravelRecordsAndPortsPage() {
         <div className="lg:col-span-4 bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between relative overflow-hidden">
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="text-sm font-bold text-[#00374e] flex items-center gap-2">
-                <QrCode className="w-4 h-4 text-[#0b4f6c]" />
+              <h3 className="text-sm font-bold text-[#052F31] flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-[#0C4A4E]" />
                 ماسح الجوازات الإلكتروني
               </h3>
               <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-bold">
@@ -256,7 +256,7 @@ export default function TravelRecordsAndPortsPage() {
                       }}
                       className={`p-2 rounded-xl text-right border transition-all ${
                         scannedPassportNumber === p.passportNumber
-                          ? "border-[#0b4f6c] bg-blue-50/70 text-[#00374e] font-bold"
+                          ? "border-[#0C4A4E] bg-blue-50/70 text-[#052F31] font-bold"
                           : "border-gray-200 hover:bg-gray-50 text-gray-700"
                       }`}
                     >
@@ -279,12 +279,12 @@ export default function TravelRecordsAndPortsPage() {
                   value={scannedPassportNumber}
                   onChange={(e) => setScannedPassportNumber(e.target.value)}
                   placeholder="مثال: 05001000001 أو 01011135650"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-[#0b4f6c]"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-[#0C4A4E]"
                 />
                 <button
                   type="button"
                   onClick={() => handleScanPassport(scannedPassportNumber)}
-                  className="px-3 py-2 bg-[#00374e] text-white rounded-xl text-xs font-bold hover:bg-[#0b4f6c] transition-colors"
+                  className="px-3 py-2 bg-[#052F31] text-white rounded-xl text-xs font-bold hover:bg-[#0C4A4E] transition-colors"
                 >
                   فحص
                 </button>
@@ -295,14 +295,14 @@ export default function TravelRecordsAndPortsPage() {
             <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center bg-gray-50/50 flex flex-col items-center justify-center relative overflow-hidden group">
               {isScanning ? (
                 <div className="py-4 space-y-2">
-                  <div className="w-12 h-12 border-4 border-[#0b4f6c] border-t-transparent rounded-full animate-spin mx-auto"></div>
-                  <p className="text-xs text-[#0b4f6c] font-bold animate-pulse">
+                  <div className="w-12 h-12 border-4 border-[#0C4A4E] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <p className="text-xs text-[#0C4A4E] font-bold animate-pulse">
                     جاري المسح وفحص القوائم...
                   </p>
                 </div>
               ) : (
                 <>
-                  <Camera className="w-8 h-8 text-gray-400 mb-2 group-hover:text-[#0b4f6c] transition-colors" />
+                  <Camera className="w-8 h-8 text-gray-400 mb-2 group-hover:text-[#0C4A4E] transition-colors" />
                   <p className="text-xs text-gray-500">
                     ضع جواز السفر أو رمز الاستجابة السريعة أمام القارئ
                   </p>
@@ -325,7 +325,7 @@ export default function TravelRecordsAndPortsPage() {
             {/* Header & Watchlist Status */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4 mb-5">
               <div>
-                <h3 className="text-base font-bold text-[#00374e]">
+                <h3 className="text-base font-bold text-[#052F31]">
                   بيانات المسافر وصلاحية وثيقة السفر
                 </h3>
                 <p className="text-xs text-gray-500">
@@ -388,7 +388,7 @@ export default function TravelRecordsAndPortsPage() {
 
                     <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
                       <span className="text-gray-400 text-[10px]">رقم جواز السفر:</span>
-                      <p className="font-bold text-[#00374e] font-mono text-sm mt-0.5">
+                      <p className="font-bold text-[#052F31] font-mono text-sm mt-0.5">
                         {activePassport.passportNumber}
                       </p>
                     </div>
@@ -416,7 +416,7 @@ export default function TravelRecordsAndPortsPage() {
 
                     <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
                       <span className="text-gray-400 text-[10px]">نوع الجواز:</span>
-                      <p className="font-bold text-[#0b4f6c] mt-0.5">
+                      <p className="font-bold text-[#0C4A4E] mt-0.5">
                         {activePassport.passportTypeLabel}
                       </p>
                     </div>
@@ -435,11 +435,11 @@ export default function TravelRecordsAndPortsPage() {
       {/* Movement Recording Form (Stitch Screen 15) */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
         <div className="flex items-center gap-2 border-b border-gray-100 pb-3 mb-5">
-          <div className="p-2 rounded-xl bg-[#0b4f6c]/10 text-[#0b4f6c]">
+          <div className="p-2 rounded-xl bg-[#0C4A4E]/10 text-[#0C4A4E]">
             <Plane className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-[#00374e]">تسجيل حركة العبور وختم الجواز</h3>
+            <h3 className="text-sm font-bold text-[#052F31]">تسجيل حركة العبور وختم الجواز</h3>
             <p className="text-xs text-gray-500">
               تسجيل خروج أو قدوم المسافر وتوثيق بيانات الرحلة والمنفذ
             </p>
@@ -457,7 +457,7 @@ export default function TravelRecordsAndPortsPage() {
                   onClick={() => setMovementType("Exit")}
                   className={`py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all ${
                     movementType === "Exit"
-                      ? "bg-[#00374e] text-white shadow-sm"
+                      ? "bg-[#052F31] text-white shadow-sm"
                       : "text-gray-600 hover:text-black"
                   }`}
                 >
@@ -489,7 +489,7 @@ export default function TravelRecordsAndPortsPage() {
                   setSelectedPort(e.target.value);
                   setPortType(e.target.value.includes("مطار") ? "Airport" : "LandPort");
                 }}
-                className="w-full p-2.5 rounded-xl border border-gray-200 text-xs font-medium focus:outline-none focus:border-[#0b4f6c] bg-white"
+                className="w-full p-2.5 rounded-xl border border-gray-200 text-xs font-medium focus:outline-none focus:border-[#0C4A4E] bg-white"
               >
                 <option value="مطار صنعاء الدولي">مطار صنعاء الدولي (جوي)</option>
                 <option value="مطار عدن الدولي">مطار عدن الدولي (جوي)</option>
@@ -507,7 +507,7 @@ export default function TravelRecordsAndPortsPage() {
               <select
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-gray-200 text-xs font-medium focus:outline-none focus:border-[#0b4f6c] bg-white"
+                className="w-full p-2.5 rounded-xl border border-gray-200 text-xs font-medium focus:outline-none focus:border-[#0C4A4E] bg-white"
               >
                 <option value="المملكة العربية السعودية">المملكة العربية السعودية</option>
                 <option value="جمهورية مصر العربية">جمهورية مصر العربية</option>
@@ -528,7 +528,7 @@ export default function TravelRecordsAndPortsPage() {
                 value={flightNumber}
                 onChange={(e) => setFlightNumber(e.target.value)}
                 placeholder="مثال: IY-601 أو لوحة رقم 12345"
-                className="w-full p-2.5 rounded-xl border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:border-[#0b4f6c] bg-white"
+                className="w-full p-2.5 rounded-xl border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:border-[#0C4A4E] bg-white"
               />
             </div>
           </div>
@@ -544,7 +544,7 @@ export default function TravelRecordsAndPortsPage() {
               className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 ${
                 activePassport?.isWatchlistBanned
                   ? "bg-rose-600 hover:bg-rose-700 text-white"
-                  : "bg-[#00374e] hover:bg-[#0b4f6c] text-white"
+                  : "bg-[#052F31] hover:bg-[#0C4A4E] text-white"
               } disabled:opacity-50`}
             >
               {activePassport?.isWatchlistBanned ? (
@@ -567,8 +567,8 @@ export default function TravelRecordsAndPortsPage() {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/50">
           <div>
-            <h3 className="text-sm font-bold text-[#00374e] flex items-center gap-2">
-              <Compass className="w-4 h-4 text-[#0b4f6c]" />
+            <h3 className="text-sm font-bold text-[#052F31] flex items-center gap-2">
+              <Compass className="w-4 h-4 text-[#0C4A4E]" />
               سجل العبور اللحظي عبر المنافذ
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
@@ -585,7 +585,7 @@ export default function TravelRecordsAndPortsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && loadTravelRecords()}
-                className="pl-4 pr-9 py-2 rounded-xl border border-gray-200 text-xs w-full sm:w-56 focus:outline-none focus:border-[#0b4f6c] bg-white"
+                className="pl-4 pr-9 py-2 rounded-xl border border-gray-200 text-xs w-full sm:w-56 focus:outline-none focus:border-[#0C4A4E] bg-white"
               />
             </div>
 
@@ -642,12 +642,12 @@ export default function TravelRecordsAndPortsPage() {
                 records.map((r) => (
                   <tr
                     key={r.id}
-                    className={`hover:bg-blue-50/30 transition-colors ${
+                    className={`hover:bg-[#F1F6F4] transition-colors ${
                       r.isFlagged ? "bg-rose-50/40" : ""
                     }`}
                   >
                     <td className="py-3 px-5 font-semibold text-gray-900">{r.fullName}</td>
-                    <td className="py-3 px-5 font-mono font-bold text-[#00374e]">
+                    <td className="py-3 px-5 font-mono font-bold text-[#052F31]">
                       {r.passportNumber}
                     </td>
                     <td className="py-3 px-5">

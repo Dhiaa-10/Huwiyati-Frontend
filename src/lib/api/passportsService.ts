@@ -19,7 +19,8 @@ import {
   TravelMovementType,
 } from "@/types/passports";
 import { serviceRequestsService } from "./serviceRequestsService";
-import { ServiceRequestDto, RequestStatus } from "@/types/serviceRequests";
+import { filesService } from "./filesService";
+import { ServiceRequestDto, RequestStatus, CreateServiceRequestCommand } from "@/types/serviceRequests";
 
 function mapBackendToPassportRequest(dto: ServiceRequestDto): PassportRequest {
   const status: PassportRequest["status"] =
@@ -31,6 +32,8 @@ function mapBackendToPassportRequest(dto: ServiceRequestDto): PassportRequest {
       ? "UnderReview"
       : dto.status === "Rejected"
       ? "Rejected"
+      : dto.status === "Cancelled"
+      ? "Cancelled"
       : "Pending";
 
   let parsed: any = {};
@@ -54,7 +57,7 @@ function mapBackendToPassportRequest(dto: ServiceRequestDto): PassportRequest {
     nationalNumber: dto.nationalNumber || "01010000000",
     fullName: dto.personFullName || "مواطن يمني",
     photoUrl:
-      parsed.photoUrl ||
+      filesService.getFullUrl(parsed.photoUrl) ||
       "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
     serviceType: sType,
     serviceName: dto.serviceTypeName || "جواز سفر إلكتروني",
@@ -76,8 +79,8 @@ function mapBackendToPassportRequest(dto: ServiceRequestDto): PassportRequest {
         type: "pdf",
       },
       {
-        name: "سند تسديد الرسوم الحكومية",
-        fileUrl: "/docs/passport_fee.pdf",
+        name: "استمارة ومرفقات المعاملة الرسمية",
+        fileUrl: "/docs/passport_form.pdf",
         type: "pdf",
       },
     ],
@@ -113,7 +116,7 @@ function mapBackendPassportToRecord(dto: BackendPassportDto): PassportRecord {
     motherName: "مسجلة بالسجل المدني",
     dateOfBirth: "",
     gender: "Male",
-    photoUrl: dto.photoUrl || "",
+    photoUrl: filesService.getFullUrl(dto.photoUrl) || "",
     passportNumber: dto.passportNumber,
     passportType: pType,
     passportTypeLabel: typeLabels[pType],
@@ -165,6 +168,8 @@ export interface IPassportsService {
   recordTravelMovement(dto: RecordTravelMovementDto): Promise<{ record: TravelRecord; isFlagged: boolean; message: string }>;
   getPassportRequests(params?: PassportRequestFilterParams): Promise<PaginatedResponse<PassportRequest>>;
   updatePassportRequestStatus(dto: UpdatePassportRequestStatusDto): Promise<PassportRequest>;
+  cancelPassportRequest(requestId: string, reason?: string): Promise<PassportRequest>;
+  createPassportRequest(command: CreateServiceRequestCommand): Promise<PassportRequest>;
 }
 
 class LivePassportsService implements IPassportsService {
@@ -572,6 +577,49 @@ class LivePassportsService implements IPassportsService {
       officerNotes: dto.officerNotes,
       rejectionReason: dto.rejectionReason,
     };
+  }
+
+  public async cancelPassportRequest(requestId: string, reason?: string): Promise<PassportRequest> {
+    const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId);
+
+    if (isGuid) {
+      try {
+        const updated = await serviceRequestsService.cancelRequestOnBehalf({
+          serviceRequestId: requestId,
+          reason,
+        });
+
+        return mapBackendToPassportRequest(updated);
+      } catch (err) {
+        console.error("[PassportsService] cancelPassportRequest error:", err);
+        throw err;
+      }
+    }
+
+    return {
+      id: requestId,
+      requestNumber: "REQ-PASS-000",
+      personId: "",
+      nationalNumber: "",
+      fullName: "",
+      photoUrl: "",
+      serviceType: "PASSPORT_NEW",
+      serviceName: "جواز سفر جديد",
+      branchId: "",
+      branchName: "",
+      status: "Cancelled",
+      urgentPriority: false,
+      fee: 0,
+      isPaid: true,
+      submissionDate: new Date().toISOString(),
+      attachments: [],
+      rejectionReason: reason || "تم إلغاء الطلب من قبل الموظف",
+    };
+  }
+
+  public async createPassportRequest(command: CreateServiceRequestCommand): Promise<PassportRequest> {
+    const res = await serviceRequestsService.createRequestOnBehalf(command);
+    return mapBackendToPassportRequest(res);
   }
 }
 
