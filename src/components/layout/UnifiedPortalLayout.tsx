@@ -9,7 +9,6 @@ import {
   ShieldAlert,
   Users,
   LogOut,
-  Bell,
   Menu,
   X,
   RotateCcw,
@@ -25,14 +24,16 @@ import {
   Layers,
   Car,
   HeartPulse,
-  Settings,
   CreditCard,
 } from "lucide-react";
 import { HwyatiLogo } from "@/components/ui/hwyati-logo";
 import { useAuth, RoleType } from "@/context/AuthContext";
 import { useSettings } from "@/context/SettingsContext";
+import { useNotification } from "@/context/NotificationContext";
 import { SettingsModal } from "@/components/settings/SettingsModal";
 import { adminService } from "@/lib/api/adminService";
+import { employeesService } from "@/lib/api/employeesService";
+import { serviceRequestsService } from "@/lib/api/serviceRequestsService";
 
 export interface UnifiedPortalLayoutProps {
   portalType: "admin" | "civil-registry" | "passports" | "traffic" | "hospitals";
@@ -49,8 +50,9 @@ export function UnifiedPortalLayout({
 }: UnifiedPortalLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, isAuthenticated, isInitialized } = useAuth();
-  const { language, openSettings } = useSettings();
+  const { user, logout, isAuthenticated, isInitialized, updateSession } = useAuth();
+  const { language } = useSettings();
+  const { confirm } = useNotification();
   const isRtl = language === "ar";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -77,7 +79,76 @@ export function UnifiedPortalLayout({
     }
   }, [user.role, user.agency, isAuthenticated, isInitialized, portalType, router]);
 
-  const handleLogout = () => {
+  // Dynamically sync and verify live branch name directly from backend
+  useEffect(() => {
+    if (!isAuthenticated || !isInitialized || user.role === "SUPER_ADMIN" || user.role === "NONE") return;
+
+    let isMounted = true;
+
+    async function syncLiveBranch() {
+      try {
+        if (user.role === "ADMIN") {
+          const empRes = await employeesService.getEmployees();
+          if (isMounted && empRes.isSuccess) {
+            const liveBranch = empRes.branchName || empRes.employees[0]?.branchName;
+            const liveBranchId = empRes.branchId;
+            if (liveBranch && liveBranch !== user.branchName) {
+              const belongsToCivil = portalType === "civil-registry" && (liveBranch.includes("الأحوال") || liveBranch.includes("المدنية"));
+              const belongsToPassport = portalType === "passports" && (liveBranch.includes("الجوازات") || liveBranch.includes("الهجرة"));
+              const belongsToHospital = portalType === "hospitals" && (liveBranch.includes("مستشفى") || liveBranch.includes("صحي"));
+              const belongsToTraffic = portalType === "traffic" && (liveBranch.includes("مرور") || liveBranch.includes("السير"));
+              if (belongsToCivil || belongsToPassport || belongsToHospital || belongsToTraffic) {
+                updateSession({
+                  branchName: liveBranch,
+                  branchId: liveBranchId || user.branchId,
+                });
+              }
+            }
+          }
+        } else if (user.role === "EMPLOYEE") {
+          // Employee has access to /api/v1/employee/service-requests
+          const requestsRes = await serviceRequestsService.getBranchServiceRequests({ pageSize: 1 });
+          if (isMounted && requestsRes.items && requestsRes.items.length > 0) {
+            const liveBranch = requestsRes.items[0].branchName;
+            const liveBranchId = requestsRes.items[0].branchId;
+            if (liveBranch && liveBranch !== user.branchName) {
+              const belongsToCivil = portalType === "civil-registry" && (liveBranch.includes("الأحوال") || liveBranch.includes("المدنية"));
+              const belongsToPassport = portalType === "passports" && (liveBranch.includes("الجوازات") || liveBranch.includes("الهجرة"));
+              const belongsToHospital = portalType === "hospitals" && (liveBranch.includes("مستشفى") || liveBranch.includes("صحي"));
+              const belongsToTraffic = portalType === "traffic" && (liveBranch.includes("مرور") || liveBranch.includes("السير"));
+              if (belongsToCivil || belongsToPassport || belongsToHospital || belongsToTraffic) {
+                updateSession({
+                  branchName: liveBranch,
+                  branchId: liveBranchId || user.branchId,
+                });
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[UnifiedPortalLayout] Branch sync error:", err);
+      }
+    }
+
+    syncLiveBranch();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, isInitialized, user.role, user.branchName, portalType, updateSession, user.branchId]);
+
+  const handleLogout = async () => {
+    const isConfirmed = await confirm({
+      title: "تسجيل الخروج من البوابة",
+      message: "هل أنت متأكد من رغبتك في إنهاء الجلسة وتسجيل الخروج من بوابة المنظومة؟",
+      type: "danger",
+      icon: <LogOut className="w-6 h-6 text-rose-600 dark:text-rose-400" />,
+      confirmText: "تأكيد تسجيل الخروج",
+      cancelText: "البقاء في البوابة",
+    });
+
+    if (!isConfirmed) return;
+
     logout();
     router.replace("/login");
   };
@@ -111,9 +182,19 @@ export function UnifiedPortalLayout({
           icon: BookOpenCheck,
           active: pathname.startsWith("/admin/citizens"),
         },
-        // سجلات التدقيق والإعدادات مؤجلة — لا يوجد endpoint في الباكند حالياً
+        {
+          label: "حسابات المستخدمين الرقمية",
+          href: "/admin/users",
+          icon: Users,
+          active: pathname.startsWith("/admin/users"),
+        },
+        {
+          label: "سجلات التدقيق والأمان",
+          href: "/admin/audit-logs",
+          icon: ShieldAlert,
+          active: pathname.startsWith("/admin/audit-logs"),
+        },
       ];
-
     }
 
     // 2. Agency Admin (Level 2 - Branch / Agency Director)
@@ -125,6 +206,12 @@ export function UnifiedPortalLayout({
             href: "/passports",
             icon: LayoutDashboard,
             active: pathname === "/passports",
+          },
+          {
+            label: "معالجة طلبات الجوازات",
+            href: "/passports/requests",
+            icon: FileCheck2,
+            active: pathname.startsWith("/passports/requests"),
           },
           {
             label: "سجل الجوازات الإلكترونية والإصدار",
@@ -245,6 +332,18 @@ export function UnifiedPortalLayout({
           active: pathname === "/civil-registry",
         },
         {
+          label: "معالجة الطلبات والمعاملات",
+          href: "/civil-registry/requests",
+          icon: FileCheck2,
+          active: pathname.startsWith("/civil-registry/requests"),
+        },
+        {
+          label: "التفعيل البيومتري والحضوري",
+          href: "/civil-registry/activations",
+          icon: UserCheck,
+          active: pathname.startsWith("/civil-registry/activations"),
+        },
+        {
           label: "إدارة البطاقات الشخصية",
           href: "/civil-registry/id-cards",
           icon: CreditCard,
@@ -263,9 +362,15 @@ export function UnifiedPortalLayout({
           active: pathname.startsWith("/civil-registry/vital-events"),
         },
         {
+          label: "التقارير والإحصائيات الرسمية",
+          href: "/civil-registry/reports",
+          icon: BarChart3,
+          active: pathname === "/civil-registry/reports",
+        },
+        {
           label: "إدارة موظفي الفرع والصلاحيات",
           href: "/civil-registry/employees",
-          icon: UserCheck,
+          icon: Users,
           active: pathname === "/civil-registry/employees",
         },
       ];
@@ -274,6 +379,18 @@ export function UnifiedPortalLayout({
     // 3. Operational Officer (Level 3 - Operations & Frontline)
     if (portalType === "passports") {
       return [
+        {
+          label: "لوحة تحكم الجوازات",
+          href: "/passports",
+          icon: LayoutDashboard,
+          active: pathname === "/passports",
+        },
+        {
+          label: "معالجة طلبات الجوازات",
+          href: "/passports/requests",
+          icon: FileCheck2,
+          active: pathname.startsWith("/passports/requests"),
+        },
         {
           label: "سجل الجوازات الإلكترونية المعتمدة",
           href: "/passports/issued",
@@ -292,10 +409,10 @@ export function UnifiedPortalLayout({
     if (portalType === "traffic") {
       return [
         {
-          label: "رخص القيادة الذكية",
-          href: "/traffic/licenses",
-          icon: FileCheck2,
-          active: pathname === "/traffic/licenses",
+          label: "لوحة تحكم ومؤشرات المرور",
+          href: "/traffic",
+          icon: LayoutDashboard,
+          active: pathname === "/traffic",
         },
         {
           label: "المركبات وقيد المخالفات",
@@ -304,10 +421,16 @@ export function UnifiedPortalLayout({
           active: pathname === "/traffic/violations",
         },
         {
+          label: "رخص القيادة الذكية",
+          href: "/traffic/licenses",
+          icon: FileCheck2,
+          active: pathname === "/traffic/licenses",
+        },
+        {
           label: "سجل المركبات والملكيات",
           href: "/traffic/vehicles",
           icon: BookOpenCheck,
-          active: pathname === "/traffic/vehicles",
+          active: pathname.startsWith("/traffic/vehicles"),
         },
       ];
     }
@@ -315,10 +438,16 @@ export function UnifiedPortalLayout({
     if (portalType === "hospitals") {
       return [
         {
+          label: "لوحة تحكم ومؤشرات المستشفى",
+          href: "/hospitals",
+          icon: LayoutDashboard,
+          active: pathname === "/hospitals",
+        },
+        {
           label: "السجل الطبي الموحد (EHR)",
           href: "/hospitals/records",
           icon: FileCheck2,
-          active: pathname === "/hospitals/records",
+          active: pathname.startsWith("/hospitals/records"),
         },
         {
           label: "طوارئ وفرز سريع",
@@ -342,6 +471,18 @@ export function UnifiedPortalLayout({
         href: "/civil-registry",
         icon: LayoutDashboard,
         active: pathname === "/civil-registry",
+      },
+      {
+        label: "التفعيل البيومتري والحضوري",
+        href: "/civil-registry/activations",
+        icon: UserCheck,
+        active: pathname.startsWith("/civil-registry/activations"),
+      },
+      {
+        label: "معالجة الطلبات والمعاملات",
+        href: "/civil-registry/requests",
+        icon: FileCheck2,
+        active: pathname.startsWith("/civil-registry/requests"),
       },
       {
         label: "إدارة البطاقات الشخصية",
@@ -400,13 +541,6 @@ export function UnifiedPortalLayout({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={openSettings}
-            title={isRtl ? "إعدادات المنظومة والمظهر" : "Settings"}
-            className="p-2 text-[#BFE5DF] hover:text-white"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
           <button onClick={handleLogout} className="p-2 text-rose-300 hover:text-rose-100">
             <LogOut className="w-5 h-5" />
           </button>
@@ -441,29 +575,35 @@ export function UnifiedPortalLayout({
             {portalSubtitle}
           </p>
 
-          {/* Current Branch & Role Chip */}
-          <div className="mt-3 w-full bg-[#031F21]/80 rounded-xl px-3 py-2 border border-[#BFE5DF]/15 flex items-center justify-between text-right">
-            <div className="min-w-0 flex-1">
-              <span className="text-[10px] text-[#BFE5DF]/70 block truncate">الفرع الحالي:</span>
-              <span className="text-xs font-bold text-white truncate block">
-                {user.branchName}
+          {/* Current Branch & Role Card */}
+          <div className="mt-3 w-full bg-[#031F21]/90 rounded-xl p-3 border border-[#BFE5DF]/15 text-right space-y-1.5 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-[#BFE5DF]/80 font-medium flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-[#147A77]" />
+                <span>الفرع الحالي:</span>
+              </span>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${
+                  user.role === "SUPER_ADMIN"
+                    ? "bg-[#0C4A4E] text-[#BFE5DF] border border-[#BFE5DF]/30"
+                    : user.role === "ADMIN"
+                    ? "bg-[#103F43] text-[#BFE5DF] border border-[#147A77]/40"
+                    : "bg-[#147A77]/40 text-[#BFE5DF] border border-[#147A77]/50"
+                }`}
+              >
+                {user.role === "SUPER_ADMIN"
+                  ? "سوبر أدمن"
+                  : user.role === "ADMIN"
+                  ? "أدمن المؤسسة"
+                  : "موظف مختص"}
               </span>
             </div>
-            <span
-              className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${
-                user.role === "SUPER_ADMIN"
-                  ? "bg-[#0C4A4E] text-[#BFE5DF] border border-[#BFE5DF]/30"
-                  : user.role === "ADMIN"
-                  ? "bg-[#103F43] text-[#BFE5DF] border border-[#147A77]/40"
-                  : "bg-[#147A77]/40 text-[#BFE5DF] border border-[#147A77]/50"
-              }`}
+            <div
+              title={user.branchName}
+              className="text-xs font-bold text-white leading-relaxed break-words"
             >
-              {user.role === "SUPER_ADMIN"
-                ? "سوبر أدمن"
-                : user.role === "ADMIN"
-                ? "أدمن المؤسسة"
-                : "موظف مختص"}
-            </span>
+              {user.branchName || "الفرع الرئيسي المعتمد"}
+            </div>
           </div>
         </div>
 
@@ -553,25 +693,10 @@ export function UnifiedPortalLayout({
                 {user.role === "SUPER_ADMIN"
                   ? "سوبر أدمن • الإشراف والرقابة المركزية"
                   : user.role === "ADMIN"
-                  ? `أدمن المؤسسة • ${user.agency}`
-                  : `موظف مختص • ${user.agency}`}
+                  ? `أدمن المؤسسة • ${user.branchName || user.agency}`
+                  : `موظف مختص • ${user.branchName || user.agency}`}
               </span>
             </div>
-
-            {/* Notifications */}
-            <button className="p-2 text-[#456A6D] hover:text-[#0C4A4E] hover:bg-[#F1F6F4] rounded-lg relative transition-colors cursor-pointer">
-              <Bell className="w-4 h-4" />
-              <span className="w-2 h-2 rounded-full bg-[#B76648] absolute top-2 right-2"></span>
-            </button>
-
-            {/* Settings */}
-            <button
-              onClick={openSettings}
-              title={isRtl ? "إعدادات المنظومة والمظهر" : "System & Appearance Settings"}
-              className="p-2 text-[#456A6D] hover:text-[#0C4A4E] dark:text-[#BFE5DF] dark:hover:text-white hover:bg-[#F1F6F4] dark:hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
           </div>
         </header>
 

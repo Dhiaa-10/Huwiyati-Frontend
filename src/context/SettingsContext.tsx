@@ -175,8 +175,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setThemeState(storedTheme);
       applyThemeToDOM(storedTheme);
     } else {
-      const isSystemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const initialTheme = isSystemDark ? "dark" : "light";
+      // Default to official brand theme (light) for consistency across devices and network origins
+      const initialTheme: ThemeMode = DEFAULT_PREFERENCES.theme;
       setThemeState(initialTheme);
       applyThemeToDOM(initialTheme);
     }
