@@ -1,16 +1,43 @@
 import { ApiResponse } from "@/types/api";
+import { getToken, getRefreshToken, saveAuthTokens, clearAuthStorage } from "./tokenStorage";
+import { translateBackendError } from "@/lib/utils/errorTranslator";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5237";
+/**
+ * Resolves the backend API base URL dynamically:
+ * - If running in browser and accessed via LAN IP or custom host (not localhost),
+ *   it automatically connects to the same host on port 5237.
+ * - Otherwise falls back to NEXT_PUBLIC_API_BASE_URL or http://localhost:5237.
+ */
+export function getApiBaseUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname && hostname !== "localhost" && hostname !== "127.0.0.1") {
+      if (envUrl && (envUrl.includes("localhost") || envUrl.includes("127.0.0.1"))) {
+        return envUrl.replace(/localhost|127\.0\.0\.1/, hostname);
+      }
+      if (!envUrl) {
+        return `http://${hostname}:5237`;
+      }
+    }
+  }
+  return envUrl || "http://localhost:5237";
+}
 
 /**
  * Universal HTTP client for Hwyati ASP.NET Core Web API
  * Backend response shape: { isSuccess, statusCode, message, data, errors }
  */
 class ApiClient {
-  private baseUrl: string;
+  private customBaseUrl?: string;
+  private refreshPromise: Promise<string | null> | null = null;
 
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    this.customBaseUrl = baseUrl;
+  }
+
+  public get baseUrl(): string {
+    return this.customBaseUrl ?? getApiBaseUrl();
   }
 
   private getHeaders(): HeadersInit {
@@ -19,14 +46,69 @@ class ApiClient {
       Accept: "application/json",
     };
 
-    if (typeof window !== "undefined") {
-      const token = window.localStorage.getItem("hwyati_auth_token");
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
+    const token = getToken();
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
     }
 
     return headers;
+  }
+
+  /**
+   * Concurrency-deduplicated refresh token handler.
+   * If multiple API calls fail with 401 at the same time,
+   * only a single refresh request is sent to the backend.
+   */
+  public async refreshToken(): Promise<string | null> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = (async () => {
+      try {
+        const currentToken = getToken();
+        const currentRefreshToken = getRefreshToken();
+
+        if (!currentToken || !currentRefreshToken) {
+          clearAuthStorage();
+          return null;
+        }
+
+        const res = await fetch(`${this.baseUrl}/api/v1/Account/refresh-token`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            token: currentToken,
+            refreshToken: currentRefreshToken,
+          }),
+        });
+
+        if (!res.ok) {
+          clearAuthStorage();
+          return null;
+        }
+
+        const json = await res.json();
+        if (json.isSuccess && json.data?.token) {
+          saveAuthTokens(json.data.token, json.data.refreshToken);
+          return json.data.token as string;
+        }
+
+        clearAuthStorage();
+        return null;
+      } catch (err) {
+        console.error("Token refresh failed:", err);
+        clearAuthStorage();
+        return null;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   /** Parse response and throw on HTTP error or backend failure */
@@ -50,15 +132,64 @@ class ApiClient {
 
     if (!res.ok || json.isSuccess === false) {
       const msg = json.message || `HTTP ${res.status}`;
-      const details = json.errors?.join(", ") ?? "";
-      throw new Error(details ? `${msg}: ${details}` : msg);
+      if (json.errors && Array.isArray(json.errors) && json.errors.length > 0) {
+        const translatedErrors = json.errors
+          .map((err) => translateBackendError(err))
+          .filter(Boolean);
+        if (/validation failed/i.test(msg) || !msg || msg.startsWith("HTTP")) {
+          throw new Error(
+            `فشل التحقق من صحة البيانات؛ يرجى استيفاء الحقول المطلوبة: (${translatedErrors.join(" • ")})`
+          );
+        } else {
+          const translatedBase = translateBackendError(msg);
+          throw new Error(`${translatedBase} (${translatedErrors.join(" • ")})`);
+        }
+      }
+      throw new Error(translateBackendError(msg));
     }
 
     return json;
   }
 
+  /** Centralized request executor with 401 retry interceptor */
+  private async request<T>(
+    method: string,
+    endpoint: string,
+    body?: any,
+    isRetry = false
+  ): Promise<ApiResponse<T>> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const headers = this.getHeaders();
+
+    const init: RequestInit = {
+      method,
+      headers,
+    };
+    if (body !== undefined && body !== null) {
+      init.body = JSON.stringify(body);
+    }
+
+    const res = await fetch(url, init);
+
+    // If 401 and not already retrying, attempt token refresh unless calling auth endpoints
+    if (
+      res.status === 401 &&
+      !isRetry &&
+      !endpoint.includes("/Account/refresh-token") &&
+      !endpoint.includes("/Account/login")
+    ) {
+      const newToken = await this.refreshToken();
+      if (newToken) {
+        // Re-execute with refreshed token
+        return this.request<T>(method, endpoint, body, true);
+      }
+    }
+
+    return this.handleResponse<T>(res);
+  }
+
   public async get<T>(endpoint: string, params?: Record<string, any>): Promise<ApiResponse<T>> {
-    let url = `${this.baseUrl}${endpoint}`;
+    let path = endpoint;
     if (params) {
       const searchParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
@@ -67,55 +198,27 @@ class ApiClient {
         }
       });
       const qs = searchParams.toString();
-      if (qs) url += `?${qs}`;
+      if (qs) path += `?${qs}`;
     }
 
-    const res = await fetch(url, {
-      method: "GET",
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse<T>(res);
+    return this.request<T>("GET", path);
   }
 
-  public async post<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
-    const res = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: "POST",
-      headers: this.getHeaders(),
-      body: JSON.stringify(body),
-    });
-
-    return this.handleResponse<T>(res);
+  public async post<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+    return this.request<T>("POST", endpoint, body);
   }
 
-  public async put<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
-    const res = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: "PUT",
-      headers: this.getHeaders(),
-      body: JSON.stringify(body),
-    });
-
-    return this.handleResponse<T>(res);
+  public async put<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+    return this.request<T>("PUT", endpoint, body);
   }
 
-  public async patch<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
-    const res = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: "PATCH",
-      headers: this.getHeaders(),
-      body: JSON.stringify(body),
-    });
-
-    return this.handleResponse<T>(res);
+  public async patch<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+    return this.request<T>("PATCH", endpoint, body);
   }
 
   public async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    const res = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: "DELETE",
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse<T>(res);
+    return this.request<T>("DELETE", endpoint);
   }
 }
 
-export const apiClient = new ApiClient(API_BASE_URL);
+export const apiClient = new ApiClient();
