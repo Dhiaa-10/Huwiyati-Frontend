@@ -22,9 +22,11 @@ import {
 import { employeesService } from "@/lib/api/employeesService";
 import { Employee } from "@/types/admin";
 import { useAuth } from "@/context/AuthContext";
+import { useNotification } from "@/context/NotificationContext";
 
 export default function HospitalEmployeesPage() {
   const { user } = useAuth();
+  const { confirm, toast } = useNotification();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -36,6 +38,7 @@ export default function HospitalEmployeesPage() {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [fetchingDetails, setFetchingDetails] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Form states
   const [nationalNumber, setNationalNumber] = useState("");
@@ -71,8 +74,20 @@ export default function HospitalEmployeesPage() {
   };
 
   const handleToggleStatus = async (emp: Employee) => {
+    const isCurrentlyActive = emp.isActive;
+    const isConfirmed = await confirm({
+      title: isCurrentlyActive ? "تأكيد تعطيل حساب الكادر الطبي" : "تأكيد تنشيط حساب الكادر الطبي",
+      message: isCurrentlyActive
+        ? `هل أنت متأكد من تجميد صلاحيات الكادر الطبي (${emp.fullName})؟ لن يتمكن من تسجيل الدخول أو توثيق الوقائع الطبية حتى إعادة تنشيطه.`
+        : `هل أنت متأكد من إعادة تنشيط وتفعيل حساب الكادر الطبي (${emp.fullName})؟`,
+      type: isCurrentlyActive ? "warning" : "info",
+      confirmText: isCurrentlyActive ? "نعم، تجميد الصلاحيات" : "نعم، تنشيط الحساب",
+      cancelText: "إلغاء",
+    });
+
+    if (!isConfirmed) return;
+
     try {
-      const isCurrentlyActive = emp.isActive;
       const res = isCurrentlyActive
         ? await employeesService.deactivateEmployee(emp.id)
         : await employeesService.activateEmployee(emp.id);
@@ -90,22 +105,30 @@ export default function HospitalEmployeesPage() {
             prev ? { ...prev, isActive: !isCurrentlyActive, accountStatus: (!isCurrentlyActive ? "Active" : "Suspended") as "Active" | "Suspended" } : null
           );
         }
+        const sMsg = `تم ${!isCurrentlyActive ? "تنشيط" : "تعطيل"} حساب الكادر: (${emp.fullName}) بنجاح.`;
+        toast.success(sMsg);
         setFeedback({
           type: "success",
-          message: `تم ${!isCurrentlyActive ? "تنشيط" : "تعطيل"} حساب الكادر: (${emp.fullName}) بنجاح.`,
+          message: sMsg,
         });
       } else {
-        setFeedback({ type: "error", message: res.message });
+        const eMsg = res.message || "فشل تغيير حالة الحساب.";
+        toast.error(eMsg);
+        setFeedback({ type: "error", message: eMsg });
       }
     } catch {
-      setFeedback({ type: "error", message: "فشل تغيير حالة الحساب." });
+      const eMsg = "فشل تغيير حالة الحساب.";
+      toast.error(eMsg);
+      setFeedback({ type: "error", message: eMsg });
     }
   };
 
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nationalNumber.trim()) {
-      setFeedback({ type: "error", message: "يرجى إدخال الرقم الوطني للمواطن المراد تكليفه." });
+      const eMsg = "يرجى إدخال الرقم الوطني للمواطن المراد تكليفه.";
+      setModalError(eMsg);
+      toast.error(eMsg);
       return;
     }
     setSubmitting(true);
@@ -115,15 +138,22 @@ export default function HospitalEmployeesPage() {
         setEmployees((prev) => [res.employee!, ...prev]);
         setAddModalOpen(false);
         setNationalNumber("");
+        setModalError(null);
+        const sMsg = `تم تعيين الكادر الصحي (${res.employee.fullName}) برقم وظيفي: ${res.employee.employeeNumber} بنجاح.`;
+        toast.success(sMsg);
         setFeedback({
           type: "success",
-          message: `تم تعيين الكادر الصحي (${res.employee.fullName}) برقم وظيفي: ${res.employee.employeeNumber} بنجاح.`,
+          message: sMsg,
         });
       } else {
-        setFeedback({ type: "error", message: res.message });
+        const eMsg = res.message || "حدث خطأ أثناء تكليف الكادر.";
+        setModalError(eMsg);
+        toast.error(eMsg);
       }
-    } catch {
-      setFeedback({ type: "error", message: "حدث خطأ أثناء تكليف الكادر." });
+    } catch (err: any) {
+      const eMsg = err?.message || "حدث خطأ أثناء تكليف الكادر.";
+      setModalError(eMsg);
+      toast.error(eMsg);
     } finally {
       setSubmitting(false);
     }
@@ -166,37 +196,37 @@ export default function HospitalEmployeesPage() {
       {/* Feedback Notification */}
       {feedback && (
         <div
-          className={`p-4 rounded-xl flex items-center justify-between shadow-lg text-xs font-semibold ${
+          className={`p-4 rounded-xl flex items-center justify-between shadow-lg text-xs font-bold ${
             feedback.type === "success"
-              ? "bg-emerald-950/90 text-emerald-200 border border-emerald-800"
-              : "bg-rose-950/90 text-rose-200 border border-rose-800"
+              ? "bg-emerald-600 text-white border border-emerald-500"
+              : "bg-rose-600 text-white border border-rose-500"
           }`}
         >
           <div className="flex items-center gap-2">
             {feedback.type === "success" ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-white" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-rose-400" />
+              <AlertCircle className="w-4 h-4 text-white" />
             )}
             <span>{feedback.message}</span>
           </div>
-          <button onClick={() => setFeedback(null)} className="opacity-70 hover:opacity-100">
+          <button onClick={() => setFeedback(null)} className="opacity-70 hover:opacity-100 cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="bg-gradient-to-l from-[#00374e] to-[#044e6e] rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+      {/* Header Banner - Hwyati Sovereign Petrol Banner */}
+      <div className="bg-gradient-to-l from-[#052F31] via-[#0C4A4E] to-[#103F43] rounded-2xl p-6 text-white shadow-md relative overflow-hidden border border-[#147A77]/30">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#147A77]/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2 text-cyan-300 text-sm font-medium">
-              <ShieldCheck className="w-4 h-4" />
+            <div className="flex items-center gap-2 mb-2 text-emerald-300 text-xs font-bold">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
               <span>إدارة الموارد البشرية والكوادر الصحية المعتمدة</span>
             </div>
-            <h1 className="text-2xl font-bold">دليل الأطباء والكوادر السريرية — {branchName}</h1>
-            <p className="text-slate-300 text-sm mt-1">
+            <h1 className="text-2xl md:text-3xl font-extrabold text-white">دليل الأطباء والكوادر السريرية — {branchName}</h1>
+            <p className="text-slate-200 text-xs md:text-sm mt-1">
               إدارة كادر ({branchName}) وحسابات وصلاحيات الأطباء، الجراحين، طواقم التمريض، ومسؤولي إدخال الوقائع الحيوية
             </p>
           </div>
@@ -205,14 +235,14 @@ export default function HospitalEmployeesPage() {
             <button
               onClick={loadEmployees}
               disabled={loading}
-              className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors"
+              className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors cursor-pointer"
               title="تحديث البيانات"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             </button>
             <button
               onClick={() => { setNationalNumber(""); setAddModalOpen(true); }}
-              className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-cyan-950/40"
+              className="px-5 py-2.5 bg-[#147A77] hover:bg-[#0E5C59] text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
               <span>تكليف كادر صحي جديد</span>
@@ -221,26 +251,26 @@ export default function HospitalEmployeesPage() {
         </div>
 
         {/* Quick Metrics Bar */}
-        <div className="mt-6 pt-4 border-t border-slate-700/60 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-          <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-700/40">
-            <span className="text-slate-400">إجمالي الكادر الطبي:</span>
-            <div className="text-lg font-bold text-white mt-0.5">{employees.length} ممارس</div>
+        <div className="mt-6 pt-4 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          <div className="bg-white/10 p-3 rounded-xl border border-white/15 backdrop-blur-xs">
+            <span className="text-slate-200">إجمالي الكادر الطبي:</span>
+            <div className="text-lg font-black text-white mt-0.5">{employees.length} ممارس</div>
           </div>
-          <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-700/40">
-            <span className="text-slate-400">كوادر نشطة بالخدمة:</span>
-            <div className="text-lg font-bold text-emerald-400 mt-0.5">
+          <div className="bg-white/10 p-3 rounded-xl border border-white/15 backdrop-blur-xs">
+            <span className="text-slate-200">كوادر نشطة بالخدمة:</span>
+            <div className="text-lg font-black text-emerald-300 mt-0.5">
               {employees.filter((e) => e.isActive).length} مفعّل
             </div>
           </div>
-          <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-700/40">
-            <span className="text-slate-400">كوادر موقوفة مؤقتاً:</span>
-            <div className="text-lg font-bold text-rose-400 mt-0.5">
+          <div className="bg-white/10 p-3 rounded-xl border border-white/15 backdrop-blur-xs">
+            <span className="text-slate-200">كوادر موقوفة مؤقتاً:</span>
+            <div className="text-lg font-black text-rose-300 mt-0.5">
               {employees.filter((e) => !e.isActive).length} موقوف
             </div>
           </div>
-          <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-700/40">
-            <span className="text-slate-400">نسبة الجاهزية التشغيلية:</span>
-            <div className="text-lg font-bold text-cyan-400 mt-0.5">
+          <div className="bg-white/10 p-3 rounded-xl border border-white/15 backdrop-blur-xs">
+            <span className="text-slate-200">نسبة الجاهزية التشغيلية:</span>
+            <div className="text-lg font-black text-white mt-0.5">
               {employees.length > 0
                 ? Math.round((employees.filter((e) => e.isActive).length / employees.length) * 100)
                 : 100}%
@@ -250,15 +280,15 @@ export default function HospitalEmployeesPage() {
       </div>
 
       {/* Filter and Search */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="relative w-full md:w-80">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+          <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input
             type="text"
             placeholder="بحث بالاسم، الرقم الوطني، أو الرقم الوظيفي..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-3 pr-9 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-cyan-500"
+            className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0C4A4E]"
           />
         </div>
 
@@ -266,30 +296,30 @@ export default function HospitalEmployeesPage() {
         <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto text-xs">
           <button
             onClick={() => setStatusFilter("all")}
-            className={`px-3 py-1.5 rounded-xl font-semibold transition whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-xl font-bold transition whitespace-nowrap cursor-pointer ${
               statusFilter === "all"
-                ? "bg-cyan-600 text-white shadow"
-                : "bg-slate-800 text-slate-400 hover:text-white"
+                ? "bg-[#052F31] text-white shadow-xs"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
             كافة الكوادر ({employees.length})
           </button>
           <button
             onClick={() => setStatusFilter("active")}
-            className={`px-3 py-1.5 rounded-xl font-semibold transition whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-xl font-bold transition whitespace-nowrap cursor-pointer ${
               statusFilter === "active"
-                ? "bg-emerald-600 text-white shadow"
-                : "bg-slate-800 text-slate-400 hover:text-white"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
             النشطون بالخدمة ({employees.filter((e) => e.isActive).length})
           </button>
           <button
             onClick={() => setStatusFilter("suspended")}
-            className={`px-3 py-1.5 rounded-xl font-semibold transition whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-xl font-bold transition whitespace-nowrap cursor-pointer ${
               statusFilter === "suspended"
-                ? "bg-rose-600 text-white shadow"
-                : "bg-slate-800 text-slate-400 hover:text-white"
+                ? "bg-rose-600 text-white shadow-xs"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
             الموقوفون مؤقتاً ({employees.filter((e) => !e.isActive).length})
@@ -298,10 +328,10 @@ export default function HospitalEmployeesPage() {
       </div>
 
       {/* Medical Staff Table */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
-            <thead className="bg-slate-950/60 text-slate-400 border-b border-slate-800">
+            <thead className="bg-slate-50 text-slate-700 border-b border-slate-200 font-bold">
               <tr>
                 <th className="p-3.5">الرقم الوظيفي / الاسم</th>
                 <th className="p-3.5">المسمى الوظيفي</th>
@@ -312,19 +342,19 @@ export default function HospitalEmployeesPage() {
                 <th className="p-3.5 text-center">إجراءات</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-slate-300">
+            <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center">
-                    <div className="flex flex-col items-center gap-2 text-slate-400">
-                      <RefreshCw className="w-5 h-5 animate-spin text-cyan-500" />
+                    <div className="flex flex-col items-center gap-2 text-slate-500">
+                      <RefreshCw className="w-5 h-5 animate-spin text-[#0C4A4E]" />
                       <span className="text-xs">جاري تحميل الكادر الطبي...</span>
                     </div>
                   </td>
                 </tr>
               ) : filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500 text-xs">
+                  <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
                     {employees.length === 0
                       ? "لا يوجد كادر طبي في هذه المنشأة حتى الآن."
                       : "لا توجد نتائج تطابق البحث الحالي."}
@@ -332,50 +362,50 @@ export default function HospitalEmployeesPage() {
                 </tr>
               ) : (
                 filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-slate-800/40 transition">
+                  <tr key={emp.id} className="hover:bg-slate-50/70 transition">
                     <td className="p-3.5">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-cyan-950/80 border border-cyan-800/60 flex items-center justify-center text-cyan-400 font-bold">
+                        <div className="w-8 h-8 rounded-xl bg-[#E6F1EE]/40 text-[#0C4A4E] flex items-center justify-center font-bold">
                           {emp.roleLabel?.includes("طبيب") || emp.roleLabel?.includes("جراح") ? (
                             <Stethoscope className="w-4 h-4" />
                           ) : emp.roleLabel?.includes("تمريض") || emp.roleLabel?.includes("ممرض") ? (
-                            <Heart className="w-4 h-4 text-rose-400" />
+                            <Heart className="w-4 h-4 text-rose-600" />
                           ) : (
-                            <Activity className="w-4 h-4 text-amber-400" />
+                            <Activity className="w-4 h-4 text-amber-600" />
                           )}
                         </div>
                         <div>
-                          <div className="font-bold text-white">{emp.fullName}</div>
+                          <div className="font-bold text-[#052F31]">{emp.fullName}</div>
                           <div className="text-[11px] font-mono text-slate-400">{emp.employeeNumber || "—"}</div>
                         </div>
                       </div>
                     </td>
                     <td className="p-3.5">
-                      <div className="text-white font-semibold">{emp.roleLabel}</div>
+                      <div className="text-slate-800 font-semibold">{emp.roleLabel}</div>
                       <div className="text-[11px] text-slate-400">{emp.branchName || branchName}</div>
                     </td>
                     <td className="p-3.5">
-                      <div className="font-mono text-slate-300">{emp.phoneNumber || "—"}</div>
+                      <div className="font-mono text-slate-700">{emp.phoneNumber || "—"}</div>
                       <div className="text-[11px] text-slate-400 font-mono">{emp.email || "—"}</div>
                     </td>
-                    <td className="p-3.5 font-mono text-cyan-400">{emp.nationalNumber}</td>
+                    <td className="p-3.5 font-mono text-[#052F31] font-bold">{emp.nationalNumber}</td>
                     <td className="p-3.5">
                       <span
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 ${
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1.5 ${
                           emp.isActive
-                            ? "bg-emerald-950 text-emerald-400 border border-emerald-800/60"
-                            : "bg-rose-950 text-rose-400 border border-rose-800/60"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "bg-rose-50 text-rose-700 border border-rose-200"
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            emp.isActive ? "bg-emerald-400" : "bg-rose-400"
+                            emp.isActive ? "bg-emerald-500" : "bg-rose-500"
                           }`}
                         />
                         {emp.isActive ? "مفعّل" : "موقوف مؤقتاً"}
                       </span>
                     </td>
-                    <td className="p-3.5 font-mono text-slate-400 text-[11px]">
+                    <td className="p-3.5 font-mono text-slate-500 text-[11px]">
                       {emp.createdAt ? new Date(emp.createdAt).toLocaleDateString("ar-YE") : "—"}
                     </td>
                     <td className="p-3.5">
@@ -383,17 +413,17 @@ export default function HospitalEmployeesPage() {
                         <button
                           onClick={() => openDetailsModal(emp)}
                           title="عرض ملف وبيانات الكادر المعتمدة"
-                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 rounded-lg transition"
+                          className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-[#052F31] rounded-lg transition cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleToggleStatus(emp)}
                           title={emp.isActive ? "إيقاف الصلاحية" : "تنشيط الصلاحية"}
-                          className={`p-1.5 rounded-lg transition ${
+                          className={`p-1.5 rounded-lg transition cursor-pointer ${
                             emp.isActive
-                              ? "bg-rose-950/60 hover:bg-rose-900 text-rose-400 border border-rose-800/40"
-                              : "bg-emerald-950/60 hover:bg-emerald-900 text-emerald-400 border border-emerald-800/40"
+                              ? "bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200"
+                              : "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200"
                           }`}
                         >
                           <Power className="w-3.5 h-3.5" />
@@ -410,34 +440,34 @@ export default function HospitalEmployeesPage() {
 
       {/* Add Healthcare Worker Modal */}
       {addModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="text-white font-bold text-sm flex items-center gap-2">
-                <Stethoscope className="w-4 h-4 text-cyan-400" />
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden text-xs">
+            <div className="bg-[#052F31] text-white p-5 flex items-center justify-between">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <Stethoscope className="w-4 h-4 text-emerald-300" />
                 <span>تكليف كادر صحي جديد بالمنشأة</span>
               </h3>
               <button
                 onClick={() => setAddModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-white/70 hover:text-white cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddEmployee} className="space-y-4">
-              <div className="p-3 bg-cyan-950/40 border border-cyan-800/40 rounded-xl text-cyan-200 space-y-1">
-                <p className="font-bold flex items-center gap-1.5 text-xs text-cyan-400">
-                  <CheckCircle2 className="w-4 h-4" />
+            <form onSubmit={handleAddEmployee} className="p-6 space-y-4">
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 space-y-1">
+                <p className="font-bold flex items-center gap-1.5 text-xs text-[#052F31]">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   التكليف المعتمد في: {branchName}
                 </p>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
+                <p className="text-[11px] text-[#41484d] leading-relaxed">
                   أدخل الرقم الوطني للمواطن (11 خانة). يتحقق النظام آلياً من سجله المدني ووجود حساب مفعل له، ثم يلحقه بكادر المنشأة الصحية ويصدر رقمه الوظيفي الرسمي.
                 </p>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">الرقم الوطني الموحد للمواطن (11 خانة) *</label>
+                <label className="block text-slate-700 font-bold mb-1">الرقم الوطني الموحد للمواطن (11 خانة) *</label>
                 <input
                   type="text"
                   required
@@ -445,23 +475,30 @@ export default function HospitalEmployeesPage() {
                   placeholder="مثال: 01001000001"
                   value={nationalNumber}
                   onChange={(e) => setNationalNumber(e.target.value.replace(/\D/g, ""))}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-mono text-xs focus:ring-2 focus:ring-[#0C4A4E] focus:outline-none"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+              {modalError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs font-bold animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span className="leading-relaxed">{modalError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   disabled={submitting}
                   onClick={() => setAddModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-semibold"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-5 py-2 bg-[#0C4A4E] hover:bg-[#052F31] text-white rounded-xl font-bold transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {submitting ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -478,128 +515,131 @@ export default function HospitalEmployeesPage() {
 
       {/* Healthcare Worker Dossier Details Modal */}
       {detailsModalOpen && selectedEmployee && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-xs text-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden text-xs text-slate-700">
+            <div className="bg-[#052F31] text-white p-5 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-cyan-950/80 border border-cyan-800/60 text-cyan-400">
+                <div className="p-2 rounded-xl bg-white/10 text-emerald-300">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-white font-bold text-sm">ملف وبيانات الممارس الصحي المعتمدة</h3>
-                  <p className="text-[10px] text-slate-400">
+                  <h3 className="font-bold text-sm text-white">ملف وبيانات الممارس الصحي المعتمدة</h3>
+                  <p className="text-[10px] text-slate-200">
                     {fetchingDetails ? "جاري مزامنة أحدث بيانات من الخادم..." : "سجل موثق من السجل المدني والهيكل الطبي"}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setDetailsModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-white/70 hover:text-white cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Main Badge Card */}
-            <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-cyan-950/80 border border-cyan-800/60 text-cyan-400 flex items-center justify-center font-bold text-base">
-                <Stethoscope className="w-6 h-6" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-sm text-white">{selectedEmployee.fullName}</h4>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-950 text-cyan-400 border border-cyan-800/60">
-                    معتمد
-                  </span>
+            <div className="p-6 space-y-4">
+              {/* Main Badge Card */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#E6F1EE]/40 text-[#0C4A4E] flex items-center justify-center font-bold text-base">
+                  <Stethoscope className="w-6 h-6" />
                 </div>
-                <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
-                  <span>الرقم الوظيفي:</span>
-                  <span className="font-mono font-bold text-cyan-400">{selectedEmployee.employeeNumber}</span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-sm text-[#052F31]">{selectedEmployee.fullName}</h4>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#052F31]/5 text-[#052F31] border border-[#052F31]/10">
+                      معتمد
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                    <span>الرقم الوظيفي:</span>
+                    <span className="font-mono font-bold text-[#0C4A4E]">{selectedEmployee.employeeNumber}</span>
+                  </div>
                 </div>
+                <span
+                  className={`px-3 py-1 rounded-full text-[10px] font-bold ${
+                    selectedEmployee.isActive
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : "bg-rose-50 text-rose-700 border border-rose-200"
+                  }`}
+                >
+                  {selectedEmployee.isActive ? "نشط بالخدمة" : "موقوف مؤقتاً"}
+                </span>
               </div>
-              <span
-                className={`px-3 py-1 rounded-full text-[10px] font-bold ${
-                  selectedEmployee.isActive
-                    ? "bg-emerald-950 text-emerald-400 border border-emerald-800/60"
-                    : "bg-rose-950 text-rose-400 border border-rose-800/60"
-                }`}
-              >
-                {selectedEmployee.isActive ? "نشط بالخدمة" : "موقوف مؤقتاً"}
-              </span>
-            </div>
 
-            {/* Details Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-1">
-                <span className="text-[10px] text-slate-400 font-semibold block">الرقم الوطني الموحد</span>
-                <span className="font-mono font-bold text-cyan-300 text-xs">{selectedEmployee.nationalNumber}</span>
-              </div>
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-1">
-                <span className="text-[10px] text-slate-400 font-semibold block">المنشأة الصحية التابع لها</span>
-                <span className="font-bold text-white text-xs">{selectedEmployee.branchName || branchName}</span>
-              </div>
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-1">
-                <span className="text-[10px] text-slate-400 font-semibold block">رقم الهاتف</span>
-                <div className="flex items-center gap-1.5 font-mono text-xs text-slate-300">
-                  <Phone className="w-3 h-3 text-slate-400" />
-                  <span>{selectedEmployee.phoneNumber || "غير مسجل"}</span>
+              {/* Details Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-[10px] text-slate-500 font-semibold block">الرقم الوطني الموحد</span>
+                  <span className="font-mono font-bold text-[#052F31] text-xs">{selectedEmployee.nationalNumber}</span>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-[10px] text-slate-500 font-semibold block">المنشأة الصحية التابع لها</span>
+                  <span className="font-bold text-slate-800 text-xs">{selectedEmployee.branchName || branchName}</span>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-[10px] text-slate-500 font-semibold block">رقم الهاتف</span>
+                  <div className="flex items-center gap-1.5 font-mono text-xs text-slate-700">
+                    <Phone className="w-3 h-3 text-slate-400" />
+                    <span>{selectedEmployee.phoneNumber || "غير مسجل"}</span>
+                  </div>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-[10px] text-slate-500 font-semibold block">البريد الإلكتروني</span>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-700 truncate">
+                    <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span className="truncate">{selectedEmployee.email || "غير مسجل"}</span>
+                  </div>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-[10px] text-slate-500 font-semibold block">المؤسسة الصحية</span>
+                  <span className="font-semibold text-slate-700 text-xs">{selectedEmployee.organizationName || "المستشفيات والمرافق الصحية"}</span>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-[10px] text-slate-500 font-semibold block">تاريخ الالتحاق والتكليف</span>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                    <Calendar className="w-3 h-3 text-slate-400" />
+                    <span>
+                      {selectedEmployee.createdAt
+                        ? new Date(selectedEmployee.createdAt).toLocaleDateString("ar-YE")
+                        : "—"}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-1">
-                <span className="text-[10px] text-slate-400 font-semibold block">البريد الإلكتروني</span>
-                <div className="flex items-center gap-1.5 text-xs text-slate-300 truncate">
-                  <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span className="truncate">{selectedEmployee.email || "غير مسجل"}</span>
-                </div>
-              </div>
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-1">
-                <span className="text-[10px] text-slate-400 font-semibold block">المؤسسة الصحية</span>
-                <span className="font-semibold text-slate-300 text-xs">{selectedEmployee.organizationName || "المستشفيات والمرافق الصحية"}</span>
-              </div>
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-1">
-                <span className="text-[10px] text-slate-400 font-semibold block">تاريخ الالتحاق والتكليف</span>
-                <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                  <Calendar className="w-3 h-3 text-slate-400" />
-                  <span>
-                    {selectedEmployee.createdAt
-                      ? new Date(selectedEmployee.createdAt).toLocaleDateString("ar-YE")
-                      : "—"}
-                  </span>
-                </div>
-              </div>
-            </div>
 
-            {/* Notice Note */}
-            <div className="p-3 bg-slate-950/90 border border-slate-800 rounded-xl text-slate-400 text-[11px] leading-relaxed">
-              <span className="text-cyan-400 font-bold block mb-0.5">ℹ️ إشعار تدقيق الهوية:</span>
-              البيانات الشخصية مستخرجة وموثقة عبر السجل المدني المركزي. لتصحيح أو تعديل البيانات الشخصية يتم الرجوع لدائرة الأحوال المدنية.
-            </div>
+              {/* Notice Note */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-[11px] leading-relaxed">
+                <span className="text-[#052F31] font-bold block mb-0.5">ℹ️ إشعار تدقيق الهوية:</span>
+                البيانات الشخصية مستخرجة وموثقة عبر السجل المدني المركزي. لتصحيح أو تعديل البيانات الشخصية يتم الرجوع لدائرة الأحوال المدنية.
+              </div>
 
-            {/* Modal Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => handleToggleStatus(selectedEmployee)}
-                className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition ${
-                  selectedEmployee.isActive
-                    ? "bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60"
-                    : "bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60"
-                }`}
-              >
-                <Power className="w-3.5 h-3.5" />
-                <span>{selectedEmployee.isActive ? "إيقاف الصلاحية مؤقتاً" : "تنشيط الصلاحية الميدانية"}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setDetailsModalOpen(false)}
-                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold transition"
-              >
-                إغلاق
-              </button>
+              {/* Modal Actions */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => handleToggleStatus(selectedEmployee)}
+                  className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition cursor-pointer text-xs ${
+                    selectedEmployee.isActive
+                      ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200"
+                      : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200"
+                  }`}
+                >
+                  <Power className="w-3.5 h-3.5" />
+                  <span>{selectedEmployee.isActive ? "إيقاف الصلاحية مؤقتاً" : "تنشيط الصلاحية الميدانية"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailsModalOpen(false)}
+                  className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition cursor-pointer"
+                >
+                  إغلاق
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -61,23 +61,23 @@ export default function HospitalReportsPage() {
     <div className="space-y-6">
       {/* Notification */}
       {exportFeedback && (
-        <div className="p-4 rounded-xl bg-emerald-950/90 text-emerald-200 border border-emerald-800 text-xs flex items-center gap-2 shadow-xl">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        <div className="p-4 rounded-xl bg-emerald-600 text-white border border-emerald-500 text-xs flex items-center gap-2 shadow-xl font-bold">
+          <CheckCircle2 className="w-4 h-4 text-white" />
           <span>{exportFeedback}</span>
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="bg-gradient-to-l from-[#00374e] to-[#044e6e] rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+      {/* Header Banner - Hwyati Sovereign Petrol Banner */}
+      <div className="bg-gradient-to-l from-[#052F31] via-[#0C4A4E] to-[#103F43] rounded-2xl p-6 text-white shadow-md relative overflow-hidden border border-[#147A77]/30">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#147A77]/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2 text-cyan-300 text-sm font-medium">
-              <BarChart3 className="w-4 h-4" />
+            <div className="flex items-center gap-2 mb-2 text-emerald-300 text-xs font-bold">
+              <BarChart3 className="w-4 h-4 text-emerald-400" />
               <span>المنظومة المركزية للإحصاء السريري والوقائع الحيوية</span>
             </div>
-            <h1 className="text-2xl font-bold">التقارير والمؤشرات الصحية الموحدة</h1>
-            <p className="text-slate-300 text-sm mt-1">
+            <h1 className="text-2xl md:text-3xl font-extrabold text-white">التقارير والمؤشرات الصحية الموحدة</h1>
+            <p className="text-slate-200 text-xs md:text-sm mt-1">
               إحصائيات السجلات الطبية، التدخلات الجراحية، معدلات المواليد والوفيات، وانتشار الأمراض المزمنة
             </p>
           </div>
@@ -85,14 +85,14 @@ export default function HospitalReportsPage() {
           <div className="flex items-center gap-2.5 self-start md:self-auto">
             <button
               onClick={() => handleExport("excel")}
-              className="px-4 py-2 bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
               <span>تصدير Excel</span>
             </button>
             <button
               onClick={() => handleExport("pdf")}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition"
+              className="px-5 py-2.5 bg-[#147A77] hover:bg-[#0E5C59] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>طباعة تقرير معتمد</span>
@@ -103,13 +103,13 @@ export default function HospitalReportsPage() {
 
       {/* Service Unavailable Banner */}
       {isUnavailable && (
-        <div className="bg-amber-950/70 border border-amber-500/50 rounded-2xl p-5 text-amber-200 shadow-xl flex items-start gap-4">
-          <div className="p-2.5 bg-amber-900/60 rounded-xl text-amber-400 shrink-0">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-amber-900 shadow-xs flex items-start gap-4">
+          <div className="p-2.5 bg-amber-100 rounded-xl text-amber-700 shrink-0">
             <AlertCircle className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-amber-300">خدمة التقارير والمؤشرات المركزية غير متوفرة من الخادم حالياً</h3>
-            <p className="text-xs text-amber-200/80 mt-1 leading-relaxed">
+            <h3 className="font-bold text-sm text-amber-900">خدمة التقارير والمؤشرات المركزية غير متوفرة من الخادم حالياً</h3>
+            <p className="text-xs text-amber-800/90 mt-1 leading-relaxed">
               واجهات الإحصاءات السريرية والتحليلات الوبائية قيد التطوير في الخادم الخلفي. تم إيقاف المؤشرات الوهمية لضمان سلامة التقارير الرسمية.
             </p>
           </div>
@@ -117,11 +117,11 @@ export default function HospitalReportsPage() {
       )}
 
       {/* Filters Bar */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 text-xs">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-4 text-xs">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-slate-400">
-            <Filter className="w-4 h-4 text-cyan-400" />
-            <span className="font-semibold">تصفية التقرير:</span>
+          <div className="flex items-center gap-2 text-slate-500 font-bold">
+            <Filter className="w-4 h-4 text-[#0C4A4E]" />
+            <span>تصفية التقرير:</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -129,7 +129,7 @@ export default function HospitalReportsPage() {
             <select
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="bg-slate-950 border border-slate-800 text-white rounded-xl px-3 py-1.5 focus:outline-none focus:border-cyan-500"
+              className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0C4A4E]"
             >
               <option value="2026-09">سبتمبر 2026 (الشهر الحالي)</option>
               <option value="2026-Q3">الربع الثالث 2026</option>
@@ -141,7 +141,7 @@ export default function HospitalReportsPage() {
             <select
               value={selectedFacility}
               onChange={(e) => setSelectedFacility(e.target.value)}
-              className="bg-slate-950 border border-slate-800 text-white rounded-xl px-3 py-1.5 focus:outline-none focus:border-cyan-500"
+              className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0C4A4E]"
             >
               <option value="all">كافة المستشفيات والمراكز التخصصية</option>
               <option value="thawra">مستشفى الثورة العام - صنعاء</option>
@@ -160,65 +160,65 @@ export default function HospitalReportsPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Consultations */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-xs hover:border-[#0C4A4E]/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-semibold">الوقائع الحيوية المسجلة</span>
-            <div className="w-9 h-9 rounded-xl bg-cyan-950/80 border border-cyan-800/60 flex items-center justify-center text-cyan-400">
+            <span className="text-xs text-[#41484d] font-bold">الوقائع الحيوية المسجلة</span>
+            <div className="w-10 h-10 rounded-xl bg-[#E6F1EE]/40 text-[#0C4A4E] flex items-center justify-center font-bold">
               <Stethoscope className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white font-mono mt-3">
+          <div className="text-2xl md:text-3xl font-black text-[#191c1e] font-mono mt-3">
             {loading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" /> : isUnavailable ? "—" : (metrics?.registeredVitalEventsCount ?? 0).toLocaleString("ar-YE")}
           </div>
-          <div className="text-[11px] text-slate-400 mt-2">
+          <div className="text-[11px] text-slate-500 mt-2">
             إجمالي الأحداث المسجلة رسمياً
           </div>
         </div>
 
         {/* Active Doctors */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-xs hover:border-[#0C4A4E]/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-semibold">الكادر الطبي المصرح له</span>
-            <div className="w-9 h-9 rounded-xl bg-rose-950/80 border border-rose-800/60 flex items-center justify-center text-rose-400">
+            <span className="text-xs text-[#41484d] font-bold">الكادر الطبي المصرح له</span>
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
               <Activity className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-rose-400 font-mono mt-3">
+          <div className="text-2xl md:text-3xl font-black text-emerald-700 font-mono mt-3">
             {loading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" /> : isUnavailable ? "—" : (metrics?.activeDoctorsCount ?? 0).toLocaleString("ar-YE")}
           </div>
-          <div className="text-[11px] text-slate-400 mt-2">
+          <div className="text-[11px] text-slate-500 mt-2">
             أطباء وكوادر نشطة بالخدمة
           </div>
         </div>
 
         {/* Birth Registrations */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-xs hover:border-[#0C4A4E]/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-semibold">المواليد الموثقين بالسجل</span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-950/80 border border-emerald-800/60 flex items-center justify-center text-emerald-400">
+            <span className="text-xs text-[#41484d] font-bold">المواليد الموثقين بالسجل</span>
+            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
               <Heart className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-emerald-400 font-mono mt-3">
+          <div className="text-2xl md:text-3xl font-black text-[#052F31] font-mono mt-3">
             {loading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" /> : isUnavailable ? "—" : (metrics?.monthlyBirthsCount ?? 0).toLocaleString("ar-YE")}
           </div>
-          <div className="text-[11px] text-emerald-400 mt-2">
+          <div className="text-[11px] text-slate-500 mt-2">
             تم إصدار قيودهم إلكترونياً
           </div>
         </div>
 
         {/* Vital Deceased */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-xs hover:border-[#0C4A4E]/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-semibold">إخطارات الوفاة الرسمية</span>
-            <div className="w-9 h-9 rounded-xl bg-slate-850 border border-slate-700 flex items-center justify-center text-slate-300">
-              <ShieldCheck className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs text-[#41484d] font-bold">إخطارات الوفاة الرسمية</span>
+            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center font-bold">
+              <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-200 font-mono mt-3">
+          <div className="text-2xl md:text-3xl font-black text-rose-700 font-mono mt-3">
             {loading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" /> : isUnavailable ? "—" : (metrics?.monthlyDeathsCount ?? 0).toLocaleString("ar-YE")}
           </div>
-          <div className="text-[11px] text-slate-400 mt-2">
+          <div className="text-[11px] text-slate-500 mt-2">
             مستكملة التقرير الطبي والشرعي
           </div>
         </div>
@@ -227,10 +227,10 @@ export default function HospitalReportsPage() {
       {/* Deep Analytics Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chronic Diseases Breakdown */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-white font-bold text-sm flex items-center gap-2">
-              <Heart className="w-4 h-4 text-rose-400" />
+            <h3 className="text-[#052F31] font-extrabold text-sm flex items-center gap-2">
+              <Heart className="w-4 h-4 text-rose-600" />
               أكثر الأمراض المزمنة انتشاراً (الرعاية الوقائية)
             </h3>
             <span className="text-xs text-slate-400 font-medium">النسبة المئوية</span>
@@ -239,40 +239,40 @@ export default function HospitalReportsPage() {
           <div className="space-y-3.5 text-xs">
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-slate-300 font-semibold">ارتفاع ضغط الدم الشرياني (Hypertension)</span>
-                <span className="text-cyan-400 font-bold font-mono">38.5% (1,480 مريض)</span>
+                <span className="text-slate-700 font-bold">ارتفاع ضغط الدم الشرياني (Hypertension)</span>
+                <span className="text-[#0C4A4E] font-bold font-mono">38.5% (1,480 مريض)</span>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
-                <div className="bg-cyan-500 h-2 rounded-full" style={{ width: "38.5%" }} />
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                <div className="bg-[#0C4A4E] h-2 rounded-full" style={{ width: "38.5%" }} />
               </div>
             </div>
 
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-slate-300 font-semibold">السكري من النوع الثاني (Type 2 Diabetes)</span>
-                <span className="text-amber-400 font-bold font-mono">31.2% (1,198 مريض)</span>
+                <span className="text-slate-700 font-bold">السكري من النوع الثاني (Type 2 Diabetes)</span>
+                <span className="text-amber-700 font-bold font-mono">31.2% (1,198 مريض)</span>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
                 <div className="bg-amber-500 h-2 rounded-full" style={{ width: "31.2%" }} />
               </div>
             </div>
 
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-slate-300 font-semibold">الربو الشعبي وأمراض الجهاز التنفسي</span>
-                <span className="text-emerald-400 font-bold font-mono">18.0% (691 مريض)</span>
+                <span className="text-slate-700 font-bold">الربو الشعبي وأمراض الجهاز التنفسي</span>
+                <span className="text-emerald-700 font-bold font-mono">18.0% (691 مريض)</span>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
                 <div className="bg-emerald-500 h-2 rounded-full" style={{ width: "18%" }} />
               </div>
             </div>
 
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-slate-300 font-semibold">قصور الشرايين التاجية والقلب</span>
-                <span className="text-rose-400 font-bold font-mono">12.3% (473 مريض)</span>
+                <span className="text-slate-700 font-bold">قصور الشرايين التاجية والقلب</span>
+                <span className="text-rose-700 font-bold font-mono">12.3% (473 مريض)</span>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
                 <div className="bg-rose-500 h-2 rounded-full" style={{ width: "12.3%" }} />
               </div>
             </div>
@@ -280,10 +280,10 @@ export default function HospitalReportsPage() {
         </div>
 
         {/* Surgical Operations & Emergency Acuity */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-white font-bold text-sm flex items-center gap-2">
-              <Activity className="w-4 h-4 text-cyan-400" />
+            <h3 className="text-[#052F31] font-extrabold text-sm flex items-center gap-2">
+              <Activity className="w-4 h-4 text-[#0C4A4E]" />
               توزيع التدخلات الجراحية وأقسام المستشفى
             </h3>
             <span className="text-xs text-slate-400 font-medium">العمليات المنفذة</span>
@@ -292,40 +292,40 @@ export default function HospitalReportsPage() {
           <div className="space-y-3.5 text-xs">
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-slate-300 font-semibold">الجراحة العامة وجراحة المناظير</span>
-                <span className="text-cyan-400 font-bold font-mono">42% (173 عملية)</span>
+                <span className="text-slate-700 font-bold">الجراحة العامة وجراحة المناظير</span>
+                <span className="text-[#0C4A4E] font-bold font-mono">42% (173 عملية)</span>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
-                <div className="bg-cyan-500 h-2 rounded-full" style={{ width: "42%" }} />
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                <div className="bg-[#0C4A4E] h-2 rounded-full" style={{ width: "42%" }} />
               </div>
             </div>
 
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-slate-300 font-semibold">النساء والولادة والقيصريات</span>
-                <span className="text-rose-400 font-bold font-mono">29% (119 عملية)</span>
+                <span className="text-slate-700 font-bold">النساء والولادة والقيصريات</span>
+                <span className="text-rose-700 font-bold font-mono">29% (119 عملية)</span>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
                 <div className="bg-rose-500 h-2 rounded-full" style={{ width: "29%" }} />
               </div>
             </div>
 
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-slate-300 font-semibold">جراحة العظام والحوادث</span>
-                <span className="text-amber-400 font-bold font-mono">19% (78 عملية)</span>
+                <span className="text-slate-700 font-bold">جراحة العظام والحوادث</span>
+                <span className="text-amber-700 font-bold font-mono">19% (78 عملية)</span>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
                 <div className="bg-amber-500 h-2 rounded-full" style={{ width: "19%" }} />
               </div>
             </div>
 
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-slate-300 font-semibold">المسالك البولية والتخصصات الدقيقة</span>
-                <span className="text-emerald-400 font-bold font-mono">10% (42 عملية)</span>
+                <span className="text-slate-700 font-bold">المسالك البولية والتخصصات الدقيقة</span>
+                <span className="text-emerald-700 font-bold font-mono">10% (42 عملية)</span>
               </div>
-              <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
                 <div className="bg-emerald-500 h-2 rounded-full" style={{ width: "10%" }} />
               </div>
             </div>
@@ -334,36 +334,36 @@ export default function HospitalReportsPage() {
       </div>
 
       {/* Vital Events Demographics Card */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-        <h3 className="text-white font-bold text-sm flex items-center gap-2">
-          <Users className="w-4 h-4 text-cyan-400" />
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+        <h3 className="text-[#052F31] font-extrabold text-sm flex items-center gap-2">
+          <Users className="w-4 h-4 text-[#0C4A4E]" />
           المؤشرات الديموغرافية للوقائع الحيوية المنقولة للأحوال المدنية
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-            <div className="text-slate-400 font-semibold">نسبة جنس المواليد:</div>
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="text-slate-500 font-semibold">نسبة جنس المواليد:</div>
             <div className="flex items-center justify-between text-sm font-bold">
-              <span className="text-cyan-400">ذكور: 53.2%</span>
-              <span className="text-rose-400">إناث: 46.8%</span>
+              <span className="text-[#0C4A4E]">ذكور: 53.2%</span>
+              <span className="text-rose-600">إناث: 46.8%</span>
             </div>
-            <div className="text-[11px] text-slate-400">متوسط وزن المولود الطبيعي: 3.25 كغم</div>
+            <div className="text-[11px] text-slate-500">متوسط وزن المولود الطبيعي: 3.25 كغم</div>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-            <div className="text-slate-400 font-semibold">التوزيع الزمني للوفيات:</div>
-            <div className="text-sm font-bold text-slate-200">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="text-slate-500 font-semibold">التوزيع الزمني للوفيات:</div>
+            <div className="text-sm font-bold text-slate-800">
               68% أعمار تفوق 65 عاماً (أمراض مزمنة)
             </div>
-            <div className="text-[11px] text-slate-400">21% وفيات حوادث وإصابات حرجة</div>
+            <div className="text-[11px] text-slate-500">21% وفيات حوادث وإصابات حرجة</div>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-            <div className="text-slate-400 font-semibold">زمن المعالجة الإلكترونية:</div>
-            <div className="text-sm font-bold text-emerald-400">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="text-slate-500 font-semibold">زمن المعالجة الإلكترونية:</div>
+            <div className="text-sm font-bold text-emerald-700">
               فوري (أقل من 3 ثوانٍ للربط مع السجل المدني)
             </div>
-            <div className="text-[11px] text-slate-400">بدون أي تدخل ورقي أو معاملات يدوية</div>
+            <div className="text-[11px] text-slate-500">بدون أي تدخل ورقي أو معاملات يدوية</div>
           </div>
         </div>
       </div>
