@@ -19,9 +19,11 @@ import {
 import { employeesService } from "@/lib/api/employeesService";
 import { Employee } from "@/types/admin";
 import { useAuth } from "@/context/AuthContext";
+import { useNotification } from "@/context/NotificationContext";
 
 export default function CivilRegistryEmployeesPage() {
   const { user } = useAuth();
+  const { confirm, toast } = useNotification();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -33,6 +35,7 @@ export default function CivilRegistryEmployeesPage() {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [fetchingDetails, setFetchingDetails] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Form states
   const [nationalNumber, setNationalNumber] = useState("");
@@ -69,8 +72,11 @@ export default function CivilRegistryEmployeesPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setModalError(null);
     if (!nationalNumber.trim()) {
-      setFeedback({ type: "error", message: "يرجى إدخال الرقم الوطني للمواطن المراد تعيينه." });
+      const msg = "يرجى إدخال الرقم الوطني للمواطن المراد تعيينه.";
+      setModalError(msg);
+      toast.error(msg);
       return;
     }
     setSubmitting(true);
@@ -80,23 +86,42 @@ export default function CivilRegistryEmployeesPage() {
         setEmployees((prev) => [res.employee!, ...prev]);
         setAddModalOpen(false);
         setNationalNumber("");
+        setModalError(null);
+        const successMsg = `تم تكليف الموظف (${res.employee.fullName}) برقم وظيفي: ${res.employee.employeeNumber} بنجاح.`;
+        toast.success(successMsg);
         setFeedback({
           type: "success",
-          message: `تم تكليف الموظف (${res.employee.fullName}) برقم وظيفي: ${res.employee.employeeNumber} بنجاح.`,
+          message: successMsg,
         });
       } else {
-        setFeedback({ type: "error", message: res.message });
+        const errMsg = res.message || "فشلت عملية تكليف الموظف.";
+        setModalError(errMsg);
+        toast.error(errMsg);
       }
-    } catch {
-      setFeedback({ type: "error", message: "حدث خطأ أثناء تكليف الموظف." });
+    } catch (err: any) {
+      const errMsg = err?.message || "حدث خطأ أثناء تكليف الموظف.";
+      setModalError(errMsg);
+      toast.error(errMsg);
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleToggleStatus = async (emp: Employee) => {
+    const isCurrentlyActive = emp.isActive;
+    const isConfirmed = await confirm({
+      title: isCurrentlyActive ? "تأكيد تعطيل حساب الموظف" : "تأكيد تنشيط حساب الموظف",
+      message: isCurrentlyActive
+        ? `هل أنت متأكد من تجميد صلاحيات الموظف (${emp.fullName})؟ لن يتمكن من تسجيل الدخول أو إنجاز المعاملات حتى إعادة تنشيطه.`
+        : `هل أنت متأكد من إعادة تنشيط وتفعيل حساب الموظف (${emp.fullName})؟`,
+      type: isCurrentlyActive ? "warning" : "info",
+      confirmText: isCurrentlyActive ? "نعم، تجميد الصلاحيات" : "نعم، تنشيط الحساب",
+      cancelText: "إلغاء",
+    });
+
+    if (!isConfirmed) return;
+
     try {
-      const isCurrentlyActive = emp.isActive;
       const res = isCurrentlyActive
         ? await employeesService.deactivateEmployee(emp.id)
         : await employeesService.activateEmployee(emp.id);
@@ -114,15 +139,21 @@ export default function CivilRegistryEmployeesPage() {
             prev ? { ...prev, isActive: !isCurrentlyActive, accountStatus: (!isCurrentlyActive ? "Active" : "Suspended") as "Active" | "Suspended" } : null
           );
         }
+        const sMsg = `تم ${!isCurrentlyActive ? "تنشيط" : "تعطيل"} حساب الموظف (${emp.fullName}).`;
+        toast.success(sMsg);
         setFeedback({
           type: "success",
-          message: `تم ${!isCurrentlyActive ? "تنشيط" : "تعطيل"} حساب الموظف (${emp.fullName}).`,
+          message: sMsg,
         });
       } else {
-        setFeedback({ type: "error", message: res.message });
+        const eMsg = res.message || "فشل تحديث حالة الحساب.";
+        toast.error(eMsg);
+        setFeedback({ type: "error", message: eMsg });
       }
     } catch {
-      setFeedback({ type: "error", message: "فشل تحديث حالة الحساب." });
+      const eMsg = "فشل تحديث حالة الحساب.";
+      toast.error(eMsg);
+      setFeedback({ type: "error", message: eMsg });
     }
   };
 
@@ -160,11 +191,11 @@ export default function CivilRegistryEmployeesPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#0b4f6c] mb-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#0C4A4E] mb-1">
             <span className="w-2 h-2 rounded-full bg-blue-500"></span>
             صلاحيات مدير المؤسسة / مدير الفرع (مستوى 2)
           </div>
-          <h1 className="text-2xl font-bold text-[#00374e]">
+          <h1 className="text-2xl font-bold text-[#052F31]">
             إدارة موظفي الفرع والصلاحيات — {branchName}
           </h1>
           <p className="text-xs text-gray-500 mt-1">
@@ -179,11 +210,11 @@ export default function CivilRegistryEmployeesPage() {
             className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
             title="تحديث البيانات"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0b4f6c]" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0C4A4E]" : ""}`} />
           </button>
           <button
-            onClick={() => { setNationalNumber(""); setAddModalOpen(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00374e] hover:bg-[#0b4f6c] text-white text-xs font-bold shadow-sm transition-all"
+            onClick={() => { setNationalNumber(""); setModalError(null); setAddModalOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#052F31] hover:bg-[#0C4A4E] text-white text-xs font-bold shadow-sm transition-all"
           >
             <UserPlus className="w-4 h-4" />
             <span>إضافة موظف جديد للفرع</span>
@@ -219,7 +250,7 @@ export default function CivilRegistryEmployeesPage() {
         <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs text-gray-500 font-semibold">إجمالي كادر الفرع</span>
-            <div className="text-2xl font-black text-[#00374e] mt-1">{employees.length} موظفاً</div>
+            <div className="text-2xl font-black text-[#052F31] mt-1">{employees.length} موظفاً</div>
           </div>
           <div className="p-3 rounded-xl bg-blue-50 text-blue-700">
             <Users className="w-5 h-5" />
@@ -253,7 +284,7 @@ export default function CivilRegistryEmployeesPage() {
         <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs text-gray-500 font-semibold">نسبة الجاهزية التشغيلية</span>
-            <div className="text-2xl font-black text-[#00374e] mt-1">
+            <div className="text-2xl font-black text-[#052F31] mt-1">
               {employees.length > 0
                 ? Math.round((employees.filter((e) => e.isActive).length / employees.length) * 100)
                 : 100}%
@@ -274,7 +305,7 @@ export default function CivilRegistryEmployeesPage() {
             placeholder="البحث بالاسم أو الرقم الوظيفي أو الوطني..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-3 pr-9 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#0b4f6c]"
+            className="w-full pl-3 pr-9 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#0C4A4E]"
           />
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
@@ -310,7 +341,7 @@ export default function CivilRegistryEmployeesPage() {
                 <tr>
                   <td colSpan={7} className="py-12 text-center">
                     <div className="flex flex-col items-center gap-2 text-gray-400">
-                      <RefreshCw className="w-5 h-5 animate-spin text-[#0b4f6c]" />
+                      <RefreshCw className="w-5 h-5 animate-spin text-[#0C4A4E]" />
                       <span className="text-xs">جاري تحميل بيانات الموظفين...</span>
                     </div>
                   </td>
@@ -325,10 +356,10 @@ export default function CivilRegistryEmployeesPage() {
                 </tr>
               ) : (
                 filtered.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-blue-50/30 transition-colors">
+                  <tr key={emp.id} className="hover:bg-[#F1F6F4] transition-colors">
                     <td className="py-3.5 px-5 font-bold text-gray-900">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-[#00374e] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-[#052F31] text-white flex items-center justify-center font-bold text-xs shrink-0">
                           {emp.fullName.slice(0, 2)}
                         </div>
                         <div>
@@ -339,7 +370,7 @@ export default function CivilRegistryEmployeesPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-5 font-mono font-bold text-[#00374e]">
+                    <td className="py-3.5 px-5 font-mono font-bold text-[#052F31]">
                       {emp.employeeNumber}
                     </td>
                     <td className="py-3.5 px-5 font-mono text-gray-600">
@@ -384,7 +415,7 @@ export default function CivilRegistryEmployeesPage() {
                         </button>
                         <button
                           onClick={() => openDetailsModal(emp)}
-                          className="p-1.5 rounded-lg border border-gray-200 hover:bg-blue-50 text-gray-600 hover:text-[#0b4f6c] transition-colors"
+                          className="p-1.5 rounded-lg border border-gray-200 hover:bg-[#F1F6F4] text-gray-600 hover:text-[#0C4A4E] transition-colors"
                           title="عرض ملف وبيانات الموظف المعتمدة"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -404,8 +435,8 @@ export default function CivilRegistryEmployeesPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-xl border border-gray-100">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="text-sm font-bold text-[#00374e] flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-[#0b4f6c]" />
+              <h3 className="text-sm font-bold text-[#052F31] flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-[#0C4A4E]" />
                 تكليف موظف جديد بفرع ({branchName})
               </h3>
               <button
@@ -418,8 +449,8 @@ export default function CivilRegistryEmployeesPage() {
 
             <form onSubmit={handleCreate} className="space-y-4 text-xs">
               <div className="p-3 bg-blue-50/60 border border-blue-200/60 rounded-xl text-blue-900 space-y-1">
-                <p className="font-bold flex items-center gap-1.5 text-xs text-[#00374e]">
-                  <CheckCircle2 className="w-4 h-4 text-[#0b4f6c]" />
+                <p className="font-bold flex items-center gap-1.5 text-xs text-[#052F31]">
+                  <CheckCircle2 className="w-4 h-4 text-[#0C4A4E]" />
                   الربط التلقائي والتحقق من السجل المدني
                 </p>
                 <p className="text-[11px] text-gray-600 leading-relaxed">
@@ -434,11 +465,21 @@ export default function CivilRegistryEmployeesPage() {
                   required
                   maxLength={11}
                   value={nationalNumber}
-                  onChange={(e) => setNationalNumber(e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) => {
+                    setNationalNumber(e.target.value.replace(/\D/g, ""));
+                    if (modalError) setModalError(null);
+                  }}
                   placeholder="مثال: 01001000001"
-                  className="w-full p-2.5 border border-gray-200 rounded-xl font-mono text-sm focus:outline-none focus:border-[#0b4f6c]"
+                  className="w-full p-2.5 border border-gray-200 rounded-xl font-mono text-sm focus:outline-none focus:border-[#0C4A4E]"
                 />
               </div>
+
+              {modalError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="font-medium">{modalError}</span>
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
                 <button
@@ -452,7 +493,7 @@ export default function CivilRegistryEmployeesPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 rounded-xl bg-[#00374e] hover:bg-[#0b4f6c] text-white font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-[#052F31] hover:bg-[#0C4A4E] text-white font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
                   {submitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>{submitting ? "جاري التحقق والتكليف..." : "تأكيد التكليف وإصدار الرقم الوظيفي"}</span>
@@ -469,11 +510,11 @@ export default function CivilRegistryEmployeesPage() {
           <div className="bg-white rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-xl border border-gray-100 text-xs">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-[#00374e]/10 text-[#00374e]">
-                  <ShieldCheck className="w-5 h-5 text-[#0b4f6c]" />
+                <div className="p-2 rounded-xl bg-[#052F31]/10 text-[#052F31]">
+                  <ShieldCheck className="w-5 h-5 text-[#0C4A4E]" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-[#00374e]">ملف وبيانات الموظف المعتمدة</h3>
+                  <h3 className="text-sm font-bold text-[#052F31]">ملف وبيانات الموظف المعتمدة</h3>
                   <p className="text-[10px] text-gray-400">
                     {fetchingDetails ? "جاري مزامنة أحدث بيانات من الخادم..." : "سجل موثق من السجل المدني وقاعدة بيانات الموظفين"}
                   </p>
@@ -489,19 +530,19 @@ export default function CivilRegistryEmployeesPage() {
 
             {/* Employee Main Card */}
             <div className="p-4 bg-gradient-to-r from-blue-50/70 to-slate-50 border border-blue-100 rounded-2xl flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-[#00374e] text-white flex items-center justify-center font-bold text-base shadow-sm">
+              <div className="w-12 h-12 rounded-2xl bg-[#052F31] text-white flex items-center justify-center font-bold text-base shadow-sm">
                 {selectedEmployee.fullName.slice(0, 2)}
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-sm text-[#00374e]">{selectedEmployee.fullName}</h4>
+                  <h4 className="font-bold text-sm text-[#052F31]">{selectedEmployee.fullName}</h4>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                     موثق
                   </span>
                 </div>
                 <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
                   <span>الرقم الوظيفي:</span>
-                  <span className="font-mono font-bold text-[#00374e]">{selectedEmployee.employeeNumber}</span>
+                  <span className="font-mono font-bold text-[#052F31]">{selectedEmployee.employeeNumber}</span>
                 </div>
               </div>
               <span

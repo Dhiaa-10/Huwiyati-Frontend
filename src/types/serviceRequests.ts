@@ -93,6 +93,7 @@ export interface ServiceTypeDto {
   name: string;
   code: string;
   organizationId: string;
+  organizationName: string;
   isActive: boolean;
 }
 
@@ -122,5 +123,5 @@ export interface CreateServiceRequestCommand {
 
 export interface CancelServiceRequestCommand {
   serviceRequestId: string;
-  cancellationReason?: string;
+  reason?: string;
 }

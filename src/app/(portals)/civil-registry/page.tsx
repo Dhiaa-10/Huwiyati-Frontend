@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
@@ -58,10 +58,48 @@ function CivilRegistryDashboardContent() {
     loadData();
   }, []);
 
-  const totalActiveCards = cards.filter((c) => c.status === "Active" || !c.status).length;
-  const totalFamilies = families.length;
-  const totalBirths = births.length;
-  const totalDeaths = deaths.length;
+  const isSuperAdmin = !user || user.role === "SUPER_ADMIN" || !user.branchId;
+  const userBranchId = user?.branchId?.toLowerCase();
+  const userBranchName = user?.branchName?.trim().toLowerCase();
+
+  const branchCards = isSuperAdmin
+    ? cards
+    : cards.filter(
+        (c) =>
+          (c.issuingBranchId && c.issuingBranchId.toLowerCase() === userBranchId) ||
+          (userBranchName && c.branchName && c.branchName.trim().toLowerCase() === userBranchName)
+      );
+
+  const branchFamilies = isSuperAdmin
+    ? families
+    : families.filter(
+        (f) =>
+          (f.issuingBranchId && f.issuingBranchId.toLowerCase() === userBranchId) ||
+          (userBranchName && f.branchName && f.branchName.trim().toLowerCase() === userBranchName)
+      );
+
+  const branchBirths = isSuperAdmin
+    ? births
+    : births.filter(
+        (b) =>
+          (b.hospitalBranchId && b.hospitalBranchId.toLowerCase() === userBranchId) ||
+          (userBranchName && b.hospitalName && b.hospitalName.trim().toLowerCase() === userBranchName)
+      );
+
+  const branchDeaths = isSuperAdmin
+    ? deaths
+    : deaths.filter(
+        (d) =>
+          (d.issuingBranchId && d.issuingBranchId.toLowerCase() === userBranchId) ||
+          (userBranchName && d.issuingBranchName && d.issuingBranchName.trim().toLowerCase() === userBranchName) ||
+          (d.hospitalBranchId && d.hospitalBranchId.toLowerCase() === userBranchId) ||
+          (userBranchName && d.hospitalName && d.hospitalName.trim().toLowerCase() === userBranchName)
+      );
+
+  const totalActiveCards = branchCards.filter((c) => c.status === "Active" || !c.status).length;
+  const totalFamilies = branchFamilies.length;
+  const totalBirths = branchBirths.length;
+  const totalDeaths = branchDeaths.length;
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
@@ -70,16 +108,22 @@ function CivilRegistryDashboardContent() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-bold text-[#00374e] uppercase tracking-wider">
+            <span className="text-xs font-bold text-[#052F31] uppercase tracking-wider">
               مصلحة الأحوال المدنية والسجل المدني • {user?.branchName || "الفرع المركزي"}
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#00374e]">
+          <h1 className="text-2xl md:text-3xl font-extrabold text-[#052F31]">
             لوحة تحكم ومؤشرات السجل المدني
           </h1>
           <p className="text-sm text-[#41484d] mt-1">
             متابعة فورية ومباشرة للبطاقات الشخصية، القيود العائلية، والوقائع الحيوية المرتبطة بالباكند الحي.
           </p>
+          {!isSuperAdmin && user?.branchName && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold mt-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+              <span>المؤشرات والإحصائيات خاصة بفرع: {user.branchName}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -89,13 +133,13 @@ function CivilRegistryDashboardContent() {
             className="p-2.5 bg-white border border-[#e0e3e5] rounded-xl hover:bg-slate-50 text-slate-700 transition-all flex items-center gap-2 text-xs font-bold cursor-pointer"
             title="تحديث البيانات"
           >
-            <RefreshCw className={`w-4 h-4 text-[#0b4f6c] ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 text-[#0C4A4E] ${loading ? "animate-spin" : ""}`} />
             <span>تحديث المؤشرات</span>
           </button>
 
           <Link
             href="/civil-registry/id-cards"
-            className="px-5 py-2.5 bg-[#0b4f6c] hover:bg-[#00374e] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+            className="px-5 py-2.5 bg-[#0C4A4E] hover:bg-[#052F31] text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>إصدار بطاقة شخصية</span>
@@ -106,9 +150,9 @@ function CivilRegistryDashboardContent() {
       {/* KPI Cards (Live from Backend) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Card 1: National ID Cards */}
-        <div className="bg-white p-6 rounded-2xl border border-[#e0e3e5] shadow-xs hover:border-[#0b4f6c]/40 transition-all">
+        <div className="bg-white p-6 rounded-2xl border border-[#e0e3e5] shadow-xs hover:border-[#0C4A4E]/40 transition-all">
           <div className="flex justify-between items-start mb-4">
-            <div className="w-12 h-12 rounded-xl bg-[#c5e7ff]/40 flex items-center justify-center text-[#0b4f6c]">
+            <div className="w-12 h-12 rounded-xl bg-[#E6F1EE]/40 flex items-center justify-center text-[#0C4A4E]">
               <CreditCard className="w-6 h-6" />
             </div>
             <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -119,11 +163,11 @@ function CivilRegistryDashboardContent() {
           <h3 className="text-3xl font-black text-[#191c1e] font-mono">
             {totalActiveCards.toLocaleString("ar-YE")}
           </h3>
-          <p className="text-[11px] text-slate-500 mt-2">من إجمالي {cards.length} مسجلة بالنظام</p>
+          <p className="text-[11px] text-slate-500 mt-2">من إجمالي {branchCards.length} مسجلة بالفرع</p>
         </div>
 
         {/* Card 2: Family Cards */}
-        <div className="bg-white p-6 rounded-2xl border border-[#e0e3e5] shadow-xs hover:border-[#0b4f6c]/40 transition-all">
+        <div className="bg-white p-6 rounded-2xl border border-[#e0e3e5] shadow-xs hover:border-[#0C4A4E]/40 transition-all">
           <div className="flex justify-between items-start mb-4">
             <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-purple-700">
               <Users className="w-6 h-6" />
@@ -140,7 +184,7 @@ function CivilRegistryDashboardContent() {
         </div>
 
         {/* Card 3: Birth Certificates */}
-        <div className="bg-white p-6 rounded-2xl border border-[#e0e3e5] shadow-xs hover:border-[#0b4f6c]/40 transition-all">
+        <div className="bg-white p-6 rounded-2xl border border-[#e0e3e5] shadow-xs hover:border-[#0C4A4E]/40 transition-all">
           <div className="flex justify-between items-start mb-4">
             <div className="w-12 h-12 rounded-xl bg-sky-50 flex items-center justify-center text-sky-700">
               <Baby className="w-6 h-6" />
@@ -157,7 +201,7 @@ function CivilRegistryDashboardContent() {
         </div>
 
         {/* Card 4: Death Certificates */}
-        <div className="bg-white p-6 rounded-2xl border border-[#e0e3e5] shadow-xs hover:border-[#0b4f6c]/40 transition-all">
+        <div className="bg-white p-6 rounded-2xl border border-[#e0e3e5] shadow-xs hover:border-[#0C4A4E]/40 transition-all">
           <div className="flex justify-between items-start mb-4">
             <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center text-rose-700">
               <HeartCrack className="w-6 h-6" />
@@ -178,25 +222,25 @@ function CivilRegistryDashboardContent() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <Link
           href="/civil-registry/id-cards"
-          className="p-5 bg-gradient-to-br from-[#00374e] to-[#0b4f6c] text-white rounded-2xl shadow-sm hover:shadow-md transition-all group flex items-center justify-between"
+          className="p-5 bg-white border border-[#e0e3e5] rounded-2xl shadow-xs hover:shadow-md hover:border-[#0C4A4E]/40 transition-all group flex items-center justify-between"
         >
           <div>
-            <div className="text-xs text-[#8ac0e1] font-semibold">الهوية الوطنية والبطاقات الذكية</div>
-            <h4 className="text-base font-bold mt-1">إدارة البطاقات الشخصية</h4>
-            <p className="text-xs text-white/70 mt-1">إصدار، تجديد، ومعاينة رقمية للبطاقة</p>
+            <div className="text-xs text-slate-500 font-semibold">الهوية الوطنية والبطاقات الذكية</div>
+            <h4 className="text-base font-bold text-[#052F31] mt-1">إدارة البطاقات الشخصية</h4>
+            <p className="text-xs text-[#41484d] mt-1">إصدار، تجديد، ومعاينة رقمية للبطاقة</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <CreditCard className="w-6 h-6 text-[#97cdef]" />
+          <div className="w-12 h-12 rounded-xl bg-[#E6F1EE]/40 text-[#0C4A4E] flex items-center justify-center group-hover:scale-110 transition-transform">
+            <CreditCard className="w-6 h-6" />
           </div>
         </Link>
 
         <Link
           href="/civil-registry/families"
-          className="p-5 bg-white border border-[#e0e3e5] rounded-2xl shadow-xs hover:shadow-md hover:border-[#0b4f6c]/40 transition-all group flex items-center justify-between"
+          className="p-5 bg-white border border-[#e0e3e5] rounded-2xl shadow-xs hover:shadow-md hover:border-[#0C4A4E]/40 transition-all group flex items-center justify-between"
         >
           <div>
             <div className="text-xs text-slate-500 font-semibold">السجل العائلي والزواج</div>
-            <h4 className="text-base font-bold text-[#00374e] mt-1">القيود والبطاقات العائلية</h4>
+            <h4 className="text-base font-bold text-[#052F31] mt-1">القيود والبطاقات العائلية</h4>
             <p className="text-xs text-[#41484d] mt-1">إصدار بطاقة عائلية وشجرة الأسرة</p>
           </div>
           <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -206,11 +250,11 @@ function CivilRegistryDashboardContent() {
 
         <Link
           href="/civil-registry/vital-events"
-          className="p-5 bg-white border border-[#e0e3e5] rounded-2xl shadow-xs hover:shadow-md hover:border-[#0b4f6c]/40 transition-all group flex items-center justify-between"
+          className="p-5 bg-white border border-[#e0e3e5] rounded-2xl shadow-xs hover:shadow-md hover:border-[#0C4A4E]/40 transition-all group flex items-center justify-between"
         >
           <div>
             <div className="text-xs text-slate-500 font-semibold">السجل المدني المركزي</div>
-            <h4 className="text-base font-bold text-[#00374e] mt-1">الوقائع الحيوية الرسمية</h4>
+            <h4 className="text-base font-bold text-[#052F31] mt-1">الوقائع الحيوية الرسمية</h4>
             <p className="text-xs text-[#41484d] mt-1">شهادات الميلاد والوفاة الحية</p>
           </div>
           <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -223,7 +267,7 @@ function CivilRegistryDashboardContent() {
       <div className="bg-white rounded-2xl border border-[#e0e3e5] shadow-xs p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-base font-bold text-[#00374e]">
+            <h3 className="text-base font-bold text-[#052F31]">
               آخر البطاقات الشخصية الصادرة عبر النظام
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -233,7 +277,7 @@ function CivilRegistryDashboardContent() {
 
           <Link
             href="/civil-registry/id-cards"
-            className="text-xs font-bold text-[#0b4f6c] hover:underline flex items-center gap-1"
+            className="text-xs font-bold text-[#0C4A4E] hover:underline flex items-center gap-1"
           >
             <span>عرض كافة البطاقات</span>
             <ArrowUpRight className="w-4 h-4" />
@@ -242,12 +286,14 @@ function CivilRegistryDashboardContent() {
 
         {loading ? (
           <div className="py-12 flex justify-center items-center gap-2 text-slate-400 text-xs">
-            <RefreshCw className="w-4 h-4 animate-spin text-[#0b4f6c]" />
+            <RefreshCw className="w-4 h-4 animate-spin text-[#0C4A4E]" />
             <span>جاري استرجاع السجلات الحية...</span>
           </div>
-        ) : cards.length === 0 ? (
+        ) : branchCards.length === 0 ? (
           <div className="py-8 text-center text-xs text-slate-400">
-            لا توجد بطاقات مسجلة حالياً.
+            {!isSuperAdmin
+              ? "لا توجد بطاقات مسجلة لهذا الفرع حالياً."
+              : "لا توجد بطاقات مسجلة حالياً."}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -264,7 +310,7 @@ function CivilRegistryDashboardContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
-                {cards.slice(0, 5).map((card) => (
+                {branchCards.slice(0, 5).map((card) => (
                   <tr key={card.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3 px-4 font-bold text-slate-800">
                       {card.fullName}
@@ -290,7 +336,7 @@ function CivilRegistryDashboardContent() {
                     <td className="py-3 px-4 text-center">
                       <Link
                         href="/civil-registry/id-cards"
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0b4f6c] hover:bg-[#00374e] text-white font-bold text-[11px] transition-all"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0C4A4E] hover:bg-[#052F31] text-white font-bold text-[11px] transition-all"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>معاينة</span>
