@@ -19,20 +19,30 @@ import {
   History,
   RotateCcw,
   AlertCircle,
+  Upload,
+  Camera,
+  Loader2,
+  User,
 } from "lucide-react";
 import { passportsService } from "@/lib/api/passportsService";
+import { filesService } from "@/lib/api/filesService";
 import { PassportRecord, PassportType } from "@/types/passports";
 import { HwyatiLogo } from "@/components/ui/hwyati-logo";
 import { useAuth } from "@/context/AuthContext";
+import { useNotification } from "@/context/NotificationContext";
+import { QrCodeModal } from "@/components/shared/QrCodeModal";
 
 export default function IssuedPassportsPage() {
   const { user } = useAuth();
+  const { toast } = useNotification();
   const [passports, setPassports] = useState<PassportRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedPassport, setSelectedPassport] = useState<PassportRecord | null>(null);
   const [ePassportModalOpen, setEPassportModalOpen] = useState(false);
+  const [qrModalPassport, setQrModalPassport] = useState<PassportRecord | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Modals state
   const [issueModalOpen, setIssueModalOpen] = useState(false);
@@ -54,10 +64,47 @@ export default function IssuedPassportsPage() {
   const [renewForm, setRenewForm] = useState<{
     nationalNumber: string;
     passportType: PassportType;
+    photoUrl: string;
   }>({
     nationalNumber: "",
     passportType: "Regular",
+    photoUrl: "",
   });
+
+  const [uploadingIssuePhoto, setUploadingIssuePhoto] = useState(false);
+  const [uploadingRenewPhoto, setUploadingRenewPhoto] = useState(false);
+
+  const handleIssuePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingIssuePhoto(true);
+    try {
+      const path = await filesService.uploadPhoto(file);
+      setIssueForm((prev) => ({ ...prev, photoUrl: path }));
+      setAlertFeedback({ type: "success", message: "تم رفع صورة الجواز الشخصية بنجاح." });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "فشل رفع الصورة الشخصية.";
+      setAlertFeedback({ type: "error", message: msg });
+    } finally {
+      setUploadingIssuePhoto(false);
+    }
+  };
+
+  const handleRenewPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingRenewPhoto(true);
+    try {
+      const path = await filesService.uploadPhoto(file);
+      setRenewForm((prev) => ({ ...prev, photoUrl: path }));
+      setAlertFeedback({ type: "success", message: "تم رفع الصورة الشخصية المحدثة للجواز بنجاح." });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "فشل رفع الصورة الشخصية.";
+      setAlertFeedback({ type: "error", message: msg });
+    } finally {
+      setUploadingRenewPhoto(false);
+    }
+  };
 
   // History state
   const [historyNationalNumber, setHistoryNationalNumber] = useState("");
@@ -67,6 +114,17 @@ export default function IssuedPassportsPage() {
   // Action status / feedback
   const [actionLoading, setActionLoading] = useState(false);
   const [alertFeedback, setAlertFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const showAlertFeedback = (type: "success" | "error", message: string) => {
+    setAlertFeedback({ type, message });
+    if (type === "success") {
+      toast.success(message);
+      setModalError(null);
+    } else {
+      toast.error(message);
+      setModalError(message);
+    }
+  };
 
   const defaultBranchId = user?.branchId || "018f7d9a-2000-7000-8000-000000000005";
 
@@ -88,6 +146,20 @@ export default function IssuedPassportsPage() {
       setLoading(false);
     }
   };
+
+  // Filter passports by branch if user is not SUPER_ADMIN
+  const branchPassports = React.useMemo(() => {
+    if (!user || user.role === "SUPER_ADMIN" || !user.branchId) {
+      return passports;
+    }
+    const userBranchId = user.branchId.toLowerCase();
+    const userBranchName = user.branchName?.trim().toLowerCase();
+    return passports.filter(
+      (p) =>
+        (p.issuingBranchId && p.issuingBranchId.toLowerCase() === userBranchId) ||
+        (userBranchName && p.issuingBranchName && p.issuingBranchName.trim().toLowerCase() === userBranchName)
+    );
+  }, [passports, user]);
 
   const handleInspect = (pass: PassportRecord) => {
     setSelectedPassport(pass);
@@ -114,6 +186,7 @@ export default function IssuedPassportsPage() {
     if (!issueForm.nationalNumber.trim()) return;
 
     setActionLoading(true);
+    setModalError(null);
     setAlertFeedback(null);
     try {
       const newPass = await passportsService.issuePassport({
@@ -123,18 +196,17 @@ export default function IssuedPassportsPage() {
         issuingBranchId: defaultBranchId,
       });
 
-      setAlertFeedback({
-        type: "success",
-        message: `تم إصدار جواز السفر الإلكتروني بنجاح برقم: (${newPass?.passportNumber || "جديد"}) للمواطن: ${newPass?.personFullName || ""}`,
-      });
+      showAlertFeedback(
+        "success",
+        `تم إصدار جواز السفر الإلكتروني بنجاح برقم: (${newPass?.passportNumber || "جديد"}) للمواطن: ${newPass?.personFullName || ""}`
+      );
       setIssueModalOpen(false);
+      setModalError(null);
       setIssueForm({ nationalNumber: "", passportType: "Regular", photoUrl: "" });
       await loadPassports();
     } catch (err: any) {
-      setAlertFeedback({
-        type: "error",
-        message: typeof err?.message === "string" ? err.message : "فشل إصدار جواز السفر. تأكد من صحة الرقم الوطني وعدم وجود جواز سارٍ",
-      });
+      const msg = typeof err?.message === "string" ? err.message : "فشل إصدار جواز السفر. تأكد من صحة الرقم الوطني وعدم وجود جواز سارٍ";
+      showAlertFeedback("error", msg);
     } finally {
       setActionLoading(false);
     }
@@ -145,26 +217,27 @@ export default function IssuedPassportsPage() {
     if (!renewForm.nationalNumber.trim()) return;
 
     setActionLoading(true);
+    setModalError(null);
     setAlertFeedback(null);
     try {
       const renewedPass = await passportsService.renewPassport({
         nationalNumber: renewForm.nationalNumber.trim(),
         issuingBranchId: defaultBranchId,
         passportType: renewForm.passportType,
+        photoUrl: renewForm.photoUrl || null,
       });
 
-      setAlertFeedback({
-        type: "success",
-        message: `تم تجديد جواز السفر بنجاح برقم جديد: (${renewedPass?.passportNumber || ""}) للمواطن: ${renewedPass?.personFullName || ""}`,
-      });
+      showAlertFeedback(
+        "success",
+        `تم تجديد جواز السفر بنجاح برقم جديد: (${renewedPass?.passportNumber || ""}) للمواطن: ${renewedPass?.personFullName || ""}`
+      );
       setRenewModalOpen(false);
-      setRenewForm({ nationalNumber: "", passportType: "Regular" });
+      setModalError(null);
+      setRenewForm({ nationalNumber: "", passportType: "Regular", photoUrl: "" });
       await loadPassports();
     } catch (err: any) {
-      setAlertFeedback({
-        type: "error",
-        message: typeof err?.message === "string" ? err.message : "فشل تجديد جواز السفر. تأكد من وجود سجل للجواز سابقاً",
-      });
+      const msg = typeof err?.message === "string" ? err.message : "فشل تجديد جواز السفر. تأكد من وجود سجل للجواز سابقاً";
+      showAlertFeedback("error", msg);
     } finally {
       setActionLoading(false);
     }
@@ -175,16 +248,24 @@ export default function IssuedPassportsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#0b4f6c] mb-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#0C4A4E] mb-1">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             السجل الحي العام للجوازات الإلكترونية الصادرة
           </div>
-          <h1 className="text-2xl font-bold text-[#00374e]">
+          <h1 className="text-2xl font-bold text-[#052F31]">
             سجل الجوازات الإلكترونية المعتمدة
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            الأرشيف الموحد لكافة جوازات السفر الصادرة من جميع فروع الجمهورية والمنافذ الرسمية
+            {user?.role !== "SUPER_ADMIN"
+              ? `الأرشيف الرسمي المعتمد لجوازات السفر الصادرة من هذا الفرع`
+              : "الأرشيف الموحد لكافة جوازات السفر الصادرة من جميع فروع الجمهورية والمنافذ الرسمية"}
           </p>
+          {user?.role !== "SUPER_ADMIN" && user?.branchName && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold mt-2">
+              <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>نطاق العرض محدد بجوازات فرع: {user.branchName}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
@@ -193,7 +274,7 @@ export default function IssuedPassportsPage() {
               setIssueForm({ nationalNumber: "", passportType: "Regular", photoUrl: "" });
               setIssueModalOpen(true);
             }}
-            className="px-4 py-2 rounded-xl bg-[#00374e] hover:bg-[#0b4f6c] text-white text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+            className="px-4 py-2 rounded-xl bg-[#052F31] hover:bg-[#0C4A4E] text-white text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
           >
             <PlusCircle className="w-4 h-4 text-emerald-400" />
             <span>إصدار جواز سفر جديد</span>
@@ -201,12 +282,12 @@ export default function IssuedPassportsPage() {
 
           <button
             onClick={() => {
-              setRenewForm({ nationalNumber: "", passportType: "Regular" });
+              setRenewForm({ nationalNumber: "", passportType: "Regular", photoUrl: "" });
               setRenewModalOpen(true);
             }}
-            className="px-4 py-2 rounded-xl bg-white hover:bg-gray-50 text-[#00374e] border border-gray-200 text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+            className="px-4 py-2 rounded-xl bg-white hover:bg-gray-50 text-[#052F31] border border-gray-200 text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
           >
-            <RotateCcw className="w-4 h-4 text-[#0b4f6c]" />
+            <RotateCcw className="w-4 h-4 text-[#0C4A4E]" />
             <span>تجديد جواز سفر</span>
           </button>
 
@@ -216,7 +297,7 @@ export default function IssuedPassportsPage() {
             className="p-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors shadow-sm self-start md:self-auto"
             title="تحديث البيانات"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0b4f6c]" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0C4A4E]" : ""}`} />
           </button>
         </div>
       </div>
@@ -254,7 +335,7 @@ export default function IssuedPassportsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && loadPassports()}
-            className="w-full pl-3 pr-9 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#0b4f6c]"
+            className="w-full pl-3 pr-9 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#0C4A4E]"
           />
         </div>
 
@@ -270,7 +351,7 @@ export default function IssuedPassportsPage() {
               onClick={() => setStatusFilter(tab.value)}
               className={`px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap ${
                 statusFilter === tab.value
-                  ? "bg-[#00374e] text-white"
+                  ? "bg-[#052F31] text-white"
                   : "text-gray-600 hover:bg-gray-100"
               }`}
             >
@@ -284,41 +365,51 @@ export default function IssuedPassportsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {loading ? (
           <div className="col-span-full py-16 text-center text-xs text-gray-400 flex flex-col items-center gap-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-[#0b4f6c]" />
+            <RefreshCw className="w-6 h-6 animate-spin text-[#0C4A4E]" />
             <span>جاري تحميل سجلات الجوازات الحية...</span>
           </div>
-        ) : passports.length === 0 ? (
+        ) : branchPassports.length === 0 ? (
           <div className="col-span-full py-16 text-center text-xs text-gray-400">
-            لا توجد جوازات مطابقة لمعايير البحث في قاعدة البيانات.
+            {user?.role !== "SUPER_ADMIN"
+              ? "لا توجد جوازات صادرة من هذا الفرع مطابقة لمعايير البحث."
+              : "لا توجد جوازات مطابقة لمعايير البحث في قاعدة البيانات."}
           </div>
         ) : (
-          passports.map((pass) => (
+          branchPassports.map((pass) => (
             <div
               key={pass.id}
-              className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 hover:border-[#0b4f6c]/40 hover:shadow-md transition-all flex flex-col justify-between group"
+              className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 hover:border-[#0C4A4E]/40 hover:shadow-md transition-all flex flex-col justify-between group"
             >
               <div>
                 {/* Card Top */}
                 <div className="flex items-start justify-between gap-3 mb-3 border-b border-gray-100 pb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-14 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden shrink-0">
+                    <div className="w-12 h-14 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden shrink-0 relative flex items-center justify-center">
                       {pass.photoUrl ? (
                         <img
-                          src={pass.photoUrl}
+                          src={filesService.getFullUrl(pass.photoUrl)}
                           alt={pass.fullName}
                           className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                            const fallback = (e.target as HTMLElement).nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = "flex";
+                          }}
                         />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-400 text-[10px]">
-                          لا صورة
-                        </div>
-                      )}
+                      ) : null}
+                      <div
+                        className={`w-full h-full flex flex-col items-center justify-center bg-[#052F31]/5 text-[#052F31] font-bold text-xs ${
+                          pass.photoUrl ? "hidden" : "flex"
+                        }`}
+                      >
+                        {pass.fullName ? pass.fullName.trim().charAt(0) : "ج"}
+                      </div>
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-gray-900 group-hover:text-[#00374e] transition-colors">
+                      <h4 className="text-xs font-bold text-gray-900 group-hover:text-[#052F31] transition-colors">
                         {pass.fullName}
                       </h4>
-                      <p className="text-[11px] font-mono text-[#0b4f6c] font-bold mt-0.5">
+                      <p className="text-[11px] font-mono text-[#0C4A4E] font-bold mt-0.5">
                         {pass.passportNumber}
                       </p>
                       <p className="text-[10px] text-gray-400 font-mono">
@@ -372,19 +463,29 @@ export default function IssuedPassportsPage() {
               <div className="pt-4 border-t border-gray-100 mt-4 flex items-center justify-between">
                 <button
                   onClick={() => handleOpenHistory(pass.nationalNumber)}
-                  className="text-[11px] text-[#0b4f6c] hover:underline flex items-center gap-1 font-semibold"
+                  className="text-[11px] text-[#0C4A4E] hover:underline flex items-center gap-1 font-semibold"
                 >
                   <History className="w-3.5 h-3.5" />
                   <span>سجل الجوازات</span>
                 </button>
 
-                <button
-                  onClick={() => handleInspect(pass)}
-                  className="px-3 py-1.5 rounded-lg bg-[#00374e] hover:bg-[#0b4f6c] text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>معاينة الجواز</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setQrModalPassport(pass)}
+                    className="p-1.5 rounded-lg bg-gray-100 hover:bg-teal-50 hover:text-teal-700 text-gray-600 transition-colors cursor-pointer"
+                    title="فحص رمز QR والتحقق الرسمي"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => handleInspect(pass)}
+                    className="px-3 py-1.5 rounded-lg bg-[#052F31] hover:bg-[#0C4A4E] text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>معاينة</span>
+                  </button>
+                </div>
               </div>
             </div>
           ))
@@ -397,7 +498,7 @@ export default function IssuedPassportsPage() {
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-5 shadow-2xl border border-gray-100 animate-fade-in">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-[#00374e]/10 text-[#00374e]">
+                <div className="p-2 rounded-xl bg-[#052F31]/10 text-[#052F31]">
                   <BookOpenCheck className="w-5 h-5" />
                 </div>
                 <div>
@@ -421,7 +522,7 @@ export default function IssuedPassportsPage() {
                   placeholder="مثال: 01011135650"
                   value={issueForm.nationalNumber}
                   onChange={(e) => setIssueForm({ ...issueForm, nationalNumber: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:outline-none focus:border-[#00374e] font-mono"
+                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:outline-none focus:border-[#052F31] font-mono"
                 />
               </div>
 
@@ -432,7 +533,7 @@ export default function IssuedPassportsPage() {
                 <select
                   value={issueForm.passportType}
                   onChange={(e) => setIssueForm({ ...issueForm, passportType: e.target.value as PassportType })}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:outline-none focus:border-[#00374e]"
+                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:outline-none focus:border-[#052F31]"
                 >
                   <option value="Regular">جواز سفر عادي (Regular)</option>
                   <option value="Diplomatic">جواز سفر دبلوماسي (Diplomatic)</option>
@@ -440,17 +541,61 @@ export default function IssuedPassportsPage() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  رابط الصورة الشخصية (اختياري)
-                </label>
-                <input
-                  type="text"
-                  placeholder="https://..."
-                  value={issueForm.photoUrl}
-                  onChange={(e) => setIssueForm({ ...issueForm, photoUrl: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:outline-none focus:border-[#00374e]"
-                />
+              {/* Photo Upload with Live Preview */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4">
+                <div className="relative w-20 h-24 rounded-xl bg-slate-200 border border-slate-300 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
+                  {issueForm.photoUrl ? (
+                    <img
+                      src={filesService.getFullUrl(issueForm.photoUrl)}
+                      alt="الصورة الشخصية"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-center p-2 text-slate-400">
+                      <Camera className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                      <span className="text-[9px]">لا توجد صورة</span>
+                    </div>
+                  )}
+                  {uploadingIssuePhoto && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 text-white animate-spin" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 space-y-2 text-center sm:text-right w-full">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700">
+                      الصورة الشخصية البيومترية للجواز *
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      خلفية بيضاء بدقة عالية مطابقة لمعايير ICAO للجوازات (الحد الأقصى 3 ميجابايت)
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 justify-center sm:justify-start">
+                    <label className="px-3 py-1.5 bg-[#052F31] hover:bg-[#0C4A4E] text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{issueForm.photoUrl ? "تغيير الصورة" : "رفع الصورة الشخصية"}</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/jpg"
+                        onChange={handleIssuePhotoUpload}
+                        className="hidden"
+                        disabled={uploadingIssuePhoto}
+                      />
+                    </label>
+                    {issueForm.photoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setIssueForm((prev) => ({ ...prev, photoUrl: "" }))}
+                        className="px-2.5 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-semibold rounded-xl border border-rose-200 transition-colors"
+                      >
+                        إزالة
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-blue-900 text-xs">
@@ -459,6 +604,13 @@ export default function IssuedPassportsPage() {
                   سيتم التحقق آلياً من مطابقة السجل في السجل المدني وسلامة القيد الأمني قبل توليد رقم الجواز والشريحة الذكية المشفرة لمدة صلاحية 6 سنوات.
                 </p>
               </div>
+
+              {modalError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="font-medium">{modalError}</span>
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t">
                 <button
@@ -471,7 +623,7 @@ export default function IssuedPassportsPage() {
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#00374e] hover:bg-[#0b4f6c] rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                  className="px-5 py-2 text-xs font-bold text-white bg-[#052F31] hover:bg-[#0C4A4E] rounded-xl transition-colors shadow-sm flex items-center gap-2"
                 >
                   {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <BookOpenCheck className="w-4 h-4" />}
                   <span>تأكيد الإصدار الآلي</span>
@@ -512,7 +664,7 @@ export default function IssuedPassportsPage() {
                   placeholder="مثال: 01001000001"
                   value={renewForm.nationalNumber}
                   onChange={(e) => setRenewForm({ ...renewForm, nationalNumber: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:outline-none focus:border-[#00374e] font-mono"
+                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:outline-none focus:border-[#052F31] font-mono"
                 />
               </div>
 
@@ -523,12 +675,69 @@ export default function IssuedPassportsPage() {
                 <select
                   value={renewForm.passportType}
                   onChange={(e) => setRenewForm({ ...renewForm, passportType: e.target.value as PassportType })}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:outline-none focus:border-[#00374e]"
+                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:outline-none focus:border-[#052F31]"
                 >
                   <option value="Regular">جواز سفر عادي (Regular)</option>
                   <option value="Diplomatic">جواز سفر دبلوماسي (Diplomatic)</option>
                   <option value="Special">جواز سفر خاص / مهمة (Special)</option>
                 </select>
+              </div>
+
+              {/* Photo Upload with Live Preview */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4">
+                <div className="relative w-20 h-24 rounded-xl bg-slate-200 border border-slate-300 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
+                  {renewForm.photoUrl ? (
+                    <img
+                      src={filesService.getFullUrl(renewForm.photoUrl)}
+                      alt="الصورة الشخصية"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-center p-2 text-slate-400">
+                      <Camera className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                      <span className="text-[9px]">الصورة السابقة</span>
+                    </div>
+                  )}
+                  {uploadingRenewPhoto && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 text-white animate-spin" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 space-y-2 text-center sm:text-right w-full">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700">
+                      تحديث الصورة الشخصية للجواز (اختياري)
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      يمكنك رفع صورة جديدة للمواطن لاعتمادها في الجواز المجدد
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 justify-center sm:justify-start">
+                    <label className="px-3 py-1.5 bg-[#052F31] hover:bg-[#0C4A4E] text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{renewForm.photoUrl ? "تغيير الصورة" : "رفع صورة حديثة"}</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/jpg"
+                        onChange={handleRenewPhotoUpload}
+                        className="hidden"
+                        disabled={uploadingRenewPhoto}
+                      />
+                    </label>
+                    {renewForm.photoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setRenewForm((prev) => ({ ...prev, photoUrl: "" }))}
+                        className="px-2.5 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-semibold rounded-xl border border-rose-200 transition-colors"
+                      >
+                        إزالة
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
@@ -537,6 +746,13 @@ export default function IssuedPassportsPage() {
                   سيتم تلقائياً تحويل حالة الجواز النشط القديم إلى منتهي/ملغي، وتوليد رقم وثيقة جديد وربط حركات المنافذ به.
                 </p>
               </div>
+
+              {modalError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="font-medium">{modalError}</span>
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t">
                 <button
@@ -549,7 +765,7 @@ export default function IssuedPassportsPage() {
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#00374e] hover:bg-[#0b4f6c] rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                  className="px-5 py-2 text-xs font-bold text-white bg-[#052F31] hover:bg-[#0C4A4E] rounded-xl transition-colors shadow-sm flex items-center gap-2"
                 >
                   {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                   <span>تأكيد التجديد والإصدار</span>
@@ -581,7 +797,7 @@ export default function IssuedPassportsPage() {
 
             {historyLoading ? (
               <div className="py-12 text-center text-xs text-gray-400 flex flex-col items-center gap-2">
-                <RefreshCw className="w-6 h-6 animate-spin text-[#0b4f6c]" />
+                <RefreshCw className="w-6 h-6 animate-spin text-[#0C4A4E]" />
                 <span>جاري استعلام السجل التاريخي للجوازات...</span>
               </div>
             ) : historyRecords.length === 0 ? (
@@ -597,7 +813,7 @@ export default function IssuedPassportsPage() {
                   >
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono font-bold text-sm text-[#00374e]">{rec.passportNumber}</span>
+                        <span className="font-mono font-bold text-sm text-[#052F31]">{rec.passportNumber}</span>
                         <span
                           className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                             rec.status === "Active"
@@ -642,21 +858,21 @@ export default function IssuedPassportsPage() {
       {/* Electronic Passport Digital Replica Modal */}
       {ePassportModalOpen && selectedPassport && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-[#002f43] text-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full space-y-6 shadow-2xl border border-[#0b4f6c] relative overflow-hidden animate-fade-in">
+          <div className="bg-[#052F31] text-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full space-y-6 shadow-2xl border border-[#0C4A4E] relative overflow-hidden animate-fade-in">
             {/* Background Hologram overlay */}
-            <div className="absolute inset-0 bg-[radial-gradient(#8ac0e1_1px,transparent_1px)] [background-size:16px_16px] opacity-10 pointer-events-none"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(#BFE5DF_1px,transparent_1px)] [background-size:16px_16px] opacity-10 pointer-events-none"></div>
 
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-[#8ac0e1]/20 pb-4 relative z-10">
+            <div className="flex items-center justify-between border-b border-[#BFE5DF]/20 pb-4 relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#094863] flex items-center justify-center p-1.5 border border-[#8ac0e1]/30">
+                <div className="w-10 h-10 rounded-xl bg-[#0C4A4E] flex items-center justify-center p-1.5 border border-[#BFE5DF]/30">
                   <HwyatiLogo size={28} showText={false} />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white">
                     جواز سفر إلكتروني يمني رسمي (e-Passport)
                   </h3>
-                  <p className="text-[11px] text-[#8ac0e1]">
+                  <p className="text-[11px] text-[#BFE5DF]">
                     REPUBLIC OF YEMEN • PASSPORT • مصلحة الهجرة والجوازات
                   </p>
                 </div>
@@ -675,7 +891,7 @@ export default function IssuedPassportsPage() {
               {/* Header inside passport */}
               <div className="flex items-center justify-between border-b border-gray-300 pb-3">
                 <div>
-                  <div className="text-[11px] font-bold text-[#00374e]">
+                  <div className="text-[11px] font-bold text-[#052F31]">
                     الجمهورية اليمنية • REPUBLIC OF YEMEN
                   </div>
                   <div className="text-[9px] text-gray-500 font-mono tracking-wider">
@@ -684,7 +900,7 @@ export default function IssuedPassportsPage() {
                 </div>
                 <div className="text-right">
                   <div className="text-[10px] text-gray-500">رقم الجواز / Passport No.</div>
-                  <div className="text-base font-black font-mono text-[#00374e]">
+                  <div className="text-base font-black font-mono text-[#052F31]">
                     {selectedPassport.passportNumber}
                   </div>
                 </div>
@@ -692,18 +908,27 @@ export default function IssuedPassportsPage() {
 
               {/* Citizen Photo & Details */}
               <div className="flex flex-col sm:flex-row gap-5 items-start">
-                <div className="w-32 h-40 rounded-xl border-2 border-gray-400 overflow-hidden bg-gray-200 shrink-0 shadow-md relative">
+                <div className="w-32 h-40 rounded-xl border-2 border-gray-400 overflow-hidden bg-gray-200 shrink-0 shadow-md relative flex items-center justify-center">
                   {selectedPassport.photoUrl ? (
                     <img
-                      src={selectedPassport.photoUrl}
+                      src={filesService.getFullUrl(selectedPassport.photoUrl)}
                       alt={selectedPassport.fullName}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                        const fallback = (e.target as HTMLElement).nextElementSibling as HTMLElement;
+                        if (fallback) fallback.style.display = "flex";
+                      }}
                     />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 text-xs">
-                      صورة رسمية
-                    </div>
-                  )}
+                  ) : null}
+                  <div
+                    className={`w-full h-full flex flex-col items-center justify-center bg-gray-100 text-gray-400 text-xs ${
+                      selectedPassport.photoUrl ? "hidden" : "flex"
+                    }`}
+                  >
+                    <User className="w-12 h-12 text-gray-400 mb-1" />
+                    <span className="text-[10px] text-gray-500 font-semibold">صورة رسمية</span>
+                  </div>
                   <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] text-center text-white py-0.5 font-mono">
                     YEM-BIO-CHIP
                   </div>
@@ -769,22 +994,33 @@ export default function IssuedPassportsPage() {
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-between relative z-10 pt-2 border-t border-[#8ac0e1]/20">
-              <div className="text-xs text-[#8ac0e1]">
+            <div className="flex items-center justify-between relative z-10 pt-2 border-t border-[#BFE5DF]/20">
+              <div className="text-xs text-[#BFE5DF]">
                 الجهة المصدرة: {selectedPassport.issuingBranchName}
               </div>
 
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => {
+                    const target = selectedPassport;
+                    setEPassportModalOpen(false);
+                    setQrModalPassport(target);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-teal-600/30 hover:bg-teal-600/50 text-teal-200 border border-teal-500/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <QrCode className="w-3.5 h-3.5 text-teal-300" />
+                  <span>رمز QR</span>
+                </button>
+                <button
                   onClick={() => window.print()}
-                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all flex items-center gap-2"
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
                   <span>طباعة الشهادة الرقمية</span>
                 </button>
                 <button
                   onClick={() => setEPassportModalOpen(false)}
-                  className="px-5 py-2 rounded-xl bg-[#0b4f6c] hover:bg-[#8ac0e1] hover:text-[#001e2d] text-white text-xs font-bold transition-all"
+                  className="px-5 py-2 rounded-xl bg-[#0C4A4E] hover:bg-[#BFE5DF] hover:text-[#052F31] text-white text-xs font-bold transition-all cursor-pointer"
                 >
                   إغلاق
                 </button>
@@ -792,6 +1028,19 @@ export default function IssuedPassportsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* QR Code Verification Modal */}
+      {qrModalPassport && (
+        <QrCodeModal
+          isOpen={!!qrModalPassport}
+          onClose={() => setQrModalPassport(null)}
+          title="رمز التحقق لجواز السفر الإلكتروني"
+          documentType={`جواز سفر يمني (${qrModalPassport.passportTypeLabel})`}
+          documentNumber={qrModalPassport.passportNumber}
+          holderName={qrModalPassport.fullName}
+          qrPayload={qrModalPassport.qrPayload || qrModalPassport.passportNumber}
+        />
       )}
     </div>
   );

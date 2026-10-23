@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -24,8 +24,10 @@ import { passportsService } from "@/lib/api/passportsService";
 import { employeesService } from "@/lib/api/employeesService";
 import { PassportsDirectorMetrics } from "@/types/passports";
 import { Employee } from "@/types/admin";
+import { useAuth } from "@/context/AuthContext";
 
 export default function PassportsDirectorPage() {
+  const { user } = useAuth();
   const [metrics, setMetrics] = useState<PassportsDirectorMetrics | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,15 +36,30 @@ export default function PassportsDirectorPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user?.branchId]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [data, empRes] = await Promise.all([
+      const [data, empRes, allPassports] = await Promise.all([
         passportsService.getDirectorMetrics(),
         employeesService.getEmployees().catch(() => ({ employees: [] })),
+        passportsService.getPassports().catch(() => []),
       ]);
+
+      const userBranchId = user?.branchId?.toLowerCase();
+      const userBranchName = user?.branchName?.trim().toLowerCase();
+      const isSuperAdmin = !user || user.role === "SUPER_ADMIN" || !user.branchId;
+
+      if (!isSuperAdmin) {
+        const branchPassports = allPassports.filter(
+          (p) =>
+            (p.issuingBranchId && p.issuingBranchId.toLowerCase() === userBranchId) ||
+            (userBranchName && p.issuingBranchName && p.issuingBranchName.trim().toLowerCase() === userBranchName)
+        );
+        data.totalIssuedPassports = branchPassports.length;
+      }
+
       setMetrics(data);
       setEmployees(empRes.employees || []);
     } catch (err) {
@@ -69,16 +86,24 @@ export default function PassportsDirectorPage() {
       {/* Header & Quick Action Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#0b4f6c] mb-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#0C4A4E] mb-1">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            لوحة القيادة المركزية - صلاحيات مدير عام الهيئة والفرع
+            {user?.role !== "SUPER_ADMIN" && user?.branchName
+              ? `لوحة متابعة الفرع • ${user.branchName}`
+              : "لوحة القيادة المركزية - صلاحيات مدير عام الهيئة والفرع"}
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#00374e]">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#052F31]">
             مصلحة الهجرة والجوازات - لوحة التحكم والمؤشرات الحية
           </h1>
           <p className="text-sm text-gray-600 mt-1">
             متابعة إصدار الجوازات الإلكترونية، تدفق المسافرين عبر المنافذ، وكفاءة العمليات
           </p>
+          {user?.role !== "SUPER_ADMIN" && user?.branchName && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold mt-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+              <span>المؤشرات والإحصائيات خاصة بفرع: {user.branchName}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -88,12 +113,12 @@ export default function PassportsDirectorPage() {
             className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
             title="تحديث البيانات اللحظية"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0b4f6c]" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#0C4A4E]" : ""}`} />
           </button>
 
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00374e] hover:bg-[#0b4f6c] text-white text-sm font-semibold shadow-sm transition-all active:scale-98"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#052F31] hover:bg-[#0C4A4E] text-white text-sm font-semibold shadow-sm transition-all active:scale-98"
           >
             <Download className="w-4 h-4" />
             <span>تصدير تقرير الإحصاء</span>
@@ -111,15 +136,15 @@ export default function PassportsDirectorPage() {
       {/* KPI Bento Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Card 1: Total Issued Passports */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-[0_4px_20px_rgba(11,79,108,0.04)] relative overflow-hidden group hover:border-[#0b4f6c]/40 transition-all">
-          <div className="absolute top-0 right-0 w-full h-1 bg-[#00374e]"></div>
+        <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-[0_4px_20px_rgba(12,74,78,0.04)] relative overflow-hidden group hover:border-[#0C4A4E]/40 transition-all">
+          <div className="absolute top-0 right-0 w-full h-1 bg-[#052F31]"></div>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-gray-500">الجوازات النشطة المسجلة</span>
-            <div className="p-2.5 rounded-xl bg-[#0b4f6c]/10 text-[#0b4f6c]">
+            <div className="p-2.5 rounded-xl bg-[#0C4A4E]/10 text-[#0C4A4E]">
               <FileCheck2 className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-[#00374e] tabular-nums">
+          <div className="text-2xl font-black text-[#052F31] tabular-nums">
             {metrics?.totalIssuedPassports ?? 0}
           </div>
           <div className="mt-3 flex items-center gap-2 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full w-fit">
@@ -129,15 +154,15 @@ export default function PassportsDirectorPage() {
         </div>
 
         {/* Card 2: Border Movements */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-[0_4px_20px_rgba(11,79,108,0.04)] relative overflow-hidden group hover:border-blue-400/40 transition-all">
-          <div className="absolute top-0 right-0 w-full h-1 bg-[#0b4f6c]"></div>
+        <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-[0_4px_20px_rgba(12,74,78,0.04)] relative overflow-hidden group hover:border-[#147A77]/40 transition-all">
+          <div className="absolute top-0 right-0 w-full h-1 bg-[#0C4A4E]"></div>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-gray-500">إجمالي حركات السفر بالمنافذ</span>
             <div className="p-2.5 rounded-xl bg-blue-50 text-blue-700">
               <Plane className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-black text-[#00374e] tabular-nums">
+          <div className="text-2xl font-black text-[#052F31] tabular-nums">
             {metrics?.todayBorderMovementsCount ?? 0}
           </div>
           <div className="mt-3 flex items-center gap-2 text-xs font-medium text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full w-fit">
@@ -147,7 +172,7 @@ export default function PassportsDirectorPage() {
         </div>
 
         {/* Card 3: Active Border Ports */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-[0_4px_20px_rgba(11,79,108,0.04)] relative overflow-hidden group hover:border-amber-400/40 transition-all">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-[0_4px_20px_rgba(12,74,78,0.04)] relative overflow-hidden group hover:border-amber-400/40 transition-all">
           <div className="absolute top-0 right-0 w-full h-1 bg-amber-500"></div>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-gray-500">المنافذ البرية والجوية النشطة</span>
@@ -165,7 +190,7 @@ export default function PassportsDirectorPage() {
         </div>
 
         {/* Card 4: Officers on Duty */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-[0_4px_20px_rgba(11,79,108,0.04)] relative overflow-hidden group hover:border-purple-400/40 transition-all">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-[0_4px_20px_rgba(12,74,78,0.04)] relative overflow-hidden group hover:border-purple-400/40 transition-all">
           <div className="absolute top-0 right-0 w-full h-1 bg-purple-600"></div>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-gray-500">كادر وضباط الفرع المعتمدين</span>
@@ -190,8 +215,8 @@ export default function PassportsDirectorPage() {
           <div>
             <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
               <div>
-                <h2 className="text-base font-bold text-[#00374e] flex items-center gap-2">
-                  <Plane className="w-4 h-4 text-[#0b4f6c]" />
+                <h2 className="text-base font-bold text-[#052F31] flex items-center gap-2">
+                  <Plane className="w-4 h-4 text-[#0C4A4E]" />
                   حركة المسافرين بالمنافذ البرية والجوية
                 </h2>
                 <p className="text-xs text-gray-500 mt-0.5">
@@ -200,7 +225,7 @@ export default function PassportsDirectorPage() {
               </div>
               <Link
                 href="/passports/travel-records"
-                className="text-xs font-bold text-[#0b4f6c] hover:underline flex items-center gap-1"
+                className="text-xs font-bold text-[#0C4A4E] hover:underline flex items-center gap-1"
               >
                 <span>سجلات السفر الحية</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
@@ -222,7 +247,7 @@ export default function PassportsDirectorPage() {
                       className="p-3.5 rounded-xl bg-gray-50/70 border border-gray-100 flex flex-col gap-2"
                     >
                       <div className="flex items-center justify-between text-xs font-semibold">
-                        <span className="text-[#00374e]">{port.portName}</span>
+                        <span className="text-[#052F31]">{port.portName}</span>
                         <span className="text-gray-500 tabular-nums">
                           إجمالي العبور: {total.toLocaleString()} مسافر
                         </span>
@@ -265,8 +290,8 @@ export default function PassportsDirectorPage() {
           <div>
             <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
               <div>
-                <h2 className="text-base font-bold text-[#00374e] flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-[#0b4f6c]" />
+                <h2 className="text-base font-bold text-[#052F31] flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-[#0C4A4E]" />
                   فروع ومراكز إصدار الجوازات
                 </h2>
                 <p className="text-xs text-gray-500 mt-0.5">
@@ -275,7 +300,7 @@ export default function PassportsDirectorPage() {
               </div>
               <Link
                 href="/passports/issued"
-                className="text-xs font-bold text-[#0b4f6c] hover:underline flex items-center gap-1"
+                className="text-xs font-bold text-[#0C4A4E] hover:underline flex items-center gap-1"
               >
                 <span>سجل الجوازات</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
@@ -292,12 +317,12 @@ export default function PassportsDirectorPage() {
                     className="p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition-all flex items-center justify-between"
                   >
                     <div>
-                      <h3 className="text-xs font-bold text-[#00374e]">{branch.branchName}</h3>
+                      <h3 className="text-xs font-bold text-[#052F31]">{branch.branchName}</h3>
                       <p className="text-[11px] text-gray-500">{branch.governorate}</p>
                     </div>
 
                     <div className="text-left">
-                      <div className="text-xs font-bold text-[#00374e] tabular-nums">
+                      <div className="text-xs font-bold text-[#052F31] tabular-nums">
                         {branch.monthlyIssuance} جواز مُصدر
                       </div>
                       <span
@@ -322,8 +347,8 @@ export default function PassportsDirectorPage() {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/50">
           <div>
-            <h2 className="text-base font-bold text-[#00374e] flex items-center gap-2">
-              <Users className="w-4 h-4 text-[#0b4f6c]" />
+            <h2 className="text-base font-bold text-[#052F31] flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#0C4A4E]" />
               كادر وموظفو فرع الجوازات المسجلون حياً
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
@@ -339,13 +364,13 @@ export default function PassportsDirectorPage() {
                 placeholder="البحث باسم الموظف أو رقمه..."
                 value={officerSearch}
                 onChange={(e) => setOfficerSearch(e.target.value)}
-                className="pl-4 pr-9 py-2 rounded-xl border border-gray-200 text-xs w-full md:w-64 focus:outline-none focus:border-[#0b4f6c] bg-white"
+                className="pl-4 pr-9 py-2 rounded-xl border border-gray-200 text-xs w-full md:w-64 focus:outline-none focus:border-[#0C4A4E] bg-white"
               />
             </div>
 
             <Link
               href="/passports/employees"
-              className="px-3 py-2 bg-[#00374e] text-white rounded-xl text-xs font-bold hover:bg-[#0b4f6c] transition-colors"
+              className="px-3 py-2 bg-[#052F31] text-white rounded-xl text-xs font-bold hover:bg-[#0C4A4E] transition-colors"
             >
               إدارة الكادر
             </Link>
@@ -373,9 +398,9 @@ export default function PassportsDirectorPage() {
                 </tr>
               ) : (
                 filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-blue-50/30 transition-colors">
+                  <tr key={emp.id} className="hover:bg-[#F1F6F4] transition-colors">
                     <td className="py-3.5 px-5 font-semibold text-gray-800 flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-[#0b4f6c] text-white flex items-center justify-center font-bold text-[10px]">
+                      <div className="w-7 h-7 rounded-full bg-[#0C4A4E] text-white flex items-center justify-center font-bold text-[10px]">
                         {emp.fullName.slice(0, 2)}
                       </div>
                       <div>
