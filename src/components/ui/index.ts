@@ -4,4 +4,6 @@ export * from "./card";
 export * from "./badge";
 export * from "./status-badge";
 export * from "./alert";
+export * from "./unified-dialog";
+export * from "./unified-toast";
 export * from "./hwyati-logo";

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { SettingsProvider } from "@/context/SettingsContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 
 export const metadata: Metadata = {
   title: "Hawiyati | منظومة هويتي الموحدة",
@@ -26,7 +27,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-[#FBFBF8] text-[#163D42] antialiased">
         <AuthProvider>
           <SettingsProvider>
-            {children}
+            <NotificationProvider>
+              {children}
+            </NotificationProvider>
           </SettingsProvider>
         </AuthProvider>
       </body>
