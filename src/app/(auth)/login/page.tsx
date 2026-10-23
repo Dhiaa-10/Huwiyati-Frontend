@@ -22,16 +22,21 @@ import {
 import { HwyatiLogo } from "@/components/ui/hwyati-logo";
 import { useAuth, getProfileForRoleAndAgency } from "@/context/AuthContext";
 import type { AgencyType, RoleType } from "@/context/AuthContext";
+import { useNotification } from "@/context/NotificationContext";
 import {
   apiLogin,
   apiVerifyDevice,
   saveToken,
+  saveAuthTokens,
   clearAuthStorage,
   getDeviceIdentifier,
   decodeRolesFromToken,
+  decodeBranchIdFromToken,
   type LoginResult,
 } from "@/lib/api/authService";
 import { employeesService } from "@/lib/api/employeesService";
+import { serviceRequestsService } from "@/lib/api/serviceRequestsService";
+import { getApiBaseUrl } from "@/lib/api/client";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -45,6 +50,7 @@ interface DemoAccount {
   agency: AgencyType;
   badgeColor: string;
   category: "admin" | "employee";
+  branchId?: string;
 }
 
 const DEMO_ACCOUNTS: DemoAccount[] = [
@@ -66,6 +72,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011135651",
     name: "أحمد محمود علي المدير",
     agency: "الأحوال المدنية",
+    branchId: "018f7d9a-2000-7000-8000-000000000002",
     badgeColor: "bg-[#E6F1EE] text-[#147A77] border-[#BFE5DF]",
     category: "admin",
   },
@@ -75,6 +82,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200001",
     name: "يوسف حمود عبده المخلافي",
     agency: "المستشفيات",
+    branchId: "018f7d9a-2000-7000-8000-000000000003",
     badgeColor: "bg-[#EAF4FB] text-[#437CA4] border-[#BCE0F7]",
     category: "admin",
   },
@@ -84,6 +92,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200002",
     name: "وليد ناجي محمد القباطي",
     agency: "الجوازات",
+    branchId: "018f7d9a-2000-7000-8000-000000000005",
     badgeColor: "bg-[#E6F1EE] text-[#147A77] border-[#BFE5DF]",
     category: "admin",
   },
@@ -93,6 +102,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200003",
     name: "عمر فارع سالم الحمادي",
     agency: "المرور",
+    branchId: "018f7d9a-2000-7000-8000-000000000001",
     badgeColor: "bg-[#FFF3D8] text-[#9A762D] border-[#FCE1A8]",
     category: "admin",
   },
@@ -106,6 +116,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200007",
     name: "سارة عبد المجيد محمد السالمي",
     agency: "الأحوال المدنية",
+    branchId: "018f7d9a-2000-7000-8000-000000000001",
     badgeColor: "bg-[#E6F1EE] text-[#147A77] border-[#BFE5DF]",
     category: "employee",
   },
@@ -115,6 +126,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200004",
     name: "ريم طارق عبد الله الدهمشي",
     agency: "المستشفيات",
+    branchId: "018f7d9a-2000-7000-8000-000000000003",
     badgeColor: "bg-[#EAF4FB] text-[#437CA4] border-[#BCE0F7]",
     category: "employee",
   },
@@ -124,6 +136,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200005",
     name: "باسل أمين خالد الشرعبي",
     agency: "الجوازات",
+    branchId: "018f7d9a-2000-7000-8000-000000000005",
     badgeColor: "bg-[#E6F1EE] text-[#147A77] border-[#BFE5DF]",
     category: "employee",
   },
@@ -133,6 +146,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     nationalNumber: "01011200006",
     name: "منصور علي حسن الشوكاني",
     agency: "المرور",
+    branchId: "018f7d9a-2000-7000-8000-000000000001",
     badgeColor: "bg-[#FFF3D8] text-[#9A762D] border-[#FCE1A8]",
     category: "employee",
   },
@@ -146,22 +160,39 @@ function mapBackendRole(roles: string[]): ActiveRoleType {
   return "EMPLOYEE";
 }
 
-/** Decide where to redirect after successful login */
+/** Map frontend role type to backend role string expected by FluentValidation */
+function toBackendRole(role: ActiveRoleType): string {
+  if (role === "SUPER_ADMIN") return "SuperAdmin";
+  if (role === "ADMIN") return "Admin";
+  return "Employee";
+}
+
+/** Get authoritative backend branch ID for agency */
+function getBranchIdForAgency(agency: AgencyType): string | undefined {
+  switch (agency) {
+    case "الجوازات":
+      return "018f7d9a-2000-7000-8000-000000000005";
+    case "المستشفيات":
+      return "018f7d9a-2000-7000-8000-000000000003";
+    case "المرور":
+      return "018f7d9a-2000-7000-8000-000000000001";
+    case "الأحوال المدنية":
+      return "018f7d9a-2000-7000-8000-000000000001";
+    default:
+      return "018f7d9a-2000-7000-8000-000000000001";
+  }
+}
+
+/** Decide where to redirect after successful login — always redirects to dashboard for all accounts and levels */
 function getRedirectPath(role: RoleType, agency: AgencyType): string {
   if (role === "SUPER_ADMIN") return "/admin";
-  if (role === "ADMIN") {
-    if (agency === "الأحوال المدنية") return "/civil-registry";
-    if (agency === "الجوازات") return "/passports";
-    if (agency === "المرور") return "/traffic";
-    if (agency === "المستشفيات") return "/hospitals";
-    return "/civil-registry";
-  }
-  // EMPLOYEE
-  if (agency === "الأحوال المدنية") return "/civil-registry/activations";
-  if (agency === "الجوازات") return "/passports/requests";
-  if (agency === "المرور") return "/traffic/violations";
-  if (agency === "المستشفيات") return "/hospitals/records";
-  return "/civil-registry/activations";
+
+  if (agency === "الجوازات") return "/passports";
+  if (agency === "المستشفيات") return "/hospitals";
+  if (agency === "المرور") return "/traffic";
+  if (agency === "الأحوال المدنية") return "/civil-registry";
+
+  return "/civil-registry";
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -171,6 +202,7 @@ type LoginStep = "credentials" | "device_otp";
 export default function LoginPage() {
   const router = useRouter();
   const { updateSession } = useAuth();
+  const { alert } = useNotification();
 
   // UI State
   const [role, setRole] = useState<ActiveRoleType>("SUPER_ADMIN");
@@ -226,8 +258,8 @@ export default function LoginPage() {
 
   /** Complete the session after a successful authentication */
   const completeSession = async (result: LoginResult, expectedRole?: ActiveRoleType) => {
-    // Persist JWT
-    saveToken(result.accessToken);
+    // Persist JWT and Refresh Token
+    saveAuthTokens(result.accessToken, result.refreshToken);
 
     // Decode actual backend roles from token
     const backendRoles = decodeRolesFromToken(result.accessToken);
@@ -271,67 +303,136 @@ export default function LoginPage() {
       actualJobTitle = "مشرف عام المنظومة الوطنية (سوبر أدمن)";
       actualBranchName = "المركز الوطني لتقنية المعلومات - ديوان الوزارة";
       actualBranchId = "22222222-bbbb-cccc-dddd-000000000001";
-    } else if (resolvedRole === "ADMIN") {
-      // Honor user's explicit selection if made in UI; otherwise fallback to backend detection
-      if (agency && agency !== "وزارة الداخلية") {
-        resolvedAgency = agency;
-      } else {
+    } else {
+      // ── 1. FETCH REAL BRANCH DATA FOR ADMIN OR EMPLOYEE ───────────────────
+      if (resolvedRole === "ADMIN") {
         try {
           const empRes = await employeesService.getEmployees();
-          if (empRes.isSuccess && (empRes.organizationName || empRes.branchName)) {
-            const orgName = empRes.organizationName ?? "";
-            if (orgName.includes("أحوال") || orgName.includes("السجل المدني")) {
+          if (empRes.isSuccess) {
+            // Try to find this specific user's employee record by nationalNumber
+            const loginNationalNumber = result.nationalNumber || identifier.trim();
+            const myRecord = empRes.employees.find(
+              (e) => e.nationalNumber === loginNationalNumber
+            );
+
+            if (myRecord) {
+              actualBranchName = myRecord.branchName || "";
+              actualBranchId = myRecord.branchId || "";
+            } else if (empRes.branchName) {
+              actualBranchName = empRes.branchName;
+              actualBranchId = empRes.branchId || "";
+            }
+
+            // Resolve agency from organizationName returned by backend
+            const orgName = myRecord?.organizationName || empRes.organizationName || "";
+            if (orgName.includes("أحوال") || orgName.includes("السجل المدني") || orgName.includes("المدنية")) {
               resolvedAgency = "الأحوال المدنية";
-            } else if (orgName.includes("جوازات") || orgName.includes("هجرة")) {
+            } else if (orgName.includes("جوازات") || orgName.includes("هجرة") || orgName.includes("الجنسية")) {
               resolvedAgency = "الجوازات";
-            } else if (orgName.includes("مرور")) {
+            } else if (orgName.includes("مرور") || orgName.includes("السير")) {
               resolvedAgency = "المرور";
-            } else if (orgName.includes("مستشف") || orgName.includes("صحة")) {
+            } else if (orgName.includes("مستشف") || orgName.includes("صحة") || orgName.includes("طب")) {
               resolvedAgency = "المستشفيات";
+            } else if (agency && agency !== "وزارة الداخلية") {
+              resolvedAgency = agency;
             }
           }
         } catch (e) {
-          console.warn("[Login] Could not auto-detect admin branch/agency:", e);
+          console.warn("[Login] Could not fetch real branch data for admin:", e);
+        }
+      } else if (resolvedRole === "EMPLOYEE") {
+        // Decode authoritative branch from token first
+        const tokenBranchId = decodeBranchIdFromToken(result.accessToken);
+        if (tokenBranchId) {
+          actualBranchId = tokenBranchId;
+        } else {
+          try {
+            const requestsRes = await serviceRequestsService.getBranchServiceRequests({ pageSize: 1 });
+            if (requestsRes.items && requestsRes.items.length > 0) {
+              const firstReq = requestsRes.items[0];
+              if (firstReq.branchName) {
+                actualBranchName = firstReq.branchName;
+              }
+              if (firstReq.branchId) {
+                actualBranchId = firstReq.branchId;
+              }
+            }
+          } catch (e) {
+            console.warn("[Login] Could not fetch branch requests for employee:", e);
+          }
         }
       }
 
-      if (resolvedAgency === "الجوازات") {
-        actualBranchName = "مصلحة الهجرة والجوازات والجنسية - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000005";
-        actualJobTitle = "مدير عام فرع الهجرة والجوازات";
-      } else if (resolvedAgency === "الأحوال المدنية") {
-        actualBranchName = "مصلحة الأحوال المدنية - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000001";
-        actualJobTitle = "مدير فرع الأحوال المدنية";
-      } else if (resolvedAgency === "المرور") {
-        actualBranchName = "إدارة شرطة السير والمرور - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
-        actualJobTitle = "مدير إدارة المرور";
-      } else if (resolvedAgency === "المستشفيات") {
-        actualBranchName = "هيئة مستشفى الثورة العام النموذجي";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
-        actualJobTitle = "مدير عام المستشفى";
+      // ── 2. DECODE BRANCH ID FROM TOKEN IF NOT YET RESOLVED ────────────────
+      const tokenBranchId = decodeBranchIdFromToken(result.accessToken);
+      if (!actualBranchId && tokenBranchId) {
+        actualBranchId = tokenBranchId;
       }
-    } else if (resolvedRole === "EMPLOYEE") {
-      if (agency && agency !== "وزارة الداخلية") {
-        resolvedAgency = agency;
+
+      // ── 3. MAP SEEDED BRANCH NAMES AUTHORITATIVELY ────────────────────────
+      const KNOWN_BRANCHES: Record<string, { name: string; agency: AgencyType }> = {
+        "018f7d9a-2000-7000-8000-000000000001": {
+          name: "مصلحة الأحوال المدنية - صنعاء (المركز الرئيسي)",
+          agency: "الأحوال المدنية",
+        },
+        "018f7d9a-2000-7000-8000-000000000002": {
+          name: "مصلحة الأحوال المدنية - عدن",
+          agency: "الأحوال المدنية",
+        },
+        "018f7d9a-2000-7000-8000-000000000003": {
+          name: "مستشفى الثورة العام",
+          agency: "المستشفيات",
+        },
+        "018f7d9a-2000-7000-8000-000000000004": {
+          name: "مستشفى الجمهوري التعليمي",
+          agency: "المستشفيات",
+        },
+        "018f7d9a-2000-7000-8000-000000000005": {
+          name: "مصلحة الهجرة والجوازات والجنسية - صنعاء",
+          agency: "الجوازات",
+        },
+      };
+
+      if (actualBranchId && KNOWN_BRANCHES[actualBranchId]) {
+        if (!actualBranchName) {
+          actualBranchName = KNOWN_BRANCHES[actualBranchId].name;
+        }
+        if (!resolvedAgency || resolvedAgency === "وزارة الداخلية") {
+          resolvedAgency = KNOWN_BRANCHES[actualBranchId].agency;
+        }
       }
-      if (resolvedAgency === "الجوازات") {
-        actualBranchName = "مصلحة الهجرة والجوازات والجنسية - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000005";
-        actualJobTitle = "موظف فحص واعتماد الجوازات";
-      } else if (resolvedAgency === "الأحوال المدنية") {
-        actualBranchName = "مصلحة الأحوال المدنية - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000001";
-        actualJobTitle = "موظف كاونتر وتفعيل بيومتري حضوري";
-      } else if (resolvedAgency === "المرور") {
-        actualBranchName = "إدارة شرطة السير والمرور - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
-        actualJobTitle = "موظف الرخص والمخالفات";
-      } else if (resolvedAgency === "المستشفيات") {
-        actualBranchName = "هيئة مستشفى الثورة العام النموذجي";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
-        actualJobTitle = "مسؤول السجل الطبي والمواليد";
+
+      // ── 4. FALLBACK BY AGENCY IF STILL EMPTY ──────────────────────────────
+      if (!actualBranchName) {
+        if (agency && agency !== "وزارة الداخلية") resolvedAgency = agency;
+        if (resolvedAgency === "الجوازات") {
+          actualBranchName = "مصلحة الهجرة والجوازات والجنسية - صنعاء";
+          actualBranchId = actualBranchId || "018f7d9a-2000-7000-8000-000000000005";
+        } else if (resolvedAgency === "الأحوال المدنية") {
+          actualBranchName = "مصلحة الأحوال المدنية - صنعاء (المركز الرئيسي)";
+          actualBranchId = actualBranchId || "018f7d9a-2000-7000-8000-000000000001";
+        } else if (resolvedAgency === "المرور") {
+          actualBranchName = "إدارة شرطة السير والمرور - صنعاء";
+          actualBranchId = actualBranchId || "018f7d9a-2000-7000-8000-000000000001";
+        } else if (resolvedAgency === "المستشفيات") {
+          actualBranchName = "مستشفى الثورة العام";
+          actualBranchId = actualBranchId || "018f7d9a-2000-7000-8000-000000000003";
+        }
+      }
+
+      // ── 5. SET JOB TITLE BASED ON ROLE AND AGENCY ─────────────────────────
+      if (resolvedRole === "ADMIN") {
+        if (resolvedAgency === "الجوازات") actualJobTitle = "مدير عام فرع الهجرة والجوازات";
+        else if (resolvedAgency === "الأحوال المدنية") actualJobTitle = "مدير فرع الأحوال المدنية";
+        else if (resolvedAgency === "المرور") actualJobTitle = "مدير إدارة المرور";
+        else if (resolvedAgency === "المستشفيات") actualJobTitle = "مدير عام المستشفى";
+        else actualJobTitle = "مدير الفرع";
+      } else {
+        if (resolvedAgency === "الجوازات") actualJobTitle = "موظف فحص واعتماد الجوازات";
+        else if (resolvedAgency === "الأحوال المدنية") actualJobTitle = "موظف كاونتر وتفعيل بيومتري حضوري";
+        else if (resolvedAgency === "المرور") actualJobTitle = "موظف الرخص والمخالفات";
+        else if (resolvedAgency === "المستشفيات") actualJobTitle = "مسؤول السجل الطبي والمواليد";
+        else actualJobTitle = "موظف مختص";
       }
     }
 
@@ -357,37 +458,69 @@ export default function LoginPage() {
 
   // ── Step 1: Login with credentials ──────────────────────────────────────────
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
 
-    if (!identifier.trim()) {
+    // Fallback to DOM input values in case browser autofill or password manager filled inputs directly
+    const form = e.currentTarget;
+    const elements = form.elements as HTMLFormControlsCollection;
+    const nationalNumberInput = elements.namedItem("nationalNumber") as HTMLInputElement | null;
+    const passwordInput = elements.namedItem("password") as HTMLInputElement | null;
+
+    const currentIdentifier = identifier.trim() || nationalNumberInput?.value.trim() || "";
+    const currentPassword = password.trim() || passwordInput?.value.trim() || "";
+
+    if (!currentIdentifier) {
       setErrorMessage("يرجى إدخال رقم الهوية الوطنية");
       return;
     }
-    if (!password.trim()) {
+    if (!currentPassword) {
       setErrorMessage("يرجى إدخال كلمة المرور");
       return;
     }
 
+    if (currentIdentifier !== identifier) setIdentifier(currentIdentifier);
+    if (currentPassword !== password) setPassword(currentPassword);
+
     setIsLoading(true);
     try {
-      const deviceId = getDeviceIdentifier(identifier.trim());
+      const deviceId = getDeviceIdentifier(currentIdentifier);
+      const requestedBackendRole = toBackendRole(role);
+      const matchingAccount = DEMO_ACCOUNTS.find(
+        (a) => a.nationalNumber === currentIdentifier
+      );
+      const branchId =
+        requestedBackendRole === "SuperAdmin"
+          ? undefined
+          : matchingAccount?.branchId || getBranchIdForAgency(agency);
 
       const res = await apiLogin({
-        nationalNumber: identifier.trim(),
-        password: password.trim(),
+        nationalNumber: currentIdentifier,
+        password: currentPassword,
+        requestedRole: requestedBackendRole,
+        branchId: branchId,
         deviceIdentifier: deviceId,
         deviceName: "Huwiyati Web Portal",
         operatingSystem: typeof navigator !== "undefined" ? navigator.platform : "Web",
       });
 
       if (!res.isSuccess) {
-        // Translate common backend error messages
+        // Collect detailed validation errors if returned from backend
+        const errorList = res.errors && res.errors.length > 0 ? res.errors.join("، ") : "";
         const msg = res.message ?? "فشل تسجيل الدخول. تحقق من بياناتك.";
-        if (msg.includes("Invalid National Number or Password")) {
+
+        if (errorList) {
+          setErrorMessage(`${msg} (${errorList})`);
+        } else if (msg.includes("Invalid National Number or Password")) {
           setErrorMessage("رقم الهوية أو كلمة المرور غير صحيحة.");
+        } else if (msg.includes("Access Denied: You do not possess")) {
+          setErrorMessage("تم رفض الوصول: هذا الحساب لا يملك صلاحية الرتبة المطلوبة.");
+        } else if (msg.includes("Branch ID is required")) {
+          setErrorMessage("معرّف الفرع مطلوب لتسجيل دخول موظفي ومشرفي الفروع.");
+        } else if (msg.includes("not assigned as an active staff member")) {
+          setErrorMessage("تم رفض الوصول: الحساب غير مسجل كموظف نشط في هذا الفرع.");
         } else if (msg.includes("suspended")) {
           setErrorMessage("حسابك موقوف من قِبل الإدارة. يرجى مراجعة أحد مراكز الخدمة.");
         } else if (msg.includes("deactivated")) {
@@ -584,13 +717,16 @@ export default function LoginPage() {
 
               {/* National Number */}
               <div>
-                <label className="block text-sm font-medium text-[#163D42] mb-1.5">
+                <label htmlFor="nationalNumber" className="block text-sm font-medium text-[#163D42] mb-1.5">
                   رقم الهوية الوطنية
                 </label>
                 <div className="relative">
                   <input
+                    id="nationalNumber"
+                    name="nationalNumber"
                     type="text"
                     required
+                    autoComplete="username"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder="أدخل رقم الهوية"
@@ -602,13 +738,16 @@ export default function LoginPage() {
 
               {/* Password */}
               <div>
-                <label className="block text-sm font-medium text-[#163D42] mb-1.5">
+                <label htmlFor="password" className="block text-sm font-medium text-[#163D42] mb-1.5">
                   كلمة المرور
                 </label>
                 <div className="relative">
                   <input
+                    id="password"
+                    name="password"
                     type="password"
                     required
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
@@ -619,11 +758,14 @@ export default function LoginPage() {
                 <div className="flex justify-end mt-1.5">
                   <a
                     href="#"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.preventDefault();
-                      alert(
-                        "لنسيان كلمة المرور، يرجى التواصل مع مسؤول النظام أو استخدام خاصية نسيت كلمة المرور عند إتاحتها."
-                      );
+                      await alert({
+                        title: "إرشادات استعادة كلمة المرور",
+                        message: "لأسباب تتعلق بالسياسات الأمنية للرقابة المركزية، يرجى مراجعة المشرف الإداري في قطاعك أو مسؤول النظام المركزي لتحديث بيانات المرور.",
+                        type: "info",
+                        confirmText: "حسناً، فهمت",
+                      });
                     }}
                     className="text-xs text-[#147A77] hover:text-[#0C4A4E] transition-colors"
                   >
@@ -684,7 +826,8 @@ export default function LoginPage() {
                     type="button"
                     onClick={async () => {
                       try {
-                        const res = await fetch(`http://localhost:5237/api/Test/latest-otp/${identifier.trim()}`);
+                        const apiBase = getApiBaseUrl();
+                        const res = await fetch(`${apiBase}/api/Test/latest-otp/${identifier.trim()}`);
                         if (res.ok) {
                           const data = await res.json();
                           if (data.latestOTP) {
