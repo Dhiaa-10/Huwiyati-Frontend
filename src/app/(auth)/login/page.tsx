@@ -313,32 +313,28 @@ export default function LoginPage() {
     const claims = decodeToken(result.accessToken);
 
     // 3. Validate backend-confirmed role vs. UI selection
-    const confirmedRole = claims.roles.length > 0
-      ? mapBackendRoleToFrontend(claims.roles[0])
-      : "NONE";
+    // In ASP.NET Identity, a user may have multiple roles (e.g. ["Citizen", "Admin"] or ["Admin", "Citizen"])
+    const availableRoles: ActiveRoleType[] = claims.roles
+      .map((r) => mapBackendRoleToFrontend(r))
+      .filter((r): r is ActiveRoleType => r !== "NONE");
 
-    if (confirmedRole === "NONE") {
+    const hasRequestedRole = availableRoles.includes(role);
+
+    if (!hasRequestedRole) {
       clearAuthStorage();
-      setErrorMessage("لم يتم التعرف على دور هذا الحساب. يرجى التواصل مع مشرف النظام.");
+      if (availableRoles.length === 0) {
+        setErrorMessage("لم يتم التعرف على دور هذا الحساب. يرجى التواصل مع مشرف النظام.");
+      } else if (role === "SUPER_ADMIN") {
+        setErrorMessage("هذا الحساب ليس سوبر أدمن. يرجى اختيار الرتبة الصحيحة.");
+      } else if (role === "ADMIN") {
+        setErrorMessage("هذا الحساب ليس أدمن. يرجى اختيار الرتبة المناسبة (موظف / سوبر أدمن).");
+      } else {
+        setErrorMessage("هذا الحساب ليس حساب موظف. يرجى اختيار الرتبة الصحيحة.");
+      }
       return;
     }
 
-    // Strict check: what user clicked in the UI must match what the backend confirmed
-    if (role === "SUPER_ADMIN" && confirmedRole !== "SUPER_ADMIN") {
-      clearAuthStorage();
-      setErrorMessage("هذا الحساب ليس سوبر أدمن. يرجى اختيار الرتبة الصحيحة.");
-      return;
-    }
-    if (role === "ADMIN" && confirmedRole !== "ADMIN") {
-      clearAuthStorage();
-      setErrorMessage("هذا الحساب ليس أدمن. يرجى اختيار الرتبة المناسبة (موظف / سوبر أدمن).");
-      return;
-    }
-    if (role === "EMPLOYEE" && confirmedRole !== "EMPLOYEE") {
-      clearAuthStorage();
-      setErrorMessage("هذا الحساب ليس حساب موظف. يرجى اختيار الرتبة الصحيحة.");
-      return;
-    }
+    const confirmedRole: ActiveRoleType = role;
 
     // 4. Resolve agency & branch info
     let resolvedAgency: AgencyType = confirmedRole === "SUPER_ADMIN" ? "وزارة الداخلية" : agency;
@@ -346,7 +342,7 @@ export default function LoginPage() {
     let resolvedBranchId = claims.branchId ?? "";
     let resolvedOrgId = claims.organizationId ?? "";
 
-    if (confirmedRole === "ADMIN" || confirmedRole === "EMPLOYEE") {
+    if (confirmedRole === "ADMIN") {
       // Fetch real branch & org name from /api/v1/Employees (uses token from localStorage)
       try {
         const empRes = await employeesService.getEmployees();
@@ -459,7 +455,28 @@ export default function LoginPage() {
         return;
       }
 
-      await completeSession(res.data);
+      // الجهاز أصبح موثوقاً في قاعدة البيانات الآن.
+      // إذا كانت كلمة المرور متوفرة في النموذج، نستدعي apiLogin فوراً للحصول على التوكن المكتمل بالفرع والجهة وبيانات التجديد
+      let finalLoginResult = res.data;
+      if (password.trim()) {
+        try {
+          const freshLogin = await apiLogin({
+            nationalNumber:  identifier.trim(),
+            password:        password.trim(),
+            requestedRole:   getBackendRoleString(role),
+            deviceIdentifier: getDeviceIdentifier(identifier.trim()),
+            deviceName:      "Huwiyati Web Portal",
+            operatingSystem: typeof navigator !== "undefined" ? navigator.platform : "Web",
+          });
+          if (freshLogin.isSuccess && freshLogin.data && !freshLogin.data.requiresDeviceVerification) {
+            finalLoginResult = freshLogin.data;
+          }
+        } catch {
+          // في حال حدوث أي استثناء نعتمد على نتيجة verify-device
+        }
+      }
+
+      await completeSession(finalLoginResult);
     } catch (err) {
       setErrorMessage("تعذّر التحقق من الرمز. حاول مرة أخرى.");
       console.error("[VerifyDevice]", err);

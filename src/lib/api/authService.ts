@@ -16,7 +16,7 @@
  * All old /api/v1/Account/* calls are replaced here.
  */
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5237";
+const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://192.168.8.81:5237";
 
 // ─── Token Storage Helpers ──────────────────────────────────────────────────
 

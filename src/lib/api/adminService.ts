@@ -252,7 +252,7 @@ class HttpAdminService implements IAdminService {
   async getOrganizationById(id: string): Promise<Organization> {
     const all = await this.getOrganizations();
     const org = all.items.find((o) => o.id === id);
-    if (!org) throw new Error("Ø§Ù„Ù‡ÙŠØ¦Ø© ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Ø©");
+    if (!org) throw new Error("الهيئة غير موجودة");
     return org;
   }
 
@@ -348,13 +348,26 @@ class HttpAdminService implements IAdminService {
       8: "AB-", ABNegative: "AB-",
     };
     const statusMap: Record<string | number, string> = {
-      1: "Ù†Ø´Ø·", Active: "Ù†Ø´Ø·",
-      2: "Ù…Ø¹Ù„Ù‚", Suspended: "Ù…Ø¹Ù„Ù‚",
-      3: "Ù…ØªÙˆÙÙ‰", Deceased: "Ù…ØªÙˆÙÙ‰",
+      1: "نشط", Active: "نشط", "نشط": "نشط",
+      2: "معلق", Suspended: "معلق", "معلق": "معلق",
+      3: "متوفى", Deceased: "متوفى", "متوفى": "متوفى",
     };
     const genderMap: Record<string | number, string> = {
-      1: "Ø°ÙƒØ±", Male: "Ø°ÙƒØ±",
-      2: "Ø£Ù†Ø«Ù‰", Female: "Ø£Ù†Ø«Ù‰",
+      1: "ذكر", Male: "ذكر", "ذكر": "ذكر",
+      2: "أنثى", Female: "أنثى", "أنثى": "أنثى",
+    };
+
+    const resolveGender = (g: any): string => {
+      if (g === 1 || g === "1" || String(g).toLowerCase() === "male" || g === "ذكر") return "ذكر";
+      if (g === 2 || g === "2" || String(g).toLowerCase() === "female" || g === "أنثى") return "أنثى";
+      return genderMap[g] || (g ? String(g) : "ذكر");
+    };
+
+    const resolveStatus = (s: any): string => {
+      if (s === 1 || s === "1" || String(s).toLowerCase() === "active" || s === "نشط") return "نشط";
+      if (s === 2 || s === "2" || String(s).toLowerCase() === "suspended" || s === "معلق") return "معلق";
+      if (s === 3 || s === "3" || String(s).toLowerCase() === "deceased" || s === "متوفى") return "متوفى";
+      return statusMap[s] || "نشط";
     };
 
     try {
@@ -376,9 +389,9 @@ class HttpAdminService implements IAdminService {
           governorate: p.governorate || "غير محدد",
           district: p.district || "غير محدد",
           addressDetails: p.addressDetails || "",
-          gender: genderMap[p.gender] || "ذكر",
+          gender: resolveGender(p.gender),
           bloodGroup: bloodGroupMap[p.bloodGroup] || (p.bloodGroup ? String(p.bloodGroup) : undefined),
-          personStatus: statusMap[p.personStatus] || "نشط",
+          personStatus: resolveStatus(p.personStatus),
           photoUrl: p.photoUrl ?? null,
           nationality: p.nationality || "يمني",
         } as CitizenLookup;

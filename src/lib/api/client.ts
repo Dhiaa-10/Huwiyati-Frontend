@@ -1,7 +1,7 @@
 import { ApiResponse } from "@/types/api";
 import { tryRefreshSession, clearAuthStorage } from "./authService";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5237";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://192.168.8.81:5237";
 
 /**
  * Universal HTTP client for Hwyati ASP.NET Core Web API
