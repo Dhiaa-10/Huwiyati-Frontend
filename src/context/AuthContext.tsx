@@ -1,23 +1,46 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import {
+  getToken,
+  saveToken,
+  saveRefreshToken,
+  clearAuthStorage,
+  decodeToken,
+  isTokenValid,
+  tryRefreshSession,
+} from "@/lib/api/authService";
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 export type RoleType = "SUPER_ADMIN" | "ADMIN" | "EMPLOYEE" | "NONE";
-export type AgencyType = "الأحوال المدنية" | "الجوازات" | "المرور" | "المستشفيات" | "وزارة الداخلية";
+export type AgencyType =
+  | "الأحوال المدنية"
+  | "الجوازات"
+  | "المرور"
+  | "المستشفيات"
+  | "وزارة الداخلية";
 
 export interface UserSession {
+  /** Full name from the civil registry (JWT fullName claim) */
   fullName: string;
+  /** National number (JWT name claim) */
   nationalNumber: string;
+  /** Resolved frontend role */
   role: RoleType;
+  /** Resolved government agency */
   agency: AgencyType;
+  /** Branch name (resolved after login from employees API or service-centers-lookup) */
   branchName: string;
+  /** Branch GUID from JWT BranchId claim (real backend value) */
   branchId: string;
+  /** Organization GUID from JWT OrganizationId claim */
+  organizationId: string;
+  /** Job title (resolved from organization name after login) */
   jobTitle: string;
   /**
-   * "login_page"        → user authenticated via the login screen
-   *                       → portal navigation is LOCKED to their own portal
-   * "super_admin_switch" → SuperAdmin jumped into this portal from the admin panel
-   *                       → full cross-portal switcher is available
+   * "login_page"         → authenticated via login page; portal navigation LOCKED to own portal
+   * "super_admin_switch" → SuperAdmin switched into a portal; full cross-portal switcher available
    */
   loginSource: "login_page" | "super_admin_switch";
 }
@@ -26,11 +49,15 @@ interface AuthContextType {
   user: UserSession;
   isAuthenticated: boolean;
   isInitialized: boolean;
-  setRole: (role: RoleType) => void;
-  setAgency: (agency: AgencyType) => void;
   updateSession: (partial: Partial<UserSession>) => void;
   logout: () => void;
+  /** @deprecated Use updateSession directly. Kept for backward-compat. */
+  setRole: (role: RoleType) => void;
+  /** @deprecated Use updateSession directly. Kept for backward-compat. */
+  setAgency: (agency: AgencyType) => void;
 }
+
+// ─── Constants ───────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = "hwyati_auth_session";
 
@@ -41,160 +68,164 @@ export const EMPTY_USER: UserSession = {
   agency: "وزارة الداخلية",
   branchName: "",
   branchId: "",
+  organizationId: "",
   jobTitle: "",
   loginSource: "login_page",
 };
 
-const DEFAULT_USER: UserSession = {
-  fullName: "ضياء محمد عبدالمجيد السالمي",
-  nationalNumber: "01011131317",
-  role: "SUPER_ADMIN",
-  agency: "وزارة الداخلية",
-  branchName: "المركز الوطني لتقنية المعلومات - ديوان الوزارة",
-  branchId: "22222222-bbbb-cccc-dddd-000000000001",
-  jobTitle: "مشرف عام المنظومة الوطنية (سوبر أدمن)",
-  loginSource: "login_page",
-};
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-export const getProfileForRoleAndAgency = (role: RoleType, agency: AgencyType) => {
-  if (role === "NONE") {
-    return {
-      fullName: "",
-      nationalNumber: "",
-      agency,
-      jobTitle: "",
-      branchName: "",
-    };
+/**
+ * Maps a backend role string to our frontend RoleType.
+ * Backend sends: "SuperAdmin" | "Admin" | "Employee"
+ */
+export function mapBackendRoleToFrontend(backendRole: string): RoleType {
+  if (backendRole === "SuperAdmin") return "SUPER_ADMIN";
+  if (backendRole === "Admin") return "ADMIN";
+  if (backendRole === "Employee") return "EMPLOYEE";
+  return "NONE";
+}
+
+/**
+ * Derives the AgencyType from an organization name returned by the backend.
+ * Used after fetching /api/v1/Employees or /api/v1/service-centers-lookup.
+ */
+export function resolveAgencyFromOrgName(orgName: string): AgencyType {
+  if (orgName.includes("أحوال") || orgName.includes("مدني") || orgName.includes("السجل")) {
+    return "الأحوال المدنية";
   }
-
-  if (role === "SUPER_ADMIN") {
-    return {
-      fullName: "ضياء محمد عبدالمجيد السالمي",
-      nationalNumber: "01011131317",
-      agency: "وزارة الداخلية" as AgencyType,
-      jobTitle: "مشرف عام المنظومة الوطنية (سوبر أدمن)",
-      branchName: "المركز الوطني لتقنية المعلومات - ديوان الوزارة",
-    };
+  if (orgName.includes("جواز") || orgName.includes("هجرة") || orgName.includes("إقامة")) {
+    return "الجوازات";
   }
+  if (orgName.includes("مرور") || orgName.includes("سير")) {
+    return "المرور";
+  }
+  if (orgName.includes("مستشف") || orgName.includes("صحة") || orgName.includes("طب")) {
+    return "المستشفيات";
+  }
+  return "وزارة الداخلية";
+}
 
+/**
+ * Derives a job title string from the resolved role and agency.
+ * These are UI-display labels only; the authoritative data comes from the backend.
+ */
+export function resolveJobTitle(role: RoleType, agency: AgencyType): string {
+  if (role === "SUPER_ADMIN") return "مشرف عام المنظومة الوطنية";
   if (role === "ADMIN") {
     switch (agency) {
-      case "الجوازات":
-        return {
-          fullName: "العميد فؤاد منصور العريقي",
-          nationalNumber: "01010025671",
-          agency,
-          jobTitle: "مدير عام مصلحة الهجرة والجوازات - فرع الأمانة",
-          branchName: "الفرع الرئيسي - صنعاء",
-        };
-      case "المرور":
-        return {
-          fullName: "العقيد ركن نبيل قاسم الصبري",
-          nationalNumber: "01010034890",
-          agency,
-          jobTitle: "مدير عام الإدارة العامة لمرور أمانة العاصمة",
-          branchName: "مرور أمانة العاصمة - الحصبة",
-        };
-      case "المستشفيات":
-        return {
-          fullName: "د. عادل محمد الأغبري",
-          nationalNumber: "01010041289",
-          agency,
-          jobTitle: "مدير عام المنظومة الطبية والربط المركزي",
-          branchName: "هيئة مستشفى الثورة العام النموذجي - صنعاء",
-        };
-      default:
-        return {
-          fullName: "اللواء د. هاشم محمد الوادعي",
-          nationalNumber: "01010019842",
-          agency: "الأحوال المدنية" as AgencyType,
-          jobTitle: "مدير عام الأحوال المدنية والسجل المدني - فرع الأمانة",
-          branchName: "فرع عصر - أمانة العاصمة",
-        };
+      case "الأحوال المدنية": return "مدير فرع الأحوال المدنية";
+      case "الجوازات":       return "مدير عام فرع الهجرة والجوازات";
+      case "المرور":          return "مدير إدارة المرور";
+      case "المستشفيات":     return "مدير عام المستشفى";
+      default:                return "مدير فرع";
     }
   }
-
   // EMPLOYEE
   switch (agency) {
-    case "الجوازات":
-      return {
-        fullName: "الرائد خالد يحيى العريقي",
-        nationalNumber: "01010022334",
-        agency,
-        jobTitle: "ضابط فحص واعتماد الجوازات - كاونتر 2",
-        branchName: "صالة إصدار وتجديد الجوازات",
-      };
-    case "المرور":
-      return {
-        fullName: "المساعد نشوان عادل الوجيه",
-        nationalNumber: "01010033445",
-        agency,
-        jobTitle: "ضابط فحص رخص القيادة وكروت الملكية",
-        branchName: "وحدة الضبط المروري وإصدار الرخص",
-      };
-    case "المستشفيات":
-      return {
-        fullName: "د. مريم عبدالرحمن القاضي",
-        nationalNumber: "01010044556",
-        agency,
-        jobTitle: "طبيبة استقبال ومسؤولة السجل الطبي (EHR)",
-        branchName: "العيادات الخارجية والسجل الطبي الموحد",
-      };
-    default:
-      return {
-        fullName: "سارة عبد المجيد محمد السالمي",
-        nationalNumber: "01011200007",
-        agency: "الأحوال المدنية" as AgencyType,
-        jobTitle: "موظف كاونتر وتفعيل بيومتري حضوري",
-        branchName: "صالة التفعيل الحضوري والتحقق البيومتري",
-      };
+    case "الأحوال المدنية": return "موظف كاونتر وتفعيل بيومتري";
+    case "الجوازات":        return "موظف فحص واعتماد الجوازات";
+    case "المرور":           return "موظف الرخص والمخالفات المرورية";
+    case "المستشفيات":      return "مسؤول السجل الطبي والمواليد";
+    default:                 return "موظف خدمات";
   }
+}
+
+/**
+ * @deprecated Legacy helper kept for components that still import it.
+ * New code should read branchName / jobTitle from the JWT claims or the
+ * /api/v1/Employees response instead of using this static lookup.
+ */
+export const getProfileForRoleAndAgency = (role: RoleType, agency: AgencyType) => {
+  return {
+    fullName: "",
+    nationalNumber: "",
+    agency,
+    jobTitle: resolveJobTitle(role, agency),
+    branchName: "",
+  };
 };
+
+// ─── Context ──────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType>({
   user: EMPTY_USER,
   isAuthenticated: false,
   isInitialized: false,
-  setRole: () => {},
-  setAgency: () => {},
   updateSession: () => {},
   logout: () => {},
+  setRole: () => {},
+  setAgency: () => {},
 });
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession>(EMPTY_USER);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
+  // ── Hydrate session from localStorage on mount ───────────────────────────
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window === "undefined") return;
+
+    const init = async () => {
       try {
         const stored = window.localStorage.getItem(STORAGE_KEY);
-        const token = window.localStorage.getItem("hwyati_auth_token");
-        if (stored && token) {
-          const parsed = JSON.parse(stored);
+        const token = getToken();
+
+        if (!stored || !token) {
+          // No session at all
+          setUser(EMPTY_USER);
+          setIsAuthenticated(false);
+          return;
+        }
+
+        // Token still valid?
+        if (isTokenValid(token)) {
+          const parsed: UserSession = JSON.parse(stored);
           if (parsed && parsed.role && parsed.role !== "NONE") {
             setUser(parsed);
             setIsAuthenticated(true);
-          } else {
-            setUser(EMPTY_USER);
-            setIsAuthenticated(false);
+            return;
           }
+        }
+
+        // Token expired — try silent refresh
+        const newToken = await tryRefreshSession();
+        if (newToken) {
+          // Re-read stored session (claims might have changed minimally)
+          const parsed: UserSession = JSON.parse(stored);
+          const decoded = decodeToken(newToken);
+          // Patch branchId / organizationId from the fresh token
+          const patched: UserSession = {
+            ...parsed,
+            branchId: decoded.branchId ?? parsed.branchId,
+            organizationId: decoded.organizationId ?? parsed.organizationId,
+          };
+          saveSession(patched);
+          setIsAuthenticated(true);
         } else {
+          // Refresh failed — force re-login
           setUser(EMPTY_USER);
           setIsAuthenticated(false);
+          window.localStorage.removeItem(STORAGE_KEY);
         }
       } catch (e) {
-        console.error("Failed to load auth session", e);
+        console.error("[AuthContext] Failed to hydrate session:", e);
         setUser(EMPTY_USER);
         setIsAuthenticated(false);
       } finally {
         setIsInitialized(true);
       }
-    }
+    };
+
+    init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const saveUser = (newUser: UserSession) => {
+  // ── Internal save helper ─────────────────────────────────────────────────
+  const saveSession = (newUser: UserSession) => {
     setUser(newUser);
     const authed = newUser.role !== "NONE";
     setIsAuthenticated(authed);
@@ -202,50 +233,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
       } catch (e) {
-        console.error("Failed to save auth session", e);
+        console.error("[AuthContext] Failed to persist session:", e);
       }
     }
   };
 
-  const setRole = (newRole: RoleType) => {
-    const profile = getProfileForRoleAndAgency(newRole, user.agency);
-    const updated: UserSession = {
-      ...user,
-      role: newRole,
-      fullName: profile.fullName,
-      nationalNumber: profile.nationalNumber,
-      jobTitle: profile.jobTitle,
-      branchName: profile.branchName,
-      agency: profile.agency,
-    };
-    saveUser(updated);
-  };
-
-  const setAgency = (newAgency: AgencyType) => {
-    const profile = getProfileForRoleAndAgency(user.role, newAgency);
-    const updated: UserSession = {
-      ...user,
-      agency: newAgency,
-      fullName: profile.fullName,
-      nationalNumber: profile.nationalNumber,
-      jobTitle: profile.jobTitle,
-      branchName: profile.branchName,
-    };
-    saveUser(updated);
-  };
+  // ── Public API ───────────────────────────────────────────────────────────
 
   const updateSession = (partial: Partial<UserSession>) => {
     const updated = { ...user, ...partial };
-    saveUser(updated);
+    saveSession(updated);
   };
 
   const logout = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(STORAGE_KEY);
-      window.localStorage.removeItem("hwyati_auth_token");
-    }
+    clearAuthStorage();
     setUser(EMPTY_USER);
     setIsAuthenticated(false);
+  };
+
+  // Backward-compat shims
+  const setRole = (newRole: RoleType) => {
+    updateSession({ role: newRole, jobTitle: resolveJobTitle(newRole, user.agency) });
+  };
+
+  const setAgency = (newAgency: AgencyType) => {
+    updateSession({ agency: newAgency, jobTitle: resolveJobTitle(user.role, newAgency) });
   };
 
   return (
@@ -254,10 +266,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         isAuthenticated,
         isInitialized,
-        setRole,
-        setAgency,
         updateSession,
         logout,
+        setRole,
+        setAgency,
       }}
     >
       {children}

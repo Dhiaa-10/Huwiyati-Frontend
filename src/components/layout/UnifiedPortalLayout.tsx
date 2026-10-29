@@ -33,9 +33,10 @@ import { useAuth, RoleType } from "@/context/AuthContext";
 import { useSettings } from "@/context/SettingsContext";
 import { SettingsModal } from "@/components/settings/SettingsModal";
 import { adminService } from "@/lib/api/adminService";
+import { usePortalGuard, PortalType } from "@/lib/guards/usePortalGuard";
 
 export interface UnifiedPortalLayoutProps {
-  portalType: "admin" | "civil-registry" | "passports" | "traffic" | "hospitals";
+  portalType: PortalType;
   portalTitle: string;
   portalSubtitle: string;
   children: React.ReactNode;
@@ -54,28 +55,8 @@ export function UnifiedPortalLayout({
   const isRtl = language === "ar";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Strict Role Boundary & Session Protection:
-  // 1. Unauthenticated sessions are redirected immediately to /login
-  // 2. SuperAdmin is strictly confined to /admin (sovereign supervision).
-  // 3. Operational roles are strictly confined to their agency portals.
-  useEffect(() => {
-    if (!isInitialized) return;
-
-    if (!isAuthenticated || user.role === "NONE" || !user.role) {
-      router.replace("/login");
-      return;
-    }
-
-    if (user.role === "SUPER_ADMIN" && portalType !== "admin") {
-      router.replace("/admin");
-    } else if (user.role !== "SUPER_ADMIN" && portalType === "admin") {
-      if (user.agency === "الأحوال المدنية") router.replace("/civil-registry");
-      else if (user.agency === "الجوازات") router.replace("/passports");
-      else if (user.agency === "المرور") router.replace("/traffic");
-      else if (user.agency === "المستشفيات") router.replace("/hospitals");
-      else router.replace("/login");
-    }
-  }, [user.role, user.agency, isAuthenticated, isInitialized, portalType, router]);
+  // Strict Role Boundary & Session Protection via usePortalGuard
+  const { isChecking, isAuthorized } = usePortalGuard(portalType);
 
   const handleLogout = () => {
     logout();
@@ -366,18 +347,18 @@ export function UnifiedPortalLayout({
 
   const navItems = getNavItems();
 
-  if (!isInitialized) {
+  if (isChecking || !isAuthorized) {
     return (
       <div className="min-h-screen bg-[#052F31] flex items-center justify-center" dir="rtl">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-[#0C4A4E] border-t-[#147A77] rounded-full animate-spin"></div>
-          <span className="text-[#BFE5DF] text-xs font-semibold">جارٍ التحقق من صلاحيات الجلسة...</span>
+          <span className="text-[#BFE5DF] text-xs font-semibold">جارٍ التحقق من صلاحيات البوابة والفرع...</span>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated || user.role === "NONE" || !user.role) {
+  if (!isAuthorized) {
     return null;
   }
 

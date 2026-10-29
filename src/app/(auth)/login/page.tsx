@@ -20,20 +20,26 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { HwyatiLogo } from "@/components/ui/hwyati-logo";
-import { useAuth, getProfileForRoleAndAgency } from "@/context/AuthContext";
+import {
+  useAuth,
+  resolveAgencyFromOrgName,
+  resolveJobTitle,
+  mapBackendRoleToFrontend,
+} from "@/context/AuthContext";
 import type { AgencyType, RoleType } from "@/context/AuthContext";
 import {
   apiLogin,
   apiVerifyDevice,
   saveToken,
+  saveRefreshToken,
   clearAuthStorage,
   getDeviceIdentifier,
-  decodeRolesFromToken,
+  decodeToken,
   type LoginResult,
 } from "@/lib/api/authService";
 import { employeesService } from "@/lib/api/employeesService";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Types & Constants ────────────────────────────────────────────────────────
 
 type ActiveRoleType = Exclude<RoleType, "NONE">;
 
@@ -47,10 +53,12 @@ interface DemoAccount {
   category: "admin" | "employee";
 }
 
+/**
+ * Demo quick-fill accounts — national numbers match the backend DbInitializer seeds.
+ * Passwords are set by the seeder (default: "Admin@123" / "Employee@123").
+ */
 const DEMO_ACCOUNTS: DemoAccount[] = [
-  // ══════════════════════════════════════════════════════════════════
-  // حسابات الإدارة والمشرفين
-  // ══════════════════════════════════════════════════════════════════
+  // ── Admins & SuperAdmins ─────────────────────────────────────────────────
   {
     role: "SUPER_ADMIN",
     roleLabel: "سوبر أدمن",
@@ -105,10 +113,7 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     badgeColor: "bg-[#FFF3D8] text-[#9A762D] border-[#FCE1A8]",
     category: "admin",
   },
-
-  // ══════════════════════════════════════════════════════════════════
-  // حسابات الموظفين التنفيذيين
-  // ══════════════════════════════════════════════════════════════════
+  // ── Employees ────────────────────────────────────────────────────────────
   {
     role: "EMPLOYEE",
     roleLabel: "موظف الأحوال المدنية",
@@ -147,58 +152,76 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
   },
 ];
 
+// ─── Pure helpers (no side-effects) ──────────────────────────────────────────
 
-/** Map backend role string → our frontend RoleType */
-function mapBackendRole(roles: string[]): ActiveRoleType {
-  if (roles.some((r) => r === "SuperAdmin")) return "SUPER_ADMIN";
-  if (roles.some((r) => r === "Admin")) return "ADMIN";
-  return "EMPLOYEE";
+/** Converts our UI role to the string the backend expects in LoginCommand.RequestedRole */
+function getBackendRoleString(role: ActiveRoleType): "SuperAdmin" | "Admin" | "Employee" {
+  switch (role) {
+    case "SUPER_ADMIN": return "SuperAdmin";
+    case "ADMIN":       return "Admin";
+    case "EMPLOYEE":    return "Employee";
+  }
 }
 
-/** Decide where to redirect after successful login */
+/** Portal route per role / agency after successful login */
 function getRedirectPath(role: RoleType, agency: AgencyType): string {
   if (role === "SUPER_ADMIN") return "/admin";
   if (role === "ADMIN") {
     if (agency === "الأحوال المدنية") return "/civil-registry";
-    if (agency === "الجوازات") return "/passports";
-    if (agency === "المرور") return "/traffic";
-    if (agency === "المستشفيات") return "/hospitals";
+    if (agency === "الجوازات")       return "/passports";
+    if (agency === "المرور")          return "/traffic";
+    if (agency === "المستشفيات")     return "/hospitals";
     return "/civil-registry";
   }
   // EMPLOYEE
   if (agency === "الأحوال المدنية") return "/civil-registry/activations";
-  if (agency === "الجوازات") return "/passports/requests";
-  if (agency === "المرور") return "/traffic/violations";
-  if (agency === "المستشفيات") return "/hospitals/records";
+  if (agency === "الجوازات")        return "/passports/requests";
+  if (agency === "المرور")           return "/traffic/violations";
+  if (agency === "المستشفيات")      return "/hospitals/records";
   return "/civil-registry/activations";
 }
 
-/** Map frontend role → backend AppRole string */
-function getBackendRoleString(role: ActiveRoleType): string {
-  switch (role) {
-    case "SUPER_ADMIN":
-      return "SuperAdmin";
-    case "ADMIN":
-      return "Admin";
-    case "EMPLOYEE":
-      return "Employee";
-  }
-}
+/**
+ * Translates a raw backend error message (English) into a user-friendly Arabic string.
+ * Covers every possible 401 / 403 case from LoginHandler and VerifyDeviceHandler.
+ */
+function translateBackendError(message: string): string {
+  const m = message ?? "";
 
-/** Get Branch GUID for each agency based on database seeds */
-function getBranchIdForAgency(agency: AgencyType): string {
-  switch (agency) {
-    case "الأحوال المدنية":
-      return "018f7d9a-2000-7000-8000-000000000001";
-    case "المستشفيات":
-      return "018f7d9a-2000-7000-8000-000000000003";
-    case "الجوازات":
-      return "018f7d9a-2000-7000-8000-000000000005";
-    case "المرور":
-      return "018f7d9a-2000-7000-8000-000000000001";
-    default:
-      return "018f7d9a-2000-7000-8000-000000000001";
-  }
+  // ── 401 ─────────────────────────────────────────────────────────────────
+  if (m.includes("Invalid National Number or Password"))
+    return "رقم الهوية الوطنية أو كلمة المرور غير صحيحة.";
+  if (m.includes("Invalid National Number or code"))
+    return "رقم الهوية أو رمز التحقق غير صحيح.";
+  if (m.includes("Invalid or expired verification code"))
+    return "رمز التحقق غير صحيح أو انتهت صلاحيته. اطلب رمزاً جديداً.";
+
+  // ── 403 — account status ─────────────────────────────────────────────────
+  if (m.includes("suspended") || m.includes("Suspended"))
+    return "حسابك موقوف من قِبل الإدارة. يرجى مراجعة أحد مراكز الخدمة لإعادة التفعيل.";
+  if (m.includes("deactivated") || m.includes("Deactivated"))
+    return "حسابك غير مفعَّل. يرجى طلب رمز إعادة التفعيل.";
+
+  // ── 403 — role / branch checks ───────────────────────────────────────────
+  if (m.includes("do not possess") || m.includes("possess the"))
+    return "هذا الحساب لا يملك الصلاحية المطلوبة. تأكد من اختيار الرتبة الصحيحة لحسابك.";
+  if (m.includes("not assigned as an active staff member"))
+    return "لا يوجد تكليف إداري نشط لهذا الحساب. يرجى التواصل مع الإدارة.";
+  if (m.includes("assigned branch is inactive"))
+    return "الفرع المرتبط بحسابك معطَّل. يرجى التواصل مع مشرف النظام.";
+  if (m.includes("not affiliated with the selected organization"))
+    return "حسابك غير مرتبط بالجهة المحددة. يرجى اختيار الجهة الصحيحة.";
+  if (m.includes("Access Denied"))
+    return "وصول مرفوض: " + m.replace("Access Denied:", "").trim();
+
+  // ── Device verification ───────────────────────────────────────────────────
+  if (m.includes("Device record not found"))
+    return "لم يُعثر على سجل الجهاز. حاول تسجيل الدخول من جديد.";
+  if (m.includes("Failed to send device verification OTP"))
+    return "فشل إرسال رمز التحقق. تحقق من إعداد البريد الإلكتروني في الخادم.";
+
+  // ── Generic fallback ─────────────────────────────────────────────────────
+  return m || "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -209,51 +232,52 @@ export default function LoginPage() {
   const router = useRouter();
   const { updateSession } = useAuth();
 
-  // UI State
+  // ── UI State ──────────────────────────────────────────────────────────────
   const [role, setRole] = useState<ActiveRoleType>("SUPER_ADMIN");
   const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false);
   const [agency, setAgency] = useState<AgencyType>("وزارة الداخلية");
   const [isAgencyOverlayOpen, setIsAgencyOverlayOpen] = useState(false);
 
-  // Step: "credentials" or "device_otp"
+  // Form
   const [step, setStep] = useState<LoginStep>("credentials");
-
-  // Form fields — strictly empty by default (no unwanted auto-fill)
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
 
-  // Pending device verification data
-  const [pendingUserId, setPendingUserId] = useState("");
+  // Pending device verification state
   const [pendingLoginResult, setPendingLoginResult] = useState<LoginResult | null>(null);
 
-  // Loading / error
+  // Feedback
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Quick demo accounts filter & feedback
+  // Demo accounts filter
   const [demoFilter, setDemoFilter] = useState<"all" | "admin" | "employee">("all");
   const [filledAccountKey, setFilledAccountKey] = useState<string | null>(null);
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
-
+  // ── Role / Agency label maps ───────────────────────────────────────────────
   const roleConfig: Record<ActiveRoleType, { label: string; indicatorColor: string }> = {
-    SUPER_ADMIN: { label: "سوبر أدمن", indicatorColor: "bg-[#052F31]" },
-    ADMIN: { label: "أدمن", indicatorColor: "bg-[#0C4A4E]" },
-    EMPLOYEE: { label: "موظف", indicatorColor: "bg-[#147A77]" },
+    SUPER_ADMIN: { label: "سوبر أدمن",   indicatorColor: "bg-[#052F31]" },
+    ADMIN:       { label: "أدمن",         indicatorColor: "bg-[#0C4A4E]" },
+    EMPLOYEE:    { label: "موظف",         indicatorColor: "bg-[#147A77]" },
   };
+
+  const agencyConfig: { id: AgencyType; label: string; icon: React.ReactNode }[] = [
+    { id: "الأحوال المدنية", label: "الأحوال المدنية",  icon: <User className="w-4 h-4" /> },
+    { id: "الجوازات",        label: "الجوازات",          icon: <Plane className="w-4 h-4" /> },
+    { id: "المرور",           label: "المرور",            icon: <Car className="w-4 h-4" /> },
+    { id: "المستشفيات",      label: "المستشفيات",        icon: <HeartPulse className="w-4 h-4" /> },
+  ];
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleRoleSelect = (newRole: ActiveRoleType) => {
     setRole(newRole);
     setIsRoleMenuOpen(false);
     setErrorMessage("");
-    // Keep identifier and password intact without auto-fill
-    if (newRole === "SUPER_ADMIN") {
-      setAgency("وزارة الداخلية");
-    } else if (agency === "وزارة الداخلية") {
-      setAgency("الأحوال المدنية");
-    }
+    if (newRole === "SUPER_ADMIN") setAgency("وزارة الداخلية");
+    else if (agency === "وزارة الداخلية") setAgency("الأحوال المدنية");
   };
 
   const handleAgencySelect = (selected: AgencyType) => {
@@ -261,205 +285,146 @@ export default function LoginPage() {
     setIsAgencyOverlayOpen(false);
   };
 
-  /** Complete the session after a successful authentication */
-  const completeSession = async (result: LoginResult, expectedRole?: ActiveRoleType) => {
-    // Persist JWT
+  const fillDemo = (account: DemoAccount) => {
+    setRole(account.role);
+    setAgency(account.agency);
+    setIdentifier(account.nationalNumber);
+    setPassword("Admin@123");
+    setFilledAccountKey(account.nationalNumber);
+    setErrorMessage("");
+    setSuccessMessage("");
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // completeSession
+  //   Called with a valid LoginResult (accessToken is non-empty).
+  //   1. Persists tokens.
+  //   2. Decodes JWT claims → role, branchId, organizationId.
+  //   3. Validates that the backend-confirmed role matches what the user selected.
+  //   4. For Admin/Employee: fetches real branch/org name from /api/v1/Employees.
+  //   5. Updates AuthContext and redirects.
+  // ─────────────────────────────────────────────────────────────────────────
+  const completeSession = async (result: LoginResult) => {
+    // 1. Persist tokens
     saveToken(result.accessToken);
+    if (result.refreshToken) saveRefreshToken(result.refreshToken);
 
-    // Decode actual backend roles from token
-    const backendRoles = decodeRolesFromToken(result.accessToken);
-    const tokenIsSuperAdmin = backendRoles.includes("SuperAdmin");
-    const tokenIsAdmin      = backendRoles.includes("Admin");
-    const tokenIsEmployee   = backendRoles.includes("Employee") || backendRoles.includes("Citizen");
+    // 2. Decode JWT claims
+    const claims = decodeToken(result.accessToken);
 
-    // ── STRICT ROLE CHECK ──────────────────────────────────────────────────────
-    // The role the user explicitly selected in the UI MUST match what the backend token says.
-    // This prevents SuperAdmin accounts from logging in as Employee/Admin and vice versa.
-    const selectedRole = expectedRole ?? role;
+    // 3. Validate backend-confirmed role vs. UI selection
+    const confirmedRole = claims.roles.length > 0
+      ? mapBackendRoleToFrontend(claims.roles[0])
+      : "NONE";
 
-    if (selectedRole === "SUPER_ADMIN" && !tokenIsSuperAdmin) {
+    if (confirmedRole === "NONE") {
       clearAuthStorage();
-      setErrorMessage("هذا الحساب ليس سوبر أدمن. يرجى اختيار الرتبة الصحيحة من القائمة.");
+      setErrorMessage("لم يتم التعرف على دور هذا الحساب. يرجى التواصل مع مشرف النظام.");
       return;
     }
-    if (selectedRole === "ADMIN" && !tokenIsAdmin) {
+
+    // Strict check: what user clicked in the UI must match what the backend confirmed
+    if (role === "SUPER_ADMIN" && confirmedRole !== "SUPER_ADMIN") {
       clearAuthStorage();
-      setErrorMessage("هذا الحساب ليس أدمناً. يرجى اختيار الرتبة الصحيحة (موظف / سوبر أدمن).");
+      setErrorMessage("هذا الحساب ليس سوبر أدمن. يرجى اختيار الرتبة الصحيحة.");
       return;
     }
-    if (selectedRole === "EMPLOYEE" && !tokenIsEmployee) {
+    if (role === "ADMIN" && confirmedRole !== "ADMIN") {
+      clearAuthStorage();
+      setErrorMessage("هذا الحساب ليس أدمن. يرجى اختيار الرتبة المناسبة (موظف / سوبر أدمن).");
+      return;
+    }
+    if (role === "EMPLOYEE" && confirmedRole !== "EMPLOYEE") {
       clearAuthStorage();
       setErrorMessage("هذا الحساب ليس حساب موظف. يرجى اختيار الرتبة الصحيحة.");
       return;
     }
 
-    // ── RESOLVE AUTHORITATIVE ROLE ────────────────────────────────────────────
-    // Now that validation passed, use the selected role as authoritative
-    const resolvedRole: RoleType = selectedRole;
+    // 4. Resolve agency & branch info
+    let resolvedAgency: AgencyType = confirmedRole === "SUPER_ADMIN" ? "وزارة الداخلية" : agency;
+    let resolvedBranchName = "";
+    let resolvedBranchId = claims.branchId ?? "";
+    let resolvedOrgId = claims.organizationId ?? "";
 
-    // Resolve agency
-    let resolvedAgency: AgencyType = agency;
-    let actualBranchName = "";
-    let actualBranchId = "";
-    let actualJobTitle = "";
-
-    if (resolvedRole === "SUPER_ADMIN") {
-      resolvedAgency = "وزارة الداخلية";
-      actualJobTitle = "مشرف عام المنظومة الوطنية (سوبر أدمن)";
-      actualBranchName = "المركز الوطني لتقنية المعلومات - ديوان الوزارة";
-      actualBranchId = "22222222-bbbb-cccc-dddd-000000000001";
-    } else if (resolvedRole === "ADMIN") {
-      // Honor user's explicit selection if made in UI; otherwise fallback to backend detection
-      if (agency && agency !== "وزارة الداخلية") {
-        resolvedAgency = agency;
-      } else {
-        try {
-          const empRes = await employeesService.getEmployees();
-          if (empRes.isSuccess && (empRes.organizationName || empRes.branchName)) {
-            const orgName = empRes.organizationName ?? "";
-            if (orgName.includes("أحوال") || orgName.includes("السجل المدني")) {
-              resolvedAgency = "الأحوال المدنية";
-            } else if (orgName.includes("جوازات") || orgName.includes("هجرة")) {
-              resolvedAgency = "الجوازات";
-            } else if (orgName.includes("مرور")) {
-              resolvedAgency = "المرور";
-            } else if (orgName.includes("مستشف") || orgName.includes("صحة")) {
-              resolvedAgency = "المستشفيات";
-            }
-          }
-        } catch (e) {
-          console.warn("[Login] Could not auto-detect admin branch/agency:", e);
+    if (confirmedRole === "ADMIN" || confirmedRole === "EMPLOYEE") {
+      // Fetch real branch & org name from /api/v1/Employees (uses token from localStorage)
+      try {
+        const empRes = await employeesService.getEmployees();
+        if (empRes.isSuccess && empRes.organizationName) {
+          resolvedAgency = resolveAgencyFromOrgName(empRes.organizationName);
+          resolvedBranchName = empRes.branchName ?? resolvedBranchName;
+          if (empRes.branchId) resolvedBranchId = empRes.branchId;
         }
-      }
-
-      if (resolvedAgency === "الجوازات") {
-        actualBranchName = "مصلحة الهجرة والجوازات والجنسية - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000005";
-        actualJobTitle = "مدير عام فرع الهجرة والجوازات";
-      } else if (resolvedAgency === "الأحوال المدنية") {
-        actualBranchName = "مصلحة الأحوال المدنية - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000001";
-        actualJobTitle = "مدير فرع الأحوال المدنية";
-      } else if (resolvedAgency === "المرور") {
-        actualBranchName = "إدارة شرطة السير والمرور - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000001";
-        actualJobTitle = "مدير إدارة المرور";
-      } else if (resolvedAgency === "المستشفيات") {
-        actualBranchName = "هيئة مستشفى الثورة العام النموذجي";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
-        actualJobTitle = "مدير عام المستشفى";
-      }
-    } else if (resolvedRole === "EMPLOYEE") {
-      if (agency && agency !== "وزارة الداخلية") {
-        resolvedAgency = agency;
-      }
-      if (resolvedAgency === "الجوازات") {
-        actualBranchName = "مصلحة الهجرة والجوازات والجنسية - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000005";
-        actualJobTitle = "موظف فحص واعتماد الجوازات";
-      } else if (resolvedAgency === "الأحوال المدنية") {
-        actualBranchName = "مصلحة الأحوال المدنية - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000001";
-        actualJobTitle = "موظف كاونتر وتفعيل بيومتري حضوري";
-      } else if (resolvedAgency === "المرور") {
-        actualBranchName = "إدارة شرطة السير والمرور - صنعاء";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000001";
-        actualJobTitle = "موظف الرخص والمخالفات";
-      } else if (resolvedAgency === "المستشفيات") {
-        actualBranchName = "هيئة مستشفى الثورة العام النموذجي";
-        actualBranchId = "018f7d9a-2000-7000-8000-000000000003";
-        actualJobTitle = "مسؤول السجل الطبي والمواليد";
+      } catch (e) {
+        // Non-fatal: agency/branch fallback to what we have from JWT claims
+        console.warn("[Login] Could not fetch employee branch info:", e);
       }
     }
 
-    const profile = getProfileForRoleAndAgency(resolvedRole, resolvedAgency);
-    if (!actualBranchName) actualBranchName = profile.branchName;
-    if (!actualJobTitle) actualJobTitle = profile.jobTitle;
-
-    // Update AuthContext session with verified live data
+    // 5. Update AuthContext with real backend data
     updateSession({
-      fullName: result.fullName || profile.fullName,
-      nationalNumber: result.nationalNumber || profile.nationalNumber,
-      role: resolvedRole,
-      agency: resolvedAgency,
-      branchName: actualBranchName,
-      branchId: actualBranchId,
-      jobTitle: actualJobTitle,
-      loginSource: "login_page",
+      fullName:       result.fullName || claims.fullName || "",
+      nationalNumber: result.nationalNumber || claims.nationalNumber || "",
+      role:           confirmedRole,
+      agency:         resolvedAgency,
+      branchName:     resolvedBranchName,
+      branchId:       resolvedBranchId,
+      organizationId: resolvedOrgId,
+      jobTitle:       resolveJobTitle(confirmedRole, resolvedAgency),
+      loginSource:    "login_page",
     });
 
-    const targetUrl = getRedirectPath(resolvedRole, resolvedAgency);
-    router.push(targetUrl);
+    // 6. Redirect to the correct portal
+    const target = getRedirectPath(confirmedRole, resolvedAgency);
+    router.push(target);
   };
 
-  // ── Step 1: Login with credentials ──────────────────────────────────────────
-
+  // ─────────────────────────────────────────────────────────────────────────
+  // Step 1 — Login with credentials
+  // ─────────────────────────────────────────────────────────────────────────
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
 
-    if (!identifier.trim()) {
-      setErrorMessage("يرجى إدخال رقم الهوية الوطنية");
-      return;
-    }
-    if (!password.trim()) {
-      setErrorMessage("يرجى إدخال كلمة المرور");
-      return;
-    }
+    if (!identifier.trim()) { setErrorMessage("يرجى إدخال رقم الهوية الوطنية"); return; }
+    if (!password.trim())   { setErrorMessage("يرجى إدخال كلمة المرور"); return; }
 
     setIsLoading(true);
     try {
-      const deviceId = getDeviceIdentifier(identifier.trim());
-      const backendRole = getBackendRoleString(role);
-      const branchId =
-        backendRole === "Admin" || backendRole === "Employee"
-          ? getBranchIdForAgency(agency)
-          : undefined;
+      const deviceId     = getDeviceIdentifier(identifier.trim());
+      const backendRole  = getBackendRoleString(role);
 
+      // For Admin/Employee we pass the organizationId selected in UI (if available in JWT after login)
+      // so the backend can validate branch affiliation.
+      // We don't pass it for SuperAdmin — they have no branch restriction.
       const res = await apiLogin({
-        nationalNumber: identifier.trim(),
-        password: password.trim(),
-        requestedRole: backendRole,
-        branchId: branchId,
+        nationalNumber:  identifier.trim(),
+        password:        password.trim(),
+        requestedRole:   backendRole,
         deviceIdentifier: deviceId,
-        deviceName: "Huwiyati Web Portal",
+        deviceName:      "Huwiyati Web Portal",
         operatingSystem: typeof navigator !== "undefined" ? navigator.platform : "Web",
       });
 
-      if (!res.isSuccess) {
-        // Translate common backend error messages
-        const msg = res.message ?? "فشل تسجيل الدخول. تحقق من بياناتك.";
-        const errorDetails = res.errors && res.errors.length > 0 ? `: ${res.errors.join(" - ")}` : "";
-
-        if (msg.includes("Invalid National Number or Password")) {
-          setErrorMessage("رقم الهوية أو كلمة المرور غير صحيحة.");
-        } else if (msg.includes("suspended")) {
-          setErrorMessage("حسابك موقوف من قِبل الإدارة. يرجى مراجعة أحد مراكز الخدمة.");
-        } else if (msg.includes("deactivated")) {
-          setErrorMessage(
-            "حسابك معطّل. يرجى طلب رمز إعادة التفعيل عبر خيار نسيت كلمة المرور."
-          );
-        } else {
-          setErrorMessage(`${msg}${errorDetails}`);
-        }
+      if (!res.isSuccess || !res.data) {
+        setErrorMessage(translateBackendError(res.message ?? ""));
         return;
       }
 
-      const loginData = res.data!;
+      const loginData = res.data;
 
-      // Case A: trusted device → direct login
+      // Case A: trusted device → login complete
       if (!loginData.requiresDeviceVerification) {
         await completeSession(loginData);
         return;
       }
 
-      // Case B: new device → show OTP step
-      setPendingUserId(loginData.userId);
+      // Case B: new / untrusted device → OTP sent to email
       setPendingLoginResult(loginData);
       setStep("device_otp");
       setSuccessMessage(
-        "جهاز جديد! تم إرسال رمز التحقق إلى بريدك الإلكتروني المسجّل. أدخله أدناه خلال 5 دقائق."
+        "تم الكشف عن جهاز جديد! تم إرسال رمز التحقق إلى بريدك الإلكتروني المسجَّل. أدخله أدناه خلال 5 دقائق."
       );
     } catch (err) {
       setErrorMessage("تعذّر الاتصال بالخادم. تحقق من أن الباكند يعمل على المنفذ 5237.");
@@ -469,27 +434,28 @@ export default function LoginPage() {
     }
   };
 
-  // ── Step 2: Verify device OTP ────────────────────────────────────────────────
-
+  // ─────────────────────────────────────────────────────────────────────────
+  // Step 2 — Verify new device with OTP
+  // ─────────────────────────────────────────────────────────────────────────
   const handleDeviceVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
 
     if (!otpCode.trim() || otpCode.length < 6) {
-      setErrorMessage("أدخل الرمز المكوّن من 6 أرقام.");
+      setErrorMessage("أدخل الرمز المكوّن من 6 أرقام الذي وصل إلى بريدك الإلكتروني.");
       return;
     }
 
     setIsLoading(true);
     try {
       const res = await apiVerifyDevice({
-        nationalNumber: identifier.trim(),
+        nationalNumber:   identifier.trim(),
         deviceIdentifier: getDeviceIdentifier(identifier.trim()),
-        code: otpCode.trim(),
+        code:             otpCode.trim(),
       });
 
       if (!res.isSuccess || !res.data) {
-        setErrorMessage(res.message ?? "رمز التحقق غير صحيح أو منتهي الصلاحية.");
+        setErrorMessage(translateBackendError(res.message ?? ""));
         return;
       }
 
@@ -502,7 +468,13 @@ export default function LoginPage() {
     }
   };
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const filteredDemoAccounts = DEMO_ACCOUNTS.filter(
+    (a) => demoFilter === "all" || a.category === demoFilter
+  );
 
   return (
     <div className="bg-[#FBFBF8] min-h-screen flex flex-col items-center justify-center font-sans text-[#163D42] p-4 md:p-10 relative overflow-x-hidden">
@@ -512,7 +484,7 @@ export default function LoginPage() {
         <div className="absolute w-[600px] h-[600px] bg-[#147A77]/5 rounded-full blur-3xl bottom-0 -left-1/4"></div>
       </div>
 
-      {/* Role Selector — top left corner */}
+      {/* Role Selector — top left */}
       {step === "credentials" && (
         <div className="absolute top-6 left-6 z-20">
           <div className="relative">
@@ -528,426 +500,282 @@ export default function LoginPage() {
 
             {isRoleMenuOpen && (
               <div className="absolute top-full mt-2 left-0 w-44 bg-white border border-[#E7EEEB] rounded-xl shadow-lg overflow-hidden py-1 z-30 animate-in fade-in slide-in-from-top-2">
-                <button
-                  type="button"
-                  onClick={() => handleRoleSelect("SUPER_ADMIN")}
-                  className="w-full text-right px-4 py-2.5 hover:bg-[#F1F6F4] text-sm text-[#163D42] flex items-center gap-2.5 cursor-pointer"
-                >
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#052F31]"></div>
-                  <span>سوبر أدمن</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRoleSelect("ADMIN")}
-                  className="w-full text-right px-4 py-2.5 hover:bg-[#F1F6F4] text-sm text-[#163D42] flex items-center gap-2.5 cursor-pointer"
-                >
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#0C4A4E]"></div>
-                  <span>أدمن</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRoleSelect("EMPLOYEE")}
-                  className="w-full text-right px-4 py-2.5 hover:bg-[#F1F6F4] text-sm text-[#163D42] flex items-center gap-2.5 cursor-pointer"
-                >
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#147A77]"></div>
-                  <span>موظف</span>
-                </button>
+                {(["SUPER_ADMIN", "ADMIN", "EMPLOYEE"] as ActiveRoleType[]).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => handleRoleSelect(r)}
+                    className="w-full text-right px-4 py-2.5 hover:bg-[#F1F6F4] text-sm text-[#163D42] flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <div className={`w-2.5 h-2.5 rounded-full ${roleConfig[r].indicatorColor}`}></div>
+                    <span>{roleConfig[r].label}</span>
+                  </button>
+                ))}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Main Login Card */}
-      <main className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-[#E7EEEB] overflow-hidden z-10 relative">
-        {/* Accent top stripe */}
-        <div className="h-2 w-full bg-[#0C4A4E]"></div>
-
-        <div className="p-8">
-          {/* Header */}
-          <div className="flex flex-col items-center mb-8">
-            <HwyatiLogo size={64} showText={false} className="mb-4" />
-            <h1 className="text-2xl font-bold text-[#0C4A4E] text-center tracking-tight font-arabic">
-              Hawiyati
-            </h1>
-            <p className="text-sm text-[#456A6D] text-center mt-1">
-              {step === "credentials"
-                ? "بوابة تسجيل الدخول الموحدة"
-                : "التحقق من الجهاز الجديد"}
-            </p>
-          </div>
-
-          {/* Error Banner */}
-          {errorMessage && (
-            <div className="mb-4 p-3 rounded-lg bg-[#FFF0E7] border border-[#FACDC0] text-xs text-[#B76648]">
-              {errorMessage}
-            </div>
-          )}
-
-          {/* Success Banner */}
-          {successMessage && (
-            <div className="mb-4 p-3 rounded-lg bg-[#E5F7EE] border border-[#A8E2C7] text-xs text-[#126B58] flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-[#126B58]" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
-          {/* ── STEP 1: Credentials Form ── */}
-          {step === "credentials" && (
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              {/* Agency Selector */}
-              {role === "SUPER_ADMIN" ? (
-                <div>
-                  <label className="block text-sm font-medium text-[#163D42] mb-1.5">
-                    الجهة الحكومية
-                  </label>
-                  <div className="w-full bg-[#F1F6F4] border border-[#E7EEEB] rounded-xl py-3 px-4 flex items-center gap-2.5 text-[#163D42]">
-                    <Shield className="w-5 h-5 text-[#0C4A4E]" />
-                    <span className="text-sm font-semibold">وزارة الداخلية (نظام شامل)</span>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-[#163D42] mb-1.5">
-                    الجهة الحكومية
-                  </label>
-                  <div
-                    onClick={() => setIsAgencyOverlayOpen(true)}
-                    className="relative cursor-pointer group"
-                  >
-                    <input
-                      readOnly
-                      type="text"
-                      value={agency}
-                      placeholder="اختر الجهة"
-                      className="w-full bg-[#F1F6F4] border border-[#E7EEEB] rounded-xl py-3 px-4 pe-12 ps-10 focus:border-[#178A86] focus:ring-2 focus:ring-[#178A86]/20 transition-all text-sm text-[#163D42] cursor-pointer group-hover:border-[#147A77]"
-                    />
-                    <Building2 className="w-5 h-5 absolute end-4 top-1/2 -translate-y-1/2 text-[#6D898A]" />
-                    <ChevronDown className="w-4 h-4 absolute start-4 top-1/2 -translate-y-1/2 text-[#6D898A]" />
-                  </div>
-                </div>
-              )}
-
-              {/* National Number */}
-              <div>
-                <label className="block text-sm font-medium text-[#163D42] mb-1.5">
-                  رقم الهوية الوطنية
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="أدخل رقم الهوية"
-                    className="w-full bg-[#F1F6F4] border border-[#E7EEEB] rounded-xl py-3 px-4 pe-12 focus:border-[#178A86] focus:ring-2 focus:ring-[#178A86]/20 transition-all text-sm text-[#163D42] placeholder-[#6D898A]/60"
-                  />
-                  <User className="w-5 h-5 absolute end-4 top-1/2 -translate-y-1/2 text-[#6D898A]" />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-[#163D42] mb-1.5">
-                  كلمة المرور
-                </label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full bg-[#F1F6F4] border border-[#E7EEEB] rounded-xl py-3 px-4 pe-12 focus:border-[#178A86] focus:ring-2 focus:ring-[#178A86]/20 transition-all text-sm text-[#163D42] placeholder-[#6D898A]/60"
-                  />
-                  <Lock className="w-5 h-5 absolute end-4 top-1/2 -translate-y-1/2 text-[#6D898A]" />
-                </div>
-                <div className="flex justify-end mt-1.5">
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      alert(
-                        "لنسيان كلمة المرور، يرجى التواصل مع مسؤول النظام أو استخدام خاصية نسيت كلمة المرور عند إتاحتها."
-                      );
-                    }}
-                    className="text-xs text-[#147A77] hover:text-[#0C4A4E] transition-colors"
-                  >
-                    نسيت كلمة المرور؟
-                  </a>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-[#0C4A4E] text-white rounded-xl py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#052F31] transition-all active:scale-[0.98] mt-6 shadow-sm cursor-pointer disabled:opacity-70"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>جاري التحقق...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>تسجيل الدخول</span>
-                    <ArrowLeft className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
-          )}
-
-          {/* ── STEP 2: Device OTP Verification ── */}
-          {step === "device_otp" && (
-            <form onSubmit={handleDeviceVerify} className="space-y-5">
-              <div className="text-center">
-                <div className="w-14 h-14 rounded-2xl bg-[#E6F1EE] text-[#0C4A4E] mx-auto flex items-center justify-center mb-3">
-                  <KeyRound className="w-7 h-7" />
-                </div>
-                <p className="text-xs text-[#456A6D] leading-relaxed">
-                  تم اكتشاف جهاز جديد. أدخل الرمز المُرسل إلى بريدك الإلكتروني المسجّل.
-                </p>
-              </div>
-
-              {/* OTP input */}
-              <div>
-                <label className="block text-sm font-medium text-[#163D42] mb-1.5">
-                  رمز التحقق (6 أرقام)
-                </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="000000"
-                  className="w-full bg-[#F1F6F4] border border-[#E7EEEB] rounded-xl py-3 px-4 text-center text-2xl font-mono tracking-widest focus:border-[#178A86] focus:ring-2 focus:ring-[#178A86]/20 transition-all text-[#163D42]"
-                />
-                {/* Dev Helper: Fetch OTP from test endpoint */}
-                <div className="mt-2 text-center">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const res = await fetch(`http://localhost:5237/api/Test/latest-otp/${identifier.trim()}`);
-                        if (res.ok) {
-                          const data = await res.json();
-                          if (data.latestOTP) {
-                            setOtpCode(data.latestOTP);
-                          }
-                        }
-                      } catch (err) {
-                        console.error("Failed to fetch dev OTP", err);
-                      }
-                    }}
-                    className="text-xs text-[#147A77] hover:underline cursor-pointer font-medium"
-                  >
-                    ⚡ استرجاع رمز التحقق التجريبي تلقائياً (بيئة التطوير)
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading || otpCode.length < 6}
-                className="w-full bg-[#0C4A4E] text-white rounded-xl py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#052F31] transition-all active:scale-[0.98] shadow-sm cursor-pointer disabled:opacity-70"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>جاري التحقق...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>تأكيد الجهاز والدخول</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("credentials");
-                  setOtpCode("");
-                  setErrorMessage("");
-                  setSuccessMessage("");
-                  clearAuthStorage();
-                }}
-                className="w-full text-xs text-[#6D898A] hover:text-[#0C4A4E] transition-colors py-2"
-              >
-                العودة لتسجيل الدخول
-              </button>
-            </form>
-          )}
-        </div>
-
-        {/* Security Notice Footer */}
-        <div className="bg-[#F1F6F4] py-4 px-8 border-t border-[#E7EEEB] flex items-center justify-center gap-2 text-xs text-[#456A6D]">
-          <ShieldCheck className="w-4 h-4 text-[#126B58] shrink-0" />
-          <p className="text-center">هذه البوابة تخضع لإشراف ورقابة الجهات الحكومية المختصة.</p>
-        </div>
-      </main>
-
-      {/* Quick Test Accounts Card (Optional helper for development / QA) */}
-      {step === "credentials" && (
-        <div className="w-full max-w-md mt-4 bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-[#E7EEEB] shadow-xs z-10">
-          <div className="flex items-center justify-between font-bold text-[#0C4A4E] mb-2.5">
-            <span className="text-xs">💡 حسابات معتمدة في قاعدة البيانات (للتجربة السريعة):</span>
-            <span className="text-[10px] text-[#6D898A] font-mono">كلمة المرور: Password123</span>
-          </div>
-
-          {/* Category Filter Pills */}
-          <div className="flex items-center gap-1.5 mb-2.5">
-            <button
-              type="button"
-              onClick={() => setDemoFilter("all")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                demoFilter === "all"
-                  ? "bg-[#0C4A4E] text-white shadow-2xs"
-                  : "bg-[#F1F6F4] text-[#456A6D] hover:bg-[#E7EEEB]"
-              }`}
-            >
-              الكل ({DEMO_ACCOUNTS.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setDemoFilter("admin")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                demoFilter === "admin"
-                  ? "bg-[#0C4A4E] text-white shadow-2xs"
-                  : "bg-[#F1F6F4] text-[#456A6D] hover:bg-[#E7EEEB]"
-              }`}
-            >
-              حسابات الإدارة ({DEMO_ACCOUNTS.filter((a) => a.category === "admin").length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setDemoFilter("employee")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                demoFilter === "employee"
-                  ? "bg-[#0C4A4E] text-white shadow-2xs"
-                  : "bg-[#F1F6F4] text-[#456A6D] hover:bg-[#E7EEEB]"
-              }`}
-            >
-              حسابات الموظفين ({DEMO_ACCOUNTS.filter((a) => a.category === "employee").length})
-            </button>
-          </div>
-
-          {/* Accounts List */}
-          <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
-            {DEMO_ACCOUNTS.filter((acc) => {
-              if (demoFilter === "admin") return acc.category === "admin";
-              if (demoFilter === "employee") return acc.category === "employee";
-              return true;
-            }).map((acc) => {
-              const accountKey = `${acc.role}-${acc.nationalNumber}-${acc.agency}-${acc.roleLabel}`;
-              const isFilled = filledAccountKey === accountKey;
-              return (
-                <div
-                  key={accountKey}
-                  className={`flex items-center justify-between p-2 rounded-xl transition-all border ${
-                    isFilled
-                      ? "bg-[#E6F1EE] border-[#147A77] ring-1 ring-[#147A77]"
-                      : "bg-[#F1F6F4]/50 hover:bg-[#F1F6F4] border-[#E7EEEB]"
-                  }`}
-                >
-                  <div className="min-w-0 pr-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${acc.badgeColor}`}>
-                        {acc.roleLabel}
-                      </span>
-                      <span className="font-semibold text-[#163D42] text-[11px] truncate">
-                        {acc.name}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-[#456A6D] font-mono mt-0.5">
-                      {acc.nationalNumber} • {acc.agency}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIdentifier(acc.nationalNumber);
-                      setPassword("Password123");
-                      setRole(acc.role);
-                      setAgency(acc.agency);
-                      setErrorMessage("");
-                      setFilledAccountKey(accountKey);
-                      setTimeout(() => setFilledAccountKey(null), 2500);
-                    }}
-                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all shrink-0 cursor-pointer shadow-2xs ${
-                      isFilled
-                        ? "bg-[#126B58] text-white border border-[#126B58]"
-                        : "text-[#0C4A4E] hover:text-[#052F31] bg-white hover:bg-[#E6F1EE] border border-[#BFE5DF]"
-                    }`}
-                  >
-                    {isFilled ? "✓ تم التحديد" : "تعبئة الحقول"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Agency Selection Overlay */}
+      {/* Agency Selector Overlay */}
       {isAgencyOverlayOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 glassmorphism-overlay animate-in fade-in duration-200">
-          <div className="glass-panel rounded-2xl w-full max-w-2xl p-8 relative shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-80 relative">
             <button
-              type="button"
               onClick={() => setIsAgencyOverlayOpen(false)}
-              className="absolute top-5 left-5 text-[#6D898A] hover:text-[#163D42] p-1.5 rounded-full hover:bg-[#F1F6F4] transition-colors cursor-pointer"
+              className="absolute top-3 left-3 text-[#6D898A] hover:text-[#163D42] cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
-
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-[#0C4A4E] mb-2 font-arabic">اختيار الجهة الحكومية</h2>
-              <p className="text-sm text-[#456A6D]">
-                الرجاء اختيار الجهة التابع لها للمتابعة في النظام
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              {(
-                [
-                  { key: "المرور", icon: <Car className="w-7 h-7" />, color: "bg-[#FFF3D8] text-[#9A762D]" },
-                  { key: "الجوازات", icon: <Plane className="w-7 h-7" />, color: "bg-[#E6F1EE] text-[#147A77]" },
-                  { key: "الأحوال المدنية", icon: <BadgeAlert className="w-7 h-7" />, color: "bg-[#E6F1EE] text-[#0C4A4E]" },
-                  { key: "المستشفيات", icon: <HeartPulse className="w-7 h-7" />, color: "bg-[#EAF4FB] text-[#437CA4]" },
-                ] as const
-              ).map(({ key, icon, color }) => (
+            <h3 className="text-center font-bold text-[#163D42] mb-4">اختر الجهة الحكومية</h3>
+            <div className="flex flex-col gap-2">
+              {agencyConfig.map(({ id, label, icon }) => (
                 <button
-                  key={key}
+                  key={id}
                   type="button"
-                  onClick={() => handleAgencySelect(key as AgencyType)}
-                  className="agency-card glass-panel rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-[#178A86]"
+                  onClick={() => handleAgencySelect(id)}
+                  className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                    agency === id
+                      ? "border-[#147A77] bg-[#E6F1EE] text-[#147A77]"
+                      : "border-[#E7EEEB] hover:bg-[#F1F6F4] text-[#163D42]"
+                  }`}
                 >
-                  <div
-                    className={`w-14 h-14 rounded-2xl ${color} flex items-center justify-center group-hover:scale-110 transition-transform`}
-                  >
-                    {icon}
-                  </div>
-                  <span className="text-base font-bold text-[#163D42]">{key}</span>
+                  {icon}
+                  <span className="font-medium">{label}</span>
+                  {agency === id && <CheckCircle2 className="w-4 h-4 ml-auto" />}
                 </button>
               ))}
-            </div>
-
-            <div className="mt-8 text-center">
-              <button
-                type="button"
-                onClick={() => setIsAgencyOverlayOpen(false)}
-                className="text-xs text-[#456A6D] hover:text-[#0C4A4E] transition-colors py-2 px-5 rounded-full border border-transparent hover:border-[#E7EEEB] cursor-pointer"
-              >
-                إلغاء والعودة
-              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Main Card */}
+      <div className="w-full max-w-md z-10">
+        <div className="bg-white rounded-3xl shadow-xl border border-[#E7EEEB] overflow-hidden">
+
+          {/* Header */}
+          <div className="bg-gradient-to-b from-[#0C4A4E] to-[#147A77] p-8 text-center text-white">
+            <div className="flex justify-center mb-4">
+              <HwyatiLogo className="w-14 h-14" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-wide">هُوِيَّتِي</h1>
+            <p className="text-sm mt-1 text-white/80">المنظومة الوطنية للهوية والخدمات المدنية</p>
+
+            {step === "credentials" && (
+              <div className="mt-4 flex items-center justify-center gap-2 bg-white/10 rounded-full py-1.5 px-4 text-sm">
+                <Shield className="w-4 h-4" />
+                <span>لوحة التحكم — {roleConfig[role].label}</span>
+              </div>
+            )}
+            {step === "device_otp" && (
+              <div className="mt-4 flex items-center justify-center gap-2 bg-white/10 rounded-full py-1.5 px-4 text-sm">
+                <ShieldCheck className="w-4 h-4" />
+                <span>التحقق من الجهاز</span>
+              </div>
+            )}
+          </div>
+
+          {/* Form Body */}
+          <div className="p-8">
+
+            {/* ── Step: Credentials ─────────────────────────────────── */}
+            {step === "credentials" && (
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                {/* Agency selector (only for Admin / Employee) */}
+                {role !== "SUPER_ADMIN" && (
+                  <div>
+                    <label className="block text-xs font-semibold text-[#6D898A] mb-1.5 uppercase tracking-wider">
+                      الجهة الحكومية
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsAgencyOverlayOpen(true)}
+                      className="w-full flex items-center justify-between bg-[#F8FAF9] border border-[#E7EEEB] rounded-xl px-4 py-3 text-sm hover:border-[#147A77] transition-colors cursor-pointer"
+                    >
+                      <span className="font-medium text-[#163D42]">{agency}</span>
+                      <ChevronDown className="w-4 h-4 text-[#6D898A]" />
+                    </button>
+                  </div>
+                )}
+
+                {/* National Number */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#6D898A] mb-1.5 uppercase tracking-wider">
+                    رقم الهوية الوطنية
+                  </label>
+                  <div className="relative">
+                    <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6D898A]" />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={11}
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value.replace(/\D/g, ""))}
+                      placeholder="أدخل رقم الهوية"
+                      className="w-full bg-[#F8FAF9] border border-[#E7EEEB] rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#147A77] focus:border-transparent transition-all text-right placeholder:text-[#A0B5B6]"
+                      dir="rtl"
+                      autoComplete="username"
+                    />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#6D898A] mb-1.5 uppercase tracking-wider">
+                    كلمة المرور
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6D898A]" />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="أدخل كلمة المرور"
+                      className="w-full bg-[#F8FAF9] border border-[#E7EEEB] rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#147A77] focus:border-transparent transition-all text-right placeholder:text-[#A0B5B6]"
+                      dir="rtl"
+                      autoComplete="current-password"
+                    />
+                  </div>
+                </div>
+
+                {/* Error / Success */}
+                {errorMessage && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2 text-red-700 text-sm">
+                    <BadgeAlert className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
+                {/* Submit */}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-[#0C4A4E] hover:bg-[#147A77] disabled:opacity-60 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isLoading ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" /><span>جارٍ التحقق...</span></>
+                  ) : (
+                    <><Shield className="w-5 h-5" /><span>تسجيل الدخول</span></>
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* ── Step: Device OTP ──────────────────────────────────── */}
+            {step === "device_otp" && (
+              <form onSubmit={handleDeviceVerify} className="space-y-4">
+                {successMessage && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2 text-emerald-700 text-sm">
+                    <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>{successMessage}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#6D898A] mb-1.5 uppercase tracking-wider">
+                    رمز التحقق (6 أرقام)
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6D898A]" />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder="000000"
+                      className="w-full bg-[#F8FAF9] border border-[#E7EEEB] rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#147A77] focus:border-transparent tracking-[0.4em] text-center placeholder:text-[#A0B5B6]"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {errorMessage && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2 text-red-700 text-sm">
+                    <BadgeAlert className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-[#0C4A4E] hover:bg-[#147A77] disabled:opacity-60 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isLoading ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" /><span>جارٍ التحقق...</span></>
+                  ) : (
+                    <><ShieldCheck className="w-5 h-5" /><span>تحقق وأكمل الدخول</span></>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setStep("credentials"); setOtpCode(""); setErrorMessage(""); setSuccessMessage(""); }}
+                  className="w-full flex items-center justify-center gap-2 text-[#6D898A] hover:text-[#163D42] text-sm py-2 cursor-pointer transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>العودة لتسجيل الدخول</span>
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+
+        {/* ── Quick Demo Accounts ──────────────────────────────────────────── */}
+        {step === "credentials" && (
+          <div className="mt-6 bg-white rounded-2xl border border-[#E7EEEB] shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#E7EEEB]">
+              <span className="text-xs font-semibold text-[#6D898A] uppercase tracking-wider">
+                حسابات تجريبية سريعة
+              </span>
+              <div className="flex gap-1">
+                {(["all", "admin", "employee"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setDemoFilter(f)}
+                    className={`text-xs px-2.5 py-1 rounded-full transition-colors cursor-pointer ${
+                      demoFilter === f
+                        ? "bg-[#0C4A4E] text-white"
+                        : "bg-[#F1F6F4] text-[#6D898A] hover:bg-[#E6F1EE]"
+                    }`}
+                  >
+                    {f === "all" ? "الكل" : f === "admin" ? "إدارة" : "موظفون"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto divide-y divide-[#F1F6F4]">
+              {filteredDemoAccounts.map((account) => (
+                <button
+                  key={account.nationalNumber}
+                  type="button"
+                  onClick={() => fillDemo(account)}
+                  className={`w-full flex items-center justify-between px-4 py-3 text-right hover:bg-[#F8FAF9] transition-colors cursor-pointer ${
+                    filledAccountKey === account.nationalNumber ? "bg-[#E6F1EE]" : ""
+                  }`}
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm font-medium text-[#163D42] truncate max-w-[200px]">
+                      {account.name}
+                    </span>
+                    <span className="text-xs text-[#6D898A] font-mono mt-0.5">
+                      {account.nationalNumber}
+                    </span>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${account.badgeColor}`}>
+                    {account.roleLabel}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

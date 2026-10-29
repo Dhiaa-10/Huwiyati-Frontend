@@ -1,4 +1,5 @@
 import { ApiResponse } from "@/types/api";
+import { tryRefreshSession, clearAuthStorage } from "./authService";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5237";
 
@@ -8,6 +9,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5
  */
 class ApiClient {
   private baseUrl: string;
+  private isRefreshing = false;
+  private refreshPromise: Promise<string | null> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -29,12 +32,56 @@ class ApiClient {
     return headers;
   }
 
+  /**
+   * Internal wrapper that performs fetch and intercepts 401 to silently renew JWT
+   */
+  private async fetchWithAuth(url: string, init: RequestInit, isRetry = false): Promise<Response> {
+    const res = await fetch(url, {
+      ...init,
+      headers: {
+        ...this.getHeaders(),
+        ...(init.headers || {}),
+      },
+    });
+
+    if (res.status === 401 && !isRetry && typeof window !== "undefined") {
+      // Avoid parallel refresh calls
+      if (!this.isRefreshing) {
+        this.isRefreshing = true;
+        this.refreshPromise = tryRefreshSession().finally(() => {
+          this.isRefreshing = false;
+          this.refreshPromise = null;
+        });
+      }
+
+      const newToken = await this.refreshPromise;
+      if (newToken) {
+        // Retry the original request once with new token
+        return fetch(url, {
+          ...init,
+          headers: {
+            ...this.getHeaders(),
+            ...(init.headers || {}),
+            Authorization: `Bearer ${newToken}`,
+          },
+        });
+      } else {
+        // Refresh failed, clean session and redirect to login if we are in browser
+        clearAuthStorage();
+        if (window.location.pathname !== "/login") {
+          window.location.href = `/login?expired=1`;
+        }
+      }
+    }
+
+    return res;
+  }
+
   /** Parse response and throw on HTTP error or backend failure */
   private async handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
     const text = await res.text();
 
     if (!text) {
-      // Some DELETE responses return 204 No Content
       if (res.status === 204 || res.ok) {
         return { isSuccess: true, statusCode: res.status, message: "OK", data: undefined as T };
       }
@@ -70,48 +117,40 @@ class ApiClient {
       if (qs) url += `?${qs}`;
     }
 
-    const res = await fetch(url, {
-      method: "GET",
-      headers: this.getHeaders(),
-    });
-
+    const res = await this.fetchWithAuth(url, { method: "GET" });
     return this.handleResponse<T>(res);
   }
 
-  public async post<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
-    const res = await fetch(`${this.baseUrl}${endpoint}`, {
+  public async post<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+    const res = await this.fetchWithAuth(`${this.baseUrl}${endpoint}`, {
       method: "POST",
-      headers: this.getHeaders(),
-      body: JSON.stringify(body),
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
 
     return this.handleResponse<T>(res);
   }
 
-  public async put<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
-    const res = await fetch(`${this.baseUrl}${endpoint}`, {
+  public async put<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+    const res = await this.fetchWithAuth(`${this.baseUrl}${endpoint}`, {
       method: "PUT",
-      headers: this.getHeaders(),
-      body: JSON.stringify(body),
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
 
     return this.handleResponse<T>(res);
   }
 
-  public async patch<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
-    const res = await fetch(`${this.baseUrl}${endpoint}`, {
+  public async patch<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+    const res = await this.fetchWithAuth(`${this.baseUrl}${endpoint}`, {
       method: "PATCH",
-      headers: this.getHeaders(),
-      body: JSON.stringify(body),
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
 
     return this.handleResponse<T>(res);
   }
 
   public async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    const res = await fetch(`${this.baseUrl}${endpoint}`, {
+    const res = await this.fetchWithAuth(`${this.baseUrl}${endpoint}`, {
       method: "DELETE",
-      headers: this.getHeaders(),
     });
 
     return this.handleResponse<T>(res);
